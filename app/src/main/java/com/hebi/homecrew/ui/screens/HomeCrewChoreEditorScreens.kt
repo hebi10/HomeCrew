@@ -100,11 +100,12 @@ fun HomeCrewChoreFormScreen(
     onAssignment: () -> Unit,
     onSave: () -> Unit,
     onBack: () -> Unit,
-    error: String?
+    error: String?,
+    baseline: Map<String, Int> = emptyMap()
 ) {
     val context = LocalContext.current
     val palette = LocalHomeCrewColors.current
-    val preview = previewDraftInstances(draft, today, daysAhead = 370).take(3)
+    val preview = previewDraftInstances(draft, today, baseline, daysAhead = 370).take(3)
     ChoreSubpageLayout(
         title = if (draft.editingId == null) "집안일 추가" else "집안일 수정",
         subtitle = "내용을 입력하고 반복·담당 방식을 설정하세요.",
