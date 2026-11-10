@@ -3,6 +3,8 @@ package com.hebi.homecrew.ui.screens
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -40,7 +42,9 @@ fun HomeCrewHomeScreen(
     onDetails: (DemoChore) -> Unit,
     onAdd: () -> Unit,
     onOpenDesignSystem: () -> Unit,
-    onCycleTheme: () -> Unit
+    onCycleTheme: () -> Unit,
+    householdName: String = "우리 집",
+    members: List<String> = listOf("나", "지민")
 ) {
     val palette = LocalHomeCrewColors.current
     val todayChores = tasksForDay(chores, today)
@@ -60,7 +64,7 @@ fun HomeCrewHomeScreen(
     ) {
         item {
             ScreenHeader(
-                title = "우리 집",
+                title = householdName,
                 subtitle = "${koreanDateLabel(today)} · 오늘"
             ) {
                 IconButton(onClick = onCycleTheme) {
@@ -85,8 +89,11 @@ fun HomeCrewHomeScreen(
                     style = MaterialTheme.typography.labelLarge,
                     color = palette.muted
                 )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf("나", "지민").forEach { name ->
+                Row(
+                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    members.forEach { name ->
                         HomeCrewFilterChip(
                             label = name,
                             selected = currentMember == name,
