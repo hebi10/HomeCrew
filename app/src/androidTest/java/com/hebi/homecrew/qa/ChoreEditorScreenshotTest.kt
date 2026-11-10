@@ -30,6 +30,7 @@ class ChoreEditorScreenshotTest {
 
     private fun screenshot(name: String) {
         device.waitForIdle()
+        Thread.sleep(250)
         assertTrue(device.takeScreenshot(File(outputDirectory(), "$name.png")))
     }
 
@@ -57,9 +58,30 @@ class ChoreEditorScreenshotTest {
 
     private fun awaitScreen(title: String) {
         val node = device.wait(Until.findObject(By.desc("화면 제목: $title")), 12_000)
-        if (node == null) screenshot("error-1d-screen")
+        if (node == null) {
+            screenshot("error-1d-screen")
+            device.dumpWindowHierarchy(File(outputDirectory(), "error-1d-hierarchy.xml"))
+        }
         requireNotNull(node) { "화면 전환 실패: $title" }
         device.waitForIdle()
+    }
+
+    private fun openEditorSubpage(description: String, title: String) {
+        val button = device.wait(Until.findObject(By.desc(description)), 7_000)
+            ?: run {
+                device.swipe(
+                    device.displayWidth / 2, device.displayHeight * 3 / 4,
+                    device.displayWidth / 2, device.displayHeight / 3, 18
+                )
+                device.wait(Until.findObject(By.desc(description)), 7_000)
+            }
+        if (button == null) {
+            screenshot("error-1d-navigation")
+            device.dumpWindowHierarchy(File(outputDirectory(), "error-1d-hierarchy.xml"))
+        }
+        val bounds = requireNotNull(button) { "하위 화면 버튼 없음: $description" }.visibleBounds
+        device.click(bounds.centerX(), bounds.centerY())
+        awaitScreen(title)
     }
 
     private fun completeSetupIfNeeded() {
@@ -89,14 +111,12 @@ class ChoreEditorScreenshotTest {
         requireNotNull(validation) { "필수 이름 검증이 동작하지 않습니다." }
         screenshot("08-chore-add-error")
 
-        press("반복 설정")
-        awaitScreen("반복 설정")
+        openEditorSubpage("반복 설정 열기", "반복 설정")
         screenshot("09-chore-repeat")
         press("반복 설정 적용")
         awaitScreen("집안일 추가")
 
-        press("담당 방식 설정")
-        awaitScreen("담당 방식")
+        openEditorSubpage("담당 방식 설정 열기", "담당 방식")
         screenshot("10-chore-assignment")
         press("담당 방식 적용")
         awaitScreen("집안일 추가")
