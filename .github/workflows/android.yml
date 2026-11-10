@@ -46,4 +46,5 @@ jobs:
             app/build/reports/
             app/build/test-results/
             app/build/outputs/apk/debug/*.apk
+            app/schemas/**/*.json
           if-no-files-found: ignore
