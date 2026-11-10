@@ -48,6 +48,8 @@ class HomeCrewLocalDataScreenshotTest {
         val output = File(dir, "screen-qa").also { assertTrue(it.exists() || it.mkdirs()) }
         assertTrue(device.takeScreenshot(File(output, "13-local-backup-restore.png")))
         requireNotNull(device.wait(Until.findObject(By.text("이전")), 4_000)).click()
-        requireNotNull(device.wait(Until.findObject(By.desc("화면 제목: 집안일")), 12_000))
+        requireNotNull(device.wait(Until.findObject(By.desc("집안일 탭")), 12_000)) {
+            "데이터 관리에서 목록으로 복귀하지 못했습니다."
+        }
     }
 }
