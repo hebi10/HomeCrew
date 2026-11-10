@@ -75,6 +75,16 @@ fun HomeCrewMainScreens(
     var formError by rememberSaveable { mutableStateOf<String?>(null) }
     var confirmDiscard by rememberSaveable { mutableStateOf(false) }
 
+    LaunchedEffect(page, editor) {
+        if (page in listOf(ChorePage.FORM, ChorePage.REPEAT, ChorePage.ASSIGNMENT)
+            && editor == null
+        ) {
+            page = ChorePage.MAIN
+            formError = null
+            confirmDiscard = false
+        }
+    }
+
     fun finishEditor() {
         viewModel.discardDraft()
         formError = null
@@ -236,7 +246,8 @@ fun HomeCrewMainScreens(
                         }
                     },
                     onBack = ::requestFormBack,
-                    error = formError
+                    error = formError,
+                    baseline = workloadBaseline(chores, draft, currentDate)
                 )
             }
         }
@@ -258,9 +269,7 @@ fun HomeCrewMainScreens(
         ChorePage.ASSIGNMENT -> {
             val draft = editor
             if (draft != null) {
-                val baseline = chores.filter { it.definition.id != draft.editingId }
-                    .groupBy { it.definition.owner }
-                    .mapValues { (_, items) -> items.sumOf { it.definition.points } }
+                val baseline = workloadBaseline(chores, draft, currentDate)
                 HomeCrewAssignmentScreen(
                     initial = draft.assignment,
                     members = memberNames,
