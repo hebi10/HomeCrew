@@ -19,6 +19,8 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hebi.homecrew.ui.components.HomeCrewBottomBar
 import com.hebi.homecrew.ui.components.HomeTab
+import com.hebi.homecrew.ui.setup.HouseholdSetup
+import com.hebi.homecrew.ui.setup.previewChoresForSetup
 import com.hebi.homecrew.ui.theme.LocalHomeCrewColors
 import com.hebi.homecrew.ui.theme.ThemeMode
 import kotlinx.coroutines.launch
@@ -28,17 +30,29 @@ fun HomeCrewMainScreens(
     themeMode: ThemeMode,
     onThemeModeChange: (ThemeMode) -> Unit,
     onOpenDesignSystem: () -> Unit,
+    householdSetup: HouseholdSetup? = null,
     viewModel: DemoChoreViewModel = viewModel()
 ) {
     val palette = LocalHomeCrewColors.current
-    val chores by viewModel.chores.collectAsState()
+    val originalChores by viewModel.chores.collectAsState()
     val currentDate = viewModel.today
+    var setupChores by remember(householdSetup) {
+        mutableStateOf(householdSetup?.let { previewChoresForSetup(it, currentDate) })
+    }
+    val chores = setupChores ?: originalChores
+    val memberNames = householdSetup?.members ?: listOf("나", "지민")
+    val toggleCompleted: (String) -> Unit = { id ->
+        if (householdSetup == null) viewModel.toggleCompleted(id)
+        else setupChores = setupChores?.map { task ->
+            if (task.id == id) task.copy(completed = !task.completed) else task
+        }
+    }
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val saveableStateHolder = rememberSaveableStateHolder()
 
     var tab by rememberSaveable { mutableStateOf(HomeTab.HOME) }
-    var currentMember by rememberSaveable { mutableStateOf("나") }
+    var currentMember by rememberSaveable { mutableStateOf(householdSetup?.defaultMember ?: "나") }
     var detailId by rememberSaveable { mutableStateOf<String?>(null) }
 
     val showAddInfo = {
@@ -67,18 +81,20 @@ fun HomeCrewMainScreens(
                         currentMember = currentMember,
                         themeMode = themeMode,
                         onMemberSelected = { currentMember = it },
-                        onToggle = viewModel::toggleCompleted,
+                        onToggle = toggleCompleted,
                         onDetails = { detailId = it.id },
                         onAdd = showAddInfo,
                         onOpenDesignSystem = onOpenDesignSystem,
                         onCycleTheme = {
                             onThemeModeChange(ThemeMode.entries[(themeMode.ordinal + 1) % ThemeMode.entries.size])
-                        }
+                        },
+                        householdName = householdSetup?.homeName ?: "우리 집",
+                        members = memberNames
                     )
                     HomeTab.SCHEDULE -> HomeCrewScheduleScreen(
                         today = currentDate,
                         chores = chores,
-                        onToggle = viewModel::toggleCompleted,
+                        onToggle = toggleCompleted,
                         onDetails = { detailId = it.id }
                     )
                     HomeTab.CHORES -> HomeCrewChoresScreen(
@@ -89,7 +105,8 @@ fun HomeCrewMainScreens(
                     )
                     HomeTab.STATS -> HomeCrewStatsScreen(
                         today = currentDate,
-                        chores = chores
+                        chores = chores,
+                        members = memberNames
                     )
                 }
             }

@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -25,6 +26,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 import com.hebi.homecrew.ui.gallery.HomeCrewDesignSystemGallery
+import com.hebi.homecrew.ui.setup.HomeCrewSetupFlow
+import com.hebi.homecrew.ui.setup.LocalHouseholdStore
 import com.hebi.homecrew.ui.screens.HomeCrewMainScreens
 import com.hebi.homecrew.ui.theme.HomeCrewTheme
 import com.hebi.homecrew.ui.theme.LocalHomeCrewColors
@@ -36,6 +39,8 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         setContent {
+            val localStore = remember { LocalHouseholdStore(applicationContext) }
+            var household by remember { mutableStateOf(localStore.load()) }
             var selectedTheme by rememberSaveable { mutableStateOf(ThemeMode.SYSTEM) }
             var showingDesignSystem by rememberSaveable { mutableStateOf(false) }
             val darkTheme = when (selectedTheme) {
@@ -74,11 +79,18 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                     }
+                } else if (household == null) {
+                    HomeCrewSetupFlow(onFinished = { setup ->
+                        val saved = localStore.save(setup)
+                        if (saved) household = setup
+                        saved
+                    })
                 } else {
                     HomeCrewMainScreens(
                         themeMode = selectedTheme,
                         onThemeModeChange = { selectedTheme = it },
-                        onOpenDesignSystem = { showingDesignSystem = true }
+                        onOpenDesignSystem = { showingDesignSystem = true },
+                        householdSetup = household
                     )
                 }
             }
