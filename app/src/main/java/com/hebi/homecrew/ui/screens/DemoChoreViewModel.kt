@@ -57,12 +57,7 @@ class DemoChoreViewModel : ViewModel() {
         if (validationError(draft, members) != null) return null
         val id = draft.editingId ?: "custom-${UUID.randomUUID()}"
         val existing = _chores.value
-        val baseline = existing.filter { task ->
-            task.definition.id != id && !task.date.isBefore(today) &&
-                task.date.isBefore(today.plusDays(7))
-        }.groupBy { it.definition.owner }.mapValues { (_, tasks) ->
-            tasks.sumOf { it.definition.points }
-        }
+        val baseline = workloadBaseline(existing, draft, today)
         val instances = previewDraftInstances(draft.copy(editingId = id), today, baseline)
         val retained = existing.filter { chore ->
             chore.definition.id != id || chore.completed || chore.date.isBefore(today)
