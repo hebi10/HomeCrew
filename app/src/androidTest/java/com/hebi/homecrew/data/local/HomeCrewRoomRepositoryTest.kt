@@ -222,7 +222,7 @@ class HomeCrewRoomRepositoryTest {
         recreated.configureHousehold(household)
         withTimeout(10_000) { recreated.configuredHousehold.filterNotNull().first() }
         assertEquals(1, recreated.definitions.value.count { it.id == saved.id })
-        assertEquals(1, recreated.chores.value.count { it.date == today && it.definition.id == saved.id })
+        assertEquals(1, recreated.chores.value.count { it.date == first.today && it.definition.id == saved.id })
 
         first.acknowledgeEditorSave()
         assertNull(first.editor.value)
