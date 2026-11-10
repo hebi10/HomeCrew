@@ -29,6 +29,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -122,16 +123,19 @@ fun HomeCrewSetupFlow(
                         Text("템플릿 없이 건너뛰기")
                     }
                 }
-                HomeCrewPrimaryButton(
-                    text = when (step) {
-                        0 -> "시작하기"
-                        1, 2 -> "다음"
-                        else -> if (selectedIds.isEmpty()) "건너뛰고 홈 보기"
-                        else "선택한 집안일로 시작"
-                    },
-                    onClick = ::next,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                val primaryLabel = when (step) {
+                    0 -> "시작하기"
+                    1, 2 -> "다음"
+                    else -> if (selectedIds.isEmpty()) "건너뛰고 홈 보기"
+                    else "선택한 집안일로 시작"
+                }
+                key(step, primaryLabel) {
+                    HomeCrewPrimaryButton(
+                        text = primaryLabel,
+                        onClick = ::next,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
                 if (error != null) {
                     Text(
                         text = requireNotNull(error),
@@ -189,7 +193,7 @@ fun HomeCrewSetupFlow(
                         }
                     }
                     Text(
-                        "로그인이나 초대 없이 시작합니다. 초기 설정은 이 기기에 저장되며, 집안일 실행 내역은 현재 시연용입니다.",
+                        "로그인이나 초대 없이 시작합니다. 집 설정과 집안일·완료 기록은 이 기기에 저장되며, 다른 기기와 공유되지 않습니다.",
                         style = MaterialTheme.typography.bodySmall,
                         color = palette.muted
                     )
@@ -360,7 +364,7 @@ fun HomeCrewSetupFlow(
                         }
                     }
                     Text(
-                        "선택한 작업은 시연 데이터로 표시됩니다. 실제 반복 일정·완료 이력 저장은 후속 단계에서 구현합니다.",
+                        "선택한 집안일과 반복 일정·완료 기록은 이 기기에 저장됩니다. 담당 방식과 반복 설정은 나중에 수정할 수 있습니다.",
                         style = MaterialTheme.typography.bodySmall,
                         color = palette.muted
                     )

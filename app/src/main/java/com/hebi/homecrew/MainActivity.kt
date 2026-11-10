@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.SideEffect
@@ -60,7 +61,9 @@ class MainActivity : ComponentActivity() {
                 if (showingDesignSystem) {
                     val palette = LocalHomeCrewColors.current
                     BackHandler { showingDesignSystem = false }
-                    Column(modifier = Modifier.fillMaxSize()) {
+                    Column(
+                        modifier = Modifier.fillMaxSize().background(palette.surface).statusBarsPadding()
+                    ) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()

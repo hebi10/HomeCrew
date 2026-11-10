@@ -44,6 +44,7 @@ import com.hebi.homecrew.ui.components.HomeCrewTextField
 import com.hebi.homecrew.ui.theme.HomeCrewDimensions
 import com.hebi.homecrew.ui.theme.HomeCrewTheme
 import com.hebi.homecrew.ui.theme.LocalHomeCrewColors
+import com.hebi.homecrew.ui.theme.homeCrewPlatformPickerTheme
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.util.Locale
@@ -106,6 +107,7 @@ fun HomeCrewChoreFormScreen(
     baseline: Map<String, Int> = emptyMap()
 ) {
     val context = LocalContext.current
+    val pickerTheme = homeCrewPlatformPickerTheme()
     val palette = LocalHomeCrewColors.current
     val preview = previewDraftInstances(draft, today, baseline, daysAhead = 370).take(3)
     ChoreSubpageLayout(
@@ -201,6 +203,7 @@ fun HomeCrewChoreFormScreen(
                     val start = draft.startDate
                     DatePickerDialog(
                         context,
+                        pickerTheme,
                         { _, year, month, day ->
                             onChange(draft.copy(startDate = LocalDate.of(year, month + 1, day)))
                         },
@@ -217,6 +220,7 @@ fun HomeCrewChoreFormScreen(
                     val minute = components.getOrNull(1)?.toIntOrNull() ?: 0
                     TimePickerDialog(
                         context,
+                        pickerTheme,
                         { _, h, m ->
                             onChange(draft.copy(time = String.format(Locale.US, "%02d:%02d", h, m)))
                         },

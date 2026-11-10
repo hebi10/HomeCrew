@@ -4,4 +4,33 @@
         <item name="android:windowLightStatusBar">true</item>
         <item name="android:windowActionModeOverlay">true</item>
     </style>
+    <style name="Theme.HomeCrew.Picker.Light" parent="android:style/Theme.Material.Light.Dialog.Alert">
+        <item name="android:windowMinWidthMajor">0dp</item>
+        <item name="android:windowMinWidthMinor">0dp</item>
+        <item name="android:colorAccent">#171717</item>
+        <item name="android:colorControlActivated">#171717</item>
+        <item name="android:colorBackground">#FFFFFF</item>
+        <item name="android:colorBackgroundFloating">#FFFFFF</item>
+        <item name="android:textColorPrimary">#171717</item>
+        <item name="android:textColorSecondary">#717171</item>
+        <item name="android:windowBackground">@drawable/homecrew_picker_background</item>
+        <item name="android:windowElevation">0dp</item>
+    </style>
+    <style name="Theme.HomeCrew.Picker.Dark" parent="android:style/Theme.Material.Dialog.Alert">
+        <item name="android:windowMinWidthMajor">0dp</item>
+        <item name="android:windowMinWidthMinor">0dp</item>
+        <item name="android:colorAccent">#F5F5F5</item>
+        <item name="android:colorControlActivated">#F5F5F5</item>
+        <item name="android:colorBackground">#1E1E1E</item>
+        <item name="android:colorBackgroundFloating">#1E1E1E</item>
+        <item name="android:textColorPrimary">#F5F5F5</item>
+        <item name="android:textColorSecondary">#A3A3A3</item>
+        <item name="android:timePickerStyle">@style/Widget.HomeCrew.TimePicker.Dark</item>
+        <item name="android:windowBackground">@drawable/homecrew_picker_background</item>
+        <item name="android:windowElevation">0dp</item>
+    </style>
+    <style name="Widget.HomeCrew.TimePicker.Dark" parent="android:style/Widget.Material.TimePicker">
+        <item name="android:numbersBackgroundColor">#262626</item>
+        <item name="android:numbersInnerTextColor">@color/homecrew_picker_inner_numbers_dark</item>
+    </style>
 </resources>

@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
@@ -15,6 +16,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -57,7 +59,7 @@ fun HomeCrewChoreDetailScreen(
         contentColor = palette.ink
     ) {
         LazyColumn(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxSize().safeDrawingPadding(),
         contentPadding = PaddingValues(
             horizontal = HomeCrewDimensions.screenPadding,
             vertical = HomeCrewDimensions.space24
@@ -95,11 +97,14 @@ fun HomeCrewChoreDetailScreen(
                             "담당: ${selected.definition.owner}",
                             style = MaterialTheme.typography.bodyMedium
                         )
-                        HomeCrewPrimaryButton(
-                            text = if (selected.completed) "이 회차 완료 취소" else "이 회차 완료 처리",
-                            onClick = { onToggle(selected.id) },
-                            modifier = Modifier.fillMaxWidth()
-                        )
+                        val actionLabel = if (selected.completed) "이 회차 완료 취소" else "이 회차 완료 처리"
+                        key(selected.id, actionLabel) {
+                            HomeCrewPrimaryButton(
+                                text = actionLabel,
+                                onClick = { onToggle(selected.id) },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
                     }
                 }
             }
