@@ -100,6 +100,36 @@ class ChoreEditingTest {
     }
 
     @Test
+    fun roundRobinUsesDisplayedMemberOrderNotCheckboxClickOrder() {
+        val selectedByClick = listOf("민수", "지민")
+        val ordered = orderedParticipants(selectedByClick, members)
+        assertEquals(listOf("지민", "민수"), ordered)
+        assertEquals(
+            listOf("지민", "민수", "지민"),
+            assignedOwners(ChoreAssignment(ChoreAssignmentMode.ROUND_ROBIN, ordered), 3, 2)
+        )
+
+        val model = DemoChoreViewModel()
+        model.configureHousehold(HouseholdSetup("우리 집", members, "나", emptyList()))
+        model.openEditor(null, members)
+        model.editDraft {
+            it.copy(
+                name = "순번 배정",
+                repeat = ChoreRepeat(ChoreRepeatMode.DAILY),
+                assignment = ChoreAssignment(ChoreAssignmentMode.ROUND_ROBIN, selectedByClick)
+            )
+        }
+        assertNotNull(model.saveEditor(members))
+        assertEquals(
+            listOf("지민", "민수", "지민"),
+            (0L..2L).map { days ->
+                tasksForDay(model.chores.value, model.today.plusDays(days))
+                    .single().definition.owner
+            }
+        )
+    }
+
+    @Test
     fun viewModelCreatesEditsAndDeletesSessionChore() {
         val model = DemoChoreViewModel()
         model.configureHousehold(HouseholdSetup("우리 집", members, "나", emptyList()))
