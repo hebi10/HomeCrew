@@ -1,36 +1,51 @@
 # HomeCrew
 
-가족·연인·동거인의 집안일을 분담하고 반복 일정 및 완료율을 관리하기 위한 Android 앱입니다.
+집안일 분담, 반복 일정 및 완료율을 관리하기 위한 Android 앱입니다.
 
-## 현재 단계 — 1-A 공통 디자인 시스템
+## 현재 단계 — 1-B 네 개 메인 화면
 
-`Kotlin + Jetpack Compose` 기반의 실행 가능한 **디자인 컴포넌트 갤러리**를 제공합니다. 앱에서 시스템/라이트/다크 테마, 중립 컬러, 타이포그래피, 버튼, 필터, 입력창, 집안일 카드, 진행률 및 하단 4탭을 미리 확인할 수 있습니다.
+Kotlin + Jetpack Compose 기반으로 **홈·일정·집안일·통계** 네 화면을 구현했습니다. 기존 1-A 디자인 시스템과 라이트·다크 테마를 유지합니다.
 
-**현재 데모 화면의 집안일은 저장되지 않습니다.** 실제 로컬 CRUD·반복 일정·분담 로직은 후속 단계이며, Firebase 로그인·초대·공유는 별도 단계에서 연결합니다.
+- **홈:** 오늘 진행률, 현재 보는 구성원, 빠른 완료/취소, 테마 전환
+- **일정:** 월·주·일 전환, 날짜 선택 및 이동, 일자별 완료 상태
+- **집안일:** 이름 검색, 카테고리·상태 필터, 반복 작업 목록
+- **통계:** 주·월 완료율, 완료 개수, 배정/완료 난이도, 주간 차트, 구성원 비교
 
-- [1-A 디자인 및 구현 기준](docs/design-system-1a.md)
-- [Drive 시안 보드](https://drive.google.com/file/d/1Hr627UN6f-MJb2iDjO_3-5rByqs5IfKa/view?usp=drivesdk)
-- [Drive HomeCrew 프로젝트 폴더](https://drive.google.com/drive/folders/16xQAcSuTapJ-D8sUdJBUJvfCtBIdo_Tx)
+**주의:** 현재 실행 화면은 예시 데이터 기반이며, 실제 집안일 등록·수정·저장, 반복 자동 생성, Firebase 로그인/공유는 구현하지 않았습니다. 완료 체크와 필터 동작은 앱 실행 중 메모리 상태에만 반영됩니다.
 
-## 구조
+- [1-A 공통 디자인 시스템](docs/design-system-1a.md)
+- [1-B 화면별 구현/검증 기준](docs/screen-design-1b.md)
+- [1-B 시안 이미지](docs/design/02-homecrew-main-screens.png)
+- [HomeCrew Google Drive](https://drive.google.com/drive/folders/16xQAcSuTapJ-D8sUdJBUJvfCtBIdo_Tx)
+
+## 소스 구조
 
 ```text
 app/src/main/java/com/hebi/homecrew/
-  MainActivity.kt
-  ui/theme/          # 색상, 폰트, 간격, 라이트·다크
-  ui/components/     # 재사용 Compose 컴포넌트
-  ui/gallery/        # 1-A 디자인 확인 화면
-  ui/model/          # 갤러리 전용 프리뷰 모델
-app/src/test/        # 계산 로직 단위 테스트
-docs/design/         # 기준 PNG
-.github/workflows/   # Android CI
+├── MainActivity.kt                  # 4개 화면 진입점 및 1-A 갤러리
+└── ui/
+    ├── theme/                       # 1-A 공통 토큰과 테마
+    ├── components/                  # 재사용 Compose 컴포넌트
+    ├── gallery/                     # 1-A 디자인 시스템 미리보기
+    ├── model/                       # 공통 Preview 모델
+    └── screens/
+        ├── HomeCrewMainScreens.kt   # 탭/공유 예시 상태
+        ├── HomeCrewHomeScreen.kt
+        ├── HomeCrewScheduleScreen.kt
+        ├── HomeCrewChoresScreen.kt
+        ├── HomeCrewStatsScreen.kt
+        ├── HomeCrewScreenParts.kt
+        ├── DemoChore.kt
+        ├── DemoChoreViewModel.kt
+        └── DateLabels.kt
 ```
 
-## 개발 환경
+## 개발 및 검증
 
-- Java 17, Gradle 8.13, AGP 8.13.2, Kotlin 2.2.21, compile/target SDK 36
-- Android 8.0 이상(minSdk 26)
-- Android Studio 또는 Gradle CLI
+- Java 17, Gradle 8.13, AGP 8.13.2, Kotlin 2.2.21, Android SDK 36
+- minSdk 26(Android 8.0 이상)
+
+Unix/macOS:
 
 ```bash
 ./gradlew testDebugUnitTest lintDebug assembleDebug
@@ -42,11 +57,11 @@ Windows PowerShell:
 .\gradlew.bat testDebugUnitTest lintDebug assembleDebug
 ```
 
-Debug APK: `app/build/outputs/apk/debug/app-debug.apk`. GitHub Actions `Android CI`도 PR과 main 커밋에서 같은 검증을 실행하고, 아티팩트를 저장합니다.
+빌드 산출물: `app/build/outputs/apk/debug/app-debug.apk`. GitHub Actions `Android CI`도 PR 및 `main`에서 해당 검증을 실행하며 디버그 APK/리포트를 아티팩트로 업로드합니다.
 
-## 기여 및 배포 원칙
+## 변경 관리
 
-- 기능 변경은 독립 브랜치 및 PR로 관리합니다. CI 통과·화면 검수 이후 main 반영.
-- 디자인 문서는 Drive와 Git `docs/`를 기준으로 추적합니다.
-- 서명키, 인증 토큰, `.env`, `signing.properties`는 저장소에 등록하지 않습니다.
-- Google Play 릴리스 자동화는 앱 기능 구현 및 서명/스토어 준비 이후에만 설정합니다.
+- 코드·테스트·CI·디자인 참고 이미지는 GitHub PR로 관리합니다.
+- 기획 원본과 이미지 시안은 Google Drive에 함께 보관합니다.
+- 서명키와 인증정보는 GitHub에 커밋하지 않습니다.
+- Firebase와 Play 배포 자동화는 별도 구현 및 검증 단계에서 진행합니다.
