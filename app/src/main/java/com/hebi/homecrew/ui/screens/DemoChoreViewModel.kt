@@ -55,10 +55,13 @@ class DemoChoreViewModel : ViewModel() {
     fun saveEditor(members: List<String>): String? {
         val draft = _editor.value ?: return null
         if (validationError(draft, members) != null) return null
+        val orderedDraft = draft.copy(assignment = draft.assignment.copy(
+            members = orderedParticipants(draft.assignment.members, members)
+        ))
         val id = draft.editingId ?: "custom-${UUID.randomUUID()}"
         val existing = _chores.value
         val baseline = workloadBaseline(existing, draft, today)
-        val instances = previewDraftInstances(draft.copy(editingId = id), today, baseline)
+        val instances = previewDraftInstances(orderedDraft.copy(editingId = id), today, baseline)
         val retained = existing.filter { chore ->
             chore.definition.id != id || chore.completed || chore.date.isBefore(today)
         }
@@ -67,10 +70,10 @@ class DemoChoreViewModel : ViewModel() {
             .sortedWith(compareBy({ it.date }, { it.definition.time }, { it.id }))
         val definition = instances.firstOrNull()?.definition ?: ChoreDefinition(
             id = id, name = draft.name.trim(), category = draft.category,
-            owner = draft.assignment.members.first(),
+            owner = orderedDraft.assignment.members.first(),
             repeat = repeatDescription(draft.repeat), points = draft.points,
             time = draft.time, description = draft.description.trim(),
-            recurrence = draft.repeat, assignment = draft.assignment, startDate = draft.startDate
+            recurrence = draft.repeat, assignment = orderedDraft.assignment, startDate = draft.startDate
         )
         _definitions.update { current ->
             if (current.any { it.id == id }) current.map { if (it.id == id) definition else it }
