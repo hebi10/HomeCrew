@@ -7,6 +7,14 @@ import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
 
 @Dao
+data class HomeCrewRows(
+    val definitions: List<ChoreDefinitionEntity>,
+    val members: List<ChoreAssignmentMemberEntity>,
+    val occurrences: List<ChoreOccurrenceEntity>
+)
+
+private const val SEED_KEY = "homecrew.initial_household.v1"
+
 abstract class HomeCrewDao {
     @Query("SELECT * FROM chore_definitions ORDER BY name COLLATE NOCASE, id")
     abstract fun observeDefinitions(): Flow<List<ChoreDefinitionEntity>>
@@ -16,6 +24,18 @@ abstract class HomeCrewDao {
 
     @Query("SELECT * FROM chore_occurrences ORDER BY scheduledEpochDay, id")
     abstract fun observeOccurrences(): Flow<List<ChoreOccurrenceEntity>>
+
+    @Query("SELECT * FROM chore_definitions")
+    abstract suspend fun listDefinitions(): List<ChoreDefinitionEntity>
+
+    @Query("SELECT * FROM chore_assignment_members ORDER BY definitionId, position")
+    abstract suspend fun listAssignmentMembers(): List<ChoreAssignmentMemberEntity>
+
+    @Query("SELECT * FROM chore_occurrences ORDER BY scheduledEpochDay, id")
+    abstract suspend fun listOccurrences(): List<ChoreOccurrenceEntity>
+
+    @Query("SELECT * FROM chore_occurrences WHERE id = :id LIMIT 1")
+    abstract suspend fun findOccurrence(id: String): ChoreOccurrenceEntity?
 
     @Query("SELECT * FROM chore_definitions WHERE id = :id LIMIT 1")
     abstract suspend fun findDefinition(id: String): ChoreDefinitionEntity?
@@ -28,6 +48,9 @@ abstract class HomeCrewDao {
 
     @Upsert
     abstract suspend fun upsertDefinition(value: ChoreDefinitionEntity)
+
+    @Upsert
+    abstract suspend fun upsertDefinitions(values: List<ChoreDefinitionEntity>)
 
     @Upsert
     abstract suspend fun upsertAssignmentMembers(values: List<ChoreAssignmentMemberEntity>)
@@ -64,6 +87,28 @@ abstract class HomeCrewDao {
         completedAtEpochMillis: Long?,
         completedBy: String?
     ): Int
+
+    @Transaction
+    open suspend fun readRows(): HomeCrewRows = HomeCrewRows(
+        definitions = listDefinitions(),
+        members = listAssignmentMembers(),
+        occurrences = listOccurrences()
+    )
+
+    @Transaction
+    open suspend fun seedOnce(
+        definitions: List<ChoreDefinitionEntity>,
+        members: List<ChoreAssignmentMemberEntity>,
+        occurrences: List<ChoreOccurrenceEntity>
+    ) {
+        if (readState(SEED_KEY) != null) return
+        if (listDefinitions().isEmpty()) {
+            upsertDefinitions(definitions)
+            upsertAssignmentMembers(members)
+            upsertOccurrences(occurrences)
+        }
+        upsertState(AppStateEntity(SEED_KEY, "1"))
+    }
 
     @Transaction
     open suspend fun saveSchedule(
