@@ -15,6 +15,7 @@ Kotlin + Jetpack Compose 기반으로 **홈·일정·집안일·통계** 네 화
 
 - [1-A 공통 디자인 시스템](docs/design-system-1a.md)
 - [1-B 화면별 구현/검증 기준](docs/screen-design-1b.md)
+- [1-D 집안일 등록·반복·담당·상세 화면](docs/screen-design-1d.md)
 - [1-B 시안 이미지](docs/design/02-homecrew-main-screens.png)
 - [HomeCrew Google Drive](https://drive.google.com/drive/folders/16xQAcSuTapJ-D8sUdJBUJvfCtBIdo_Tx)
 
