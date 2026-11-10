@@ -57,6 +57,7 @@ class ChoreEditorScreenshotTest {
     }
 
     private fun awaitScreen(title: String) {
+        device.dismissLauncherAnr()
         val node = device.wait(Until.findObject(By.desc("화면 제목: $title")), 12_000)
         if (node == null) {
             screenshot("error-1d-screen")
@@ -99,6 +100,7 @@ class ChoreEditorScreenshotTest {
     }
 
     private fun completeSetupIfNeeded() {
+        device.dismissLauncherAnr()
         if (device.wait(Until.findObject(By.text("시작하기")), 2_000) != null) {
             press("시작하기")
             press("다음")
