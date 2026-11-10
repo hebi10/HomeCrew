@@ -34,8 +34,19 @@ class ChoreEditorScreenshotTest {
     }
 
     private fun press(text: String) {
-        val node = device.wait(Until.findObject(By.text(text)), 12_000)
-            ?: device.wait(Until.findObject(By.desc(text)), 4_000)
+        var node = device.wait(Until.findObject(By.text(text)), 4_000)
+            ?: device.wait(Until.findObject(By.desc(text)), 2_000)
+        repeat(4) {
+            if (node == null) {
+                device.swipe(
+                    device.displayWidth / 2, device.displayHeight * 3 / 4,
+                    device.displayWidth / 2, device.displayHeight / 3, 18
+                )
+                device.waitForIdle()
+                node = device.wait(Until.findObject(By.text(text)), 1_500)
+                    ?: device.wait(Until.findObject(By.desc(text)), 1_000)
+            }
+        }
         if (node == null) {
             screenshot("error-1d-button")
             device.dumpWindowHierarchy(File(outputDirectory(), "error-1d.xml"))
@@ -64,7 +75,10 @@ class ChoreEditorScreenshotTest {
     @Test
     fun captureFourChorePagesAndValidation() {
         completeSetupIfNeeded()
-        press("+ 집안일 추가")
+        val choresTab = device.wait(Until.findObject(By.desc("집안일 탭")), 12_000)
+        requireNotNull(choresTab) { "집안일 하단 탭을 찾을 수 없습니다." }.click()
+        awaitScreen("집안일")
+        press("집안일 추가")
         awaitScreen("집안일 추가")
         screenshot("08-chore-add")
 
@@ -88,7 +102,7 @@ class ChoreEditorScreenshotTest {
         awaitScreen("집안일 추가")
 
         press("이전")
-        awaitScreen("우리 집")
+        awaitScreen("집안일")
         press("설거지")
         awaitScreen("설거지")
         screenshot("11-chore-detail")
