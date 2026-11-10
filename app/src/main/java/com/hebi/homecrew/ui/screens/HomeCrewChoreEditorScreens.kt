@@ -32,6 +32,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -169,7 +171,9 @@ fun HomeCrewChoreFormScreen(
                 HomeCrewSecondaryButton(
                     text = "반복 설정",
                     onClick = onRepeat,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth().semantics {
+                        contentDescription = "반복 설정 열기"
+                    }
                 )
             }
         }
@@ -183,7 +187,9 @@ fun HomeCrewChoreFormScreen(
                 HomeCrewSecondaryButton(
                     text = "담당 방식 설정",
                     onClick = onAssignment,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth().semantics {
+                        contentDescription = "담당 방식 설정 열기"
+                    }
                 )
             }
         }
