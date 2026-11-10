@@ -114,6 +114,9 @@ fun nextChoreDates(
         }.toList()
 }
 
+fun orderedParticipants(selected: List<String>, displayedMembers: List<String>): List<String> =
+    displayedMembers.distinct().filter { it in selected }
+
 fun assignedOwners(
     rule: ChoreAssignment,
     count: Int,
