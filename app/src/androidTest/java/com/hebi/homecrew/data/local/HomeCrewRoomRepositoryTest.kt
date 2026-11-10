@@ -132,6 +132,63 @@ class HomeCrewRoomRepositoryTest {
     }
 
     @Test
+    fun restartAfterInitialHorizonExtendsRotationWithoutOverwritingCompletion() = runBlocking {
+        val household = setup(emptyList())
+        repository.initializeIfNeeded(household, today)
+        val id = repository.save(
+            ChoreEditorDraft(
+                name = "매일 순번",
+                category = "청소",
+                startDate = today,
+                repeat = ChoreRepeat(ChoreRepeatMode.DAILY),
+                assignment = ChoreAssignment(
+                    ChoreAssignmentMode.ROUND_ROBIN, listOf("민수", "지민")
+                )
+            ),
+            members,
+            emptyList(),
+            today
+        )
+        val dayZero = repository.snapshot().chores.first { it.definition.id == id && it.date == today }
+        repository.toggleCompleted(dayZero.id, "나")
+
+        reopenDatabase()
+        repository.initializeIfNeeded(household, today.plusDays(75))
+        val restored = repository.snapshot().chores.filter { it.definition.id == id }
+        assertTrue(restored.any { it.date == today.plusDays(137) })
+        assertEquals(
+            "민수",
+            restored.single { it.date == today.plusDays(75) }.definition.owner
+        )
+        assertTrue(restored.single { it.id == dayZero.id }.completed)
+        assertEquals("나", database.chores().findOccurrence(dayZero.id)?.completedBy)
+    }
+
+    @Test
+    fun farFutureOneTimeTaskAppearsWhenRestartEntersPlanningHorizon() = runBlocking {
+        val household = setup(emptyList())
+        repository.initializeIfNeeded(household, today)
+        val futureDate = today.plusDays(80)
+        val id = repository.save(
+            ChoreEditorDraft(
+                name = "80일 후",
+                category = "생활",
+                startDate = futureDate,
+                assignment = ChoreAssignment(members = listOf("나"))
+            ),
+            members,
+            emptyList(),
+            today
+        )
+        assertTrue(repository.snapshot().chores.none { it.definition.id == id })
+
+        reopenDatabase()
+        repository.initializeIfNeeded(household, today.plusDays(30))
+        val occurrences = repository.snapshot().chores.filter { it.definition.id == id }
+        assertEquals(listOf(futureDate), occurrences.map { it.date })
+    }
+
+    @Test
     fun monthlyLeapDayAndOneTimeSeedMarkerPersist() = runBlocking {
         val household = setup(emptyList())
         val anchor = LocalDate.of(2028, 1, 31)
