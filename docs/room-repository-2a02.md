@@ -9,11 +9,11 @@
 1. 기존 1-C `LocalHouseholdStore`의 공간·구성원 정보를 불러옵니다.
 2. 최초 실행에서만 선택 템플릿을 Room에 원자적으로 생성하고 `app_state`에 `homecrew.initial_household.v1` 마커를 기록합니다.
 3. `HomeCrewRoomRepository`는 정의·배정 참여자 순서·개별 회차를 하나의 `HomeCrewSnapshot`으로 조립합니다.
-4. `DemoChoreViewModel.Factory`가 앱용 Repository를 주입하고 Room Flow를 관찰합니다.
+4. `DemoChoreViewModel.Factory`가 앱용 Repository를 주입하고 Room Flow를 관찰합니다. 저장 중/성공/실패는 ViewModel의 StateFlow에서 관리합니다.
 5. Compose 홈·일정·집안일·통계·상세가 이 상태를 공통 데이터 소스로 사용합니다.
 
 ## 쓰기 및 오류 처리
-- 등록·수정: 입력 검증 → 저장 트랜잭션 → 새 스냅샷 반영 → 상세 이동. 저장에 실패하면 폼의 편집값을 보존합니다.
+- 등록·수정: 입력 검증 → ViewModel 소유 코루틴의 저장 트랜잭션 → 새 스냅샷 반영 → 상세 이동. 화면 회전 중 저장이 이어지고, ID를 재사용해 중복 저장을 방지합니다. 실패 시 입력값을 보존합니다.
 - 완료·취소: 기존 회차를 수정하며 완료 시각과 실제 완료자(현재 보는 구성원)를 DB에 저장합니다. 연속 탭 요청은 ViewModel에서 중복 방지합니다.
 - 반복·담당: 표시 순서 기준 순번제와 기존 업무량 기준 분담을 복원합니다. 저장된 반복 규칙에서 다음 회차를 계산합니다.
 - 수정: 기존 완료 기록/오늘 이전 기록 보존, 미래 미완료 회차만 트랜잭션 교체.
@@ -25,7 +25,8 @@
 - `homecrew.db`는 앱의 로컬 DB입니다. 정상 앱 재시작/Activity 재생성 후 데이터가 유지됩니다.
 - 기존 집 이름·구성원 설정은 1-C `SharedPreferences`를 계속 사용합니다.
 - 앱 삭제·앱 데이터 지우기 시 자료가 삭제될 수 있습니다. 계정 복구·백업·기기 간 공유는 제공하지 않습니다.
-- 일정 선생성 범위는 기존 1-D와 같이 현재일부터 62일입니다. 장기 자동 보충, 지나간 일정 재생성, 건너뛰기 UI, DB 스키마 migration/export는 2-A-03에서 다룹니다.
+- 예정 회차는 현재일부터 62일을 선생성하며, 앱을 다시 열면 앞으로 62일의 누락 회차를 추가합니다. 장시간 앱 실행 중 자정 자동 확장, 지난 회차의 누락 복구 및 건너뛰기 UI는 2-A-03에서 다룹니다.
+- DB v2는 회차별 `workloadPoints`를 저장하여 난이도 변경 후에도 과거 통계가 바뀌지 않게 합니다. DB v1에서 v2로의 안전한 이전 경로를 포함합니다. 이후 버전 마이그레이션과 스키마 파일 내보내기는 2-A-03에서 진행합니다.
 - 페이지 내 작성 중 임시 초안은 DB에 저장하지 않으며 저장 버튼으로 확정한 내용만 보존합니다.
 
 ## 구현 파일
@@ -34,7 +35,8 @@
 - `ui/screens/DemoChoreViewModel.kt`: Room Flow 수집, 로드 오류와 중복 탭 처리
 - `ui/screens/HomeCrewMainScreens.kt`: 실제 영속 저장 액션·로딩/오류 처리
 - `ui/screens/HomeCrewScreenParts.kt`, `HomeCrewChoreEditorScreens.kt`, `HomeCrewChoreDetailScreen.kt`, `HomeCrewHomeScreen.kt`, `HomeCrewChoresScreen.kt`: 저장 관련 문구
-- `androidTest/HomeCrewRoomRepositoryTest.kt`: 파일 DB 닫기/재열기, 템플릿 중복 방지, 일정·담당·완료·월말 회귀
+- `androidTest/HomeCrewRoomRepositoryTest.kt`: DB 닫기/재열기, 75일 경과 자동 보충, 80일 뒤 시작일, 완료 당시 점수 보존, 저장 중복 방지와 ViewModel 재생성
+- `androidTest/HomeCrewMigrationTest.kt`: DB v1의 완료 기록을 v2로 이전
 - `androidTest/HomeCrewActivityRestartTest.kt`: Activity와 ViewModel 새 인스턴스에서 저장 결과 확인
 
 ## 검증
@@ -45,4 +47,4 @@
 - [ ] 360dp·160% 글자 및 폴더블 확장 QA (추가 단계)
 
 ## 후속 작업
-2-A-03 — Room 스키마 파일·업그레이드 마이그레이션, 미래 62일 이후 일정 보충, 완료/건너뛰기 기록 정교화 및 데이터 삭제·백업 검증.
+2-A-03 — Room 스키마 파일/추가 마이그레이션, 앱 실행 중 날짜 변경에 따른 일정 확장, 완료/건너뛰기 기록 정교화 및 데이터 삭제·백업 검증.
