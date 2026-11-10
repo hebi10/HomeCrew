@@ -1,0 +1,72 @@
+name: HomeCrew screen QA
+
+on:
+  pull_request:
+    paths:
+      - 'app/**'
+      - '.github/workflows/screenshot-qa.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  screenshots:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: '13114758'
+          packages: platform-tools
+          log-accepted-android-sdk-licenses: false
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+      - name: Install Android SDK
+        run: sdkmanager 'platforms;android-36' 'build-tools;35.0.0'
+      - name: Capture four tabs on API 35
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          target: google_apis
+          profile: pixel_6
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
+          script: |
+            adb shell cmd uimode night no
+            set +e
+            ./gradlew --no-daemon connectedDebugAndroidTest --stacktrace
+            result=$?
+            mkdir -p qa-screenshots
+            adb pull /sdcard/Android/data/com.hebi.homecrew/files/screen-qa/. qa-screenshots/ || true
+            exit "$result"
+      - name: Record compact screenshots in QA logs
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import base64
+          from pathlib import Path
+          for path in sorted(Path("qa-screenshots").glob("0[1-4]-*.png")):
+              encoded = base64.b64encode(path.read_bytes()).decode("ascii")
+              for index in range(0, len(encoded), 8000):
+                  print("SCREENSHOT_BASE64|" + path.stem + "|" + str(index // 8000) + "|" + encoded[index:index+8000])
+          PY
+      - name: Upload UI screenshots and instrumentation report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: homecrew-1b-screen-qa
+          path: |
+            qa-screenshots/*.png
+            app/build/reports/androidTests/connected/
+            app/build/outputs/androidTest-results/connected/
+          if-no-files-found: warn
