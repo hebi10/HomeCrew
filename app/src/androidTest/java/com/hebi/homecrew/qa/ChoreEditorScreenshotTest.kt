@@ -118,7 +118,7 @@ class ChoreEditorScreenshotTest {
         awaitScreen("집안일 추가")
         screenshot("08-chore-add")
 
-        press("시연 집안일 저장")
+        press("집안일 저장")
         val validation = device.wait(
             Until.findObject(By.text("집안일 이름을 입력해 주세요.")), 8_000
         )
@@ -141,10 +141,15 @@ class ChoreEditorScreenshotTest {
         awaitScreen("설거지")
         screenshot("11-chore-detail")
 
+        val originallyCompleted = device.wait(
+            Until.findObject(By.text("이 회차 완료 취소")), 1_000
+        ) != null
+        if (originallyCompleted) press("이 회차 완료 취소")
         press("이 회차 완료 처리")
         val undo = device.wait(Until.findObject(By.text("이 회차 완료 취소")), 8_000)
         requireNotNull(undo) { "선택한 회차 완료 상태가 반영되지 않습니다." }
         screenshot("11-chore-detail-completed")
+        if (!originallyCompleted) press("이 회차 완료 취소")
         press("집안일 수정")
         awaitScreen("집안일 수정")
         screenshot("12-chore-edit")
