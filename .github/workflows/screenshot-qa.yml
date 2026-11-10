@@ -41,25 +41,7 @@ jobs:
           profile: pixel_6
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
-          script: |
-            adb shell cmd uimode night no
-            set +e
-            ./gradlew --no-daemon connectedDebugAndroidTest --stacktrace
-            result=$?
-            mkdir -p qa-screenshots
-            adb pull /sdcard/Android/data/com.hebi.homecrew/files/screen-qa/. qa-screenshots/ || true
-            exit "$result"
-      - name: Record compact screenshots in QA logs
-        if: always()
-        run: |
-          python3 - <<'PY'
-          import base64
-          from pathlib import Path
-          for path in sorted(Path("qa-screenshots").glob("0[1-4]-*.png")):
-              encoded = base64.b64encode(path.read_bytes()).decode("ascii")
-              for index in range(0, len(encoded), 8000):
-                  print("SCREENSHOT_BASE64|" + path.stem + "|" + str(index // 8000) + "|" + encoded[index:index+8000])
-          PY
+          script: bash .github/scripts/capture-screenshots.sh
       - name: Upload UI screenshots and instrumentation report
         if: always()
         uses: actions/upload-artifact@v4
