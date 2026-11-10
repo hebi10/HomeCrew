@@ -88,7 +88,7 @@ fun HomeCrewSetupFlow(
             }
             2 -> {
                 error = when {
-                    memberInput.isNotBlank() -> "입력한 이름을 먼저 추가하거나 수정해 주세요."
+                    memberInput.isNotBlank() || editingIndex >= 0 -> "입력한 이름을 먼저 추가하거나 수정해 주세요."
                     members.isEmpty() -> "구성원을 한 명 이상 등록해 주세요."
                     defaultMember !in members -> "기본 구성원을 선택해 주세요."
                     else -> null
