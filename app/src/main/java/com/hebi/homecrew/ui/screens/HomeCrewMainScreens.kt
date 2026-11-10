@@ -23,7 +23,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hebi.homecrew.ui.components.HomeCrewBottomBar
 import com.hebi.homecrew.ui.components.HomeTab
 import com.hebi.homecrew.ui.setup.HouseholdSetup
-import com.hebi.homecrew.ui.setup.previewChoresForSetup
 import com.hebi.homecrew.ui.theme.LocalHomeCrewColors
 import com.hebi.homecrew.ui.theme.ThemeMode
 import kotlinx.coroutines.launch
