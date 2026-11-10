@@ -362,7 +362,8 @@ fun HomeCrewAssignmentScreen(
     var selected by rememberSaveable { mutableStateOf(initial.members) }
     var error by rememberSaveable { mutableStateOf<String?>(null) }
     val choice = ChoreAssignmentMode.valueOf(mode)
-    val rule = ChoreAssignment(choice, selected)
+    val orderedSelection = orderedParticipants(selected, members)
+    val rule = ChoreAssignment(choice, orderedSelection)
     val upcoming = assignedOwners(rule, 3, points, baseline)
 
     ChoreSubpageLayout(
@@ -371,8 +372,8 @@ fun HomeCrewAssignmentScreen(
         primaryLabel = "담당 방식 적용",
         onBack = onBack,
         onPrimary = {
-            error = if (selected.isEmpty()) "참여자를 한 명 이상 선택해 주세요."
-                else if (choice == ChoreAssignmentMode.FIXED && selected.size != 1)
+            error = if (orderedSelection.isEmpty()) "참여자를 한 명 이상 선택해 주세요."
+                else if (choice == ChoreAssignmentMode.FIXED && orderedSelection.size != 1)
                     "고정 담당자는 한 명만 선택해 주세요."
                 else null
             if (error == null) onApply(rule)
