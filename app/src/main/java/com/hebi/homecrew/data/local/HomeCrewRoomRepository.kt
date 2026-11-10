@@ -11,6 +11,7 @@ import com.hebi.homecrew.ui.screens.legacyRepeat
 import com.hebi.homecrew.ui.screens.orderedParticipants
 import com.hebi.homecrew.ui.screens.previewDraftInstances
 import com.hebi.homecrew.ui.screens.repeatDescription
+import com.hebi.homecrew.ui.screens.recurrenceOrdinal
 import com.hebi.homecrew.ui.screens.validationError
 import com.hebi.homecrew.ui.screens.workloadBaseline
 import com.hebi.homecrew.ui.setup.HouseholdSetup
@@ -126,7 +127,7 @@ class HomeCrewRoomRepository(
             val rule = definition.recurrence ?: return@forEach
             val start = definition.startDate ?: today
             val dates = com.hebi.homecrew.ui.screens.nextChoreDates(
-                start, rule, start, lastDay
+                start, rule, today, lastDay
             )
             if (dates.isEmpty()) return@forEach
             val participants = definition.assignment?.members.orEmpty()
@@ -135,21 +136,26 @@ class HomeCrewRoomRepository(
             val stored = storedByDefinition[definition.id].orEmpty()
             val savedDays = stored.map { it.scheduledEpochDay }.toHashSet()
             val lastStored = stored.maxByOrNull { it.scheduledEpochDay }
-            val lastIndex = lastStored?.let { last ->
-                dates.indexOfFirst { date -> date.toEpochDay() == last.scheduledEpochDay }
-            } ?: -1
+            val lastDate = lastStored?.let { LocalDate.ofEpochDay(it.scheduledEpochDay) }
+            val lastOrdinal = lastDate?.takeIf { !it.isBefore(start) &&
+                com.hebi.homecrew.ui.screens.nextChoreDates(start, rule, it, it).isNotEmpty()
+            }?.let { recurrenceOrdinal(start, rule, it) }
             val lastMember = lastStored?.let { participants.indexOf(it.assignedMember) } ?: -1
-            val rotationOffset = if (lastIndex >= 0 && lastMember >= 0) {
-                (lastMember - lastIndex % participants.size + participants.size) % participants.size
+            val rotationOffset = if (lastOrdinal != null && lastMember >= 0) {
+                (lastMember - (lastOrdinal % participants.size).toInt() + participants.size) %
+                    participants.size
             } else 0
 
-            dates.forEachIndexed { index, date ->
+            dates.forEach { date ->
                 val epoch = date.toEpochDay()
                 if (epoch < firstDay || epoch in savedDays) return@forEachIndexed
                 val owner = when (mode) {
                     ChoreAssignmentMode.FIXED -> participants.first()
                     ChoreAssignmentMode.ROUND_ROBIN ->
-                        participants[(index + rotationOffset) % participants.size]
+                        participants[
+                            ((recurrenceOrdinal(start, rule, date) % participants.size).toInt() +
+                                rotationOffset) % participants.size
+                        ]
                     ChoreAssignmentMode.BALANCED ->
                         participants.minBy { loads[it] ?: 0 }
                 }

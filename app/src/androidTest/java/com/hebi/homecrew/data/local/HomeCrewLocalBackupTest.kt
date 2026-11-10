@@ -138,6 +138,19 @@ class HomeCrewLocalBackupTest {
         })
     }
 
+
+    @Test
+    fun ancientStartDateRestoreOnlyGeneratesCurrentHorizon() = runBlocking {
+        createTask()
+        val backup = JSONObject(repository.exportBackup(household))
+        backup.getJSONArray("definitions").getJSONObject(0)
+            .put("startEpochDay", -365_000_000L)
+        repository.restoreBackup(backup.toString(), household, today)
+        val dates = repository.snapshot().chores.map { it.date }
+        assertTrue(dates.contains(today))
+        assertTrue(dates.contains(today.plusDays(62)))
+    }
+
     @Test
     fun restoredSkipCanBeCancelledAndNeverCountsAsCompletion() = runBlocking {
         val id = createTask()
