@@ -67,21 +67,35 @@ class ChoreEditorScreenshotTest {
     }
 
     private fun openEditorSubpage(description: String, title: String) {
-        val button = device.wait(Until.findObject(By.desc(description)), 7_000)
-            ?: run {
-                device.swipe(
-                    device.displayWidth / 2, device.displayHeight * 3 / 4,
-                    device.displayWidth / 2, device.displayHeight / 3, 18
-                )
-                device.wait(Until.findObject(By.desc(description)), 7_000)
-            }
+        val finder = By.desc(description)
+        var button = device.wait(Until.findObject(finder), 2_500)
         if (button == null) {
-            screenshot("error-1d-navigation")
-            device.dumpWindowHierarchy(File(outputDirectory(), "error-1d-hierarchy.xml"))
+            device.swipe(
+                device.displayWidth / 2, device.displayHeight * 3 / 4,
+                device.displayWidth / 2, device.displayHeight / 3, 20
+            )
+            device.waitForIdle()
+            button = device.wait(Until.findObject(finder), 8_000)
         }
-        val bounds = requireNotNull(button) { "하위 화면 버튼 없음: $description" }.visibleBounds
-        device.click(bounds.centerX(), bounds.centerY())
-        awaitScreen(title)
+        requireNotNull(button) { "하위 화면 버튼 없음: $description" }
+        device.waitForIdle()
+        repeat(3) {
+            val candidate = device.wait(Until.findObject(finder), 3_000)
+                ?: return@repeat
+            val bounds = candidate.visibleBounds
+            device.click(bounds.centerX(), bounds.centerY())
+            device.waitForIdle()
+            val titleNode = device.wait(
+                Until.findObject(By.desc("화면 제목: $title")), 4_000
+            )
+            if (titleNode != null) {
+                device.waitForIdle()
+                return
+            }
+        }
+        screenshot("error-1d-navigation")
+        device.dumpWindowHierarchy(File(outputDirectory(), "error-1d-hierarchy.xml"))
+        error("하위 화면 전환 실패: $title")
     }
 
     private fun completeSetupIfNeeded() {
