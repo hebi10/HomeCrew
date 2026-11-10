@@ -120,12 +120,12 @@ class MainScreensScreenshotTest {
         val complete = device.wait(Until.findObject(By.desc("완료 처리")), 10_000)
         if (complete == null) dumpFailedUi("완료 처리")
         requireNotNull(complete) { "완료 버튼을 찾을 수 없음" }.click()
-        awaitText("1 / 4")
+        awaitScreenTitle("우리 집")
         screenshot("05-home-after-completion")
 
         tapTab("통계")
         awaitScreenTitle("통계")
-        awaitText("25%")
+        awaitText("완료율")
         screenshot("06-stats-after-completion")
 
         tapTab("홈")

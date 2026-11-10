@@ -168,7 +168,7 @@ fun HomeCrewChoresScreen(
         }
         item {
             Text(
-                "등록·수정·삭제는 앱 실행 중에만 유지됩니다. 기기 저장은 2-A에서 지원합니다.",
+                "등록·수정·삭제 결과는 이 기기에 저장됩니다. 앱 재실행 후에도 유지됩니다.",
                 style = MaterialTheme.typography.bodySmall,
                 color = palette.muted
             )

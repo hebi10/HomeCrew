@@ -2,7 +2,7 @@
 
 집안일 분담, 반복 일정 및 완료율을 관리하기 위한 Android 앱입니다.
 
-## 현재 단계 — 1-D 집안일 등록·반복·담당·상세 화면
+## 현재 단계 — 2-A-02 Room 로컬 저장 및 재실행 복원
 
 Kotlin + Jetpack Compose 기반으로 **홈·일정·집안일·통계** 네 화면을 구현했습니다. 기존 1-A 디자인 시스템과 라이트·다크 테마를 유지합니다.
 
@@ -12,11 +12,13 @@ Kotlin + Jetpack Compose 기반으로 **홈·일정·집안일·통계** 네 화
 - **통계:** 주·월 완료율, 완료 개수, 배정/완료 난이도, 주간 차트, 구성원 비교
 - **1-D 하위 화면:** 집안일 등록·수정, 반복 6종, 담당 방식 3종, 상세·완료·삭제 확인
 
-**주의:** 1-D에서는 집안일 등록·수정·삭제와 반복·담당자 배정을 앱 실행 중 **시연 데이터**로 동작시킵니다. 재시작 후 남는 것은 1-C의 집·구성원 설정뿐이며, 집안일 자체와 완료 이력은 Room 2-A까지 영구 보관되지 않습니다. Firebase 로그인·초대·공유도 미구현입니다.
+**데이터 보관:** 집·구성원 설정은 기존 로컬 설정에, 집안일·담당 방식·반복 회차·완료 기록은 Room(SQLite) 데이터베이스에 보관합니다. 앱 재시작 후에도 복원되지만 앱 데이터 삭제·앱 제거 시 자료를 잃을 수 있으며, 다른 기기와 동기화되지 않습니다. Firebase 로그인·초대·공유는 미구현입니다.
 
 - [1-A 공통 디자인 시스템](docs/design-system-1a.md)
 - [1-B 화면별 구현/검증 기준](docs/screen-design-1b.md)
 - [1-D 집안일 등록·반복·담당·상세 화면](docs/screen-design-1d.md)
+- [2-A Room 데이터 구조](docs/room-persistence-2a.md)
+- [2-A-02 Repository·재실행 복원](docs/room-repository-2a02.md)
 - [1-B 시안 이미지](docs/design/02-homecrew-main-screens.png)
 - [HomeCrew Google Drive](https://drive.google.com/drive/folders/16xQAcSuTapJ-D8sUdJBUJvfCtBIdo_Tx)
 
@@ -25,13 +27,14 @@ Kotlin + Jetpack Compose 기반으로 **홈·일정·집안일·통계** 네 화
 ```text
 app/src/main/java/com/hebi/homecrew/
 ├── MainActivity.kt                  # 4개 화면 진입점 및 1-A 갤러리
+├── data/local/                      # Room DB·DAO·Repository·디스크 복원
 └── ui/
     ├── theme/                       # 1-A 공통 토큰과 테마
     ├── components/                  # 재사용 Compose 컴포넌트
     ├── gallery/                     # 1-A 디자인 시스템 미리보기
     ├── model/                       # 공통 Preview 모델
     └── screens/
-        ├── HomeCrewMainScreens.kt   # 탭/공유 예시 상태
+        ├── HomeCrewMainScreens.kt   # 4탭·집안일 편집 및 DB 저장 액션
         ├── HomeCrewHomeScreen.kt
         ├── HomeCrewScheduleScreen.kt
         ├── HomeCrewChoresScreen.kt
@@ -47,7 +50,7 @@ app/src/main/java/com/hebi/homecrew/
 
 ## 개발 및 검증
 
-- Java 17, Gradle 8.13, AGP 8.13.2, Kotlin 2.2.21, Android SDK 36
+- Java 17, Gradle 8.13, AGP 8.13.2, Kotlin 2.2.21, Android SDK 36, Room 2.8.5
 - minSdk 26(Android 8.0 이상)
 
 Unix/macOS:

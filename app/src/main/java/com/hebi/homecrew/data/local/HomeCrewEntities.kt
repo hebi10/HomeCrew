@@ -1,5 +1,6 @@
 package com.hebi.homecrew.data.local
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
@@ -60,6 +61,7 @@ data class ChoreOccurrenceEntity(
     val definitionId: String,
     val scheduledEpochDay: Long,
     val assignedMember: String,
+    @ColumnInfo(defaultValue = "0") val workloadPoints: Int = 0,
     val completed: Boolean = false,
     val completedAtEpochMillis: Long? = null,
     val completedBy: String? = null,

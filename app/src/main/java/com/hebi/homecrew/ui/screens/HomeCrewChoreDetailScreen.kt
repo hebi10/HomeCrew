@@ -118,7 +118,7 @@ fun HomeCrewChoreDetailScreen(
                         style = MaterialTheme.typography.bodyMedium
                     )
                     Text(
-                        "시작일: ${definition.startDate?.toString() ?: "기존 시연 데이터"}",
+                        "시작일: ${definition.startDate?.toString() ?: "시작일 정보 없음"}",
                         color = palette.muted,
                         style = MaterialTheme.typography.bodySmall
                     )
@@ -167,8 +167,8 @@ fun HomeCrewChoreDetailScreen(
         }
         item {
             Text(
-                "등록·수정·완료·삭제는 시연 세션에서만 적용됩니다. " +
-                    "수정 시 기존 완료·과거 회차를 보존하며, 삭제 시 해당 집안일의 시연 기록을 모두 제거합니다.",
+                "등록·수정·완료·삭제는 이 기기에 저장됩니다. " +
+                    "수정 시 기존 완료·과거 회차를 보존하며, 삭제 시 해당 집안일의 기록을 모두 제거합니다.",
                 style = MaterialTheme.typography.bodySmall,
                 color = palette.muted
             )
@@ -182,7 +182,7 @@ fun HomeCrewChoreDetailScreen(
             title = { Text("집안일을 삭제할까요?") },
             text = {
                 Text(
-                    "${definition.name}의 예정 회차와 완료 기록을 현재 시연 세션에서 모두 삭제합니다. 되돌릴 수 없습니다."
+                    "${definition.name}의 예정 회차와 완료 기록을 이 기기에서 모두 삭제합니다. 되돌릴 수 없습니다."
                 )
             },
             confirmButton = {

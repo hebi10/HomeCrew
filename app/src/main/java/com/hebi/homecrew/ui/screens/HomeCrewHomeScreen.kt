@@ -154,7 +154,7 @@ fun HomeCrewHomeScreen(
         }
         item {
             Text(
-                "집안일 등록·완료·분담은 이 실행 중에만 유지됩니다. 기기 저장은 2-A 단계입니다.",
+                "집안일 등록·완료·분담 기록은 이 기기에 저장되며 앱을 다시 실행해도 유지됩니다.",
                 color = palette.muted,
                 style = MaterialTheme.typography.bodySmall
             )

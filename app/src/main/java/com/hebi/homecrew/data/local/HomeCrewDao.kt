@@ -1,10 +1,20 @@
 package com.hebi.homecrew.data.local
 
 import androidx.room.Dao
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
+
+data class HomeCrewRows(
+    val definitions: List<ChoreDefinitionEntity>,
+    val members: List<ChoreAssignmentMemberEntity>,
+    val occurrences: List<ChoreOccurrenceEntity>
+)
+
+private const val SEED_KEY = "homecrew.initial_household.v1"
 
 @Dao
 abstract class HomeCrewDao {
@@ -16,6 +26,18 @@ abstract class HomeCrewDao {
 
     @Query("SELECT * FROM chore_occurrences ORDER BY scheduledEpochDay, id")
     abstract fun observeOccurrences(): Flow<List<ChoreOccurrenceEntity>>
+
+    @Query("SELECT * FROM chore_definitions")
+    abstract suspend fun listDefinitions(): List<ChoreDefinitionEntity>
+
+    @Query("SELECT * FROM chore_assignment_members ORDER BY definitionId, position")
+    abstract suspend fun listAssignmentMembers(): List<ChoreAssignmentMemberEntity>
+
+    @Query("SELECT * FROM chore_occurrences ORDER BY scheduledEpochDay, id")
+    abstract suspend fun listOccurrences(): List<ChoreOccurrenceEntity>
+
+    @Query("SELECT * FROM chore_occurrences WHERE id = :id LIMIT 1")
+    abstract suspend fun findOccurrence(id: String): ChoreOccurrenceEntity?
 
     @Query("SELECT * FROM chore_definitions WHERE id = :id LIMIT 1")
     abstract suspend fun findDefinition(id: String): ChoreDefinitionEntity?
@@ -30,10 +52,16 @@ abstract class HomeCrewDao {
     abstract suspend fun upsertDefinition(value: ChoreDefinitionEntity)
 
     @Upsert
+    abstract suspend fun upsertDefinitions(values: List<ChoreDefinitionEntity>)
+
+    @Upsert
     abstract suspend fun upsertAssignmentMembers(values: List<ChoreAssignmentMemberEntity>)
 
     @Upsert
     abstract suspend fun upsertOccurrences(values: List<ChoreOccurrenceEntity>)
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    abstract suspend fun insertMissingOccurrences(values: List<ChoreOccurrenceEntity>)
 
     @Query("DELETE FROM chore_assignment_members WHERE definitionId = :id")
     abstract suspend fun deleteAssignmentMembers(id: String)
@@ -64,6 +92,28 @@ abstract class HomeCrewDao {
         completedAtEpochMillis: Long?,
         completedBy: String?
     ): Int
+
+    @Transaction
+    open suspend fun readRows(): HomeCrewRows = HomeCrewRows(
+        definitions = listDefinitions(),
+        members = listAssignmentMembers(),
+        occurrences = listOccurrences()
+    )
+
+    @Transaction
+    open suspend fun seedOnce(
+        definitions: List<ChoreDefinitionEntity>,
+        members: List<ChoreAssignmentMemberEntity>,
+        occurrences: List<ChoreOccurrenceEntity>
+    ) {
+        if (readState(SEED_KEY) != null) return
+        if (listDefinitions().isEmpty()) {
+            upsertDefinitions(definitions)
+            upsertAssignmentMembers(members)
+            upsertOccurrences(occurrences)
+        }
+        upsertState(AppStateEntity(SEED_KEY, "1"))
+    }
 
     @Transaction
     open suspend fun saveSchedule(
