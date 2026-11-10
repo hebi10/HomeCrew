@@ -94,7 +94,7 @@ fun HomeCrewMainScreens(
                     HomeTab.SCHEDULE -> HomeCrewScheduleScreen(
                         today = currentDate,
                         chores = chores,
-                        onToggle = viewModel::toggleCompleted,
+                        onToggle = toggleCompleted,
                         onDetails = { detailId = it.id }
                     )
                     HomeTab.CHORES -> HomeCrewChoresScreen(
