@@ -39,7 +39,11 @@ enum class StatisticsPeriod(val label: String) {
 }
 
 @Composable
-fun HomeCrewStatsScreen(today: LocalDate, chores: List<DemoChore>) {
+fun HomeCrewStatsScreen(
+    today: LocalDate,
+    chores: List<DemoChore>,
+    members: List<String> = listOf("나", "지민")
+) {
     val palette = LocalHomeCrewColors.current
     var period by rememberSaveable { mutableStateOf(StatisticsPeriod.WEEK) }
     val periodChores = when (period) {
@@ -47,7 +51,7 @@ fun HomeCrewStatsScreen(today: LocalDate, chores: List<DemoChore>) {
         StatisticsPeriod.MONTH -> tasksForMonth(chores, today)
     }
     val summary = summaryFor(periodChores)
-    val memberNames = listOf("나", "지민")
+    val memberNames = members
     val memberPoints = memberNames.map { member ->
         member to periodChores.filter { it.definition.owner == member }
             .sumOf { it.definition.points }
