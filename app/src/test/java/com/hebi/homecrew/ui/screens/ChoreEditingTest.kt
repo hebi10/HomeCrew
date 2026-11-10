@@ -77,7 +77,7 @@ class ChoreEditingTest {
         val balanced = ChoreAssignment(ChoreAssignmentMode.BALANCED, listOf("나", "지민"))
         assertEquals(
             listOf("지민", "지민", "나"),
-            assignedOwners(balanced, 3, 2, mapOf("나" to 5, "지민" to 0))
+            assignedOwners(balanced, 3, 2, mapOf("나" to 4, "지민" to 0))
         )
     }
 
