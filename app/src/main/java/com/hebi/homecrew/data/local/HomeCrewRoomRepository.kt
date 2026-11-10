@@ -135,7 +135,8 @@ class HomeCrewRoomRepository(
                     id = "${definition.id}-$epoch",
                     definitionId = definition.id,
                     scheduledEpochDay = epoch,
-                    assignedMember = owner
+                    assignedMember = owner,
+                    workloadPoints = definition.points
                 )
                 loads[owner] = (loads[owner] ?: 0) + definition.points
             }
@@ -239,7 +240,10 @@ class HomeCrewRoomRepository(
             val definition = byId[row.definitionId] ?: return@mapNotNull null
             DemoChore(
                 id = row.id,
-                definition = definition.copy(owner = row.assignedMember),
+                definition = definition.copy(
+                    owner = row.assignedMember,
+                    points = row.workloadPoints.takeIf { it > 0 } ?: definition.points
+                ),
                 date = LocalDate.ofEpochDay(row.scheduledEpochDay),
                 completed = row.completed
             )
@@ -279,6 +283,7 @@ class HomeCrewRoomRepository(
         definitionId = definition.id,
         scheduledEpochDay = date.toEpochDay(),
         assignedMember = definition.owner,
+        workloadPoints = definition.points,
         completed = completed
     )
 }
