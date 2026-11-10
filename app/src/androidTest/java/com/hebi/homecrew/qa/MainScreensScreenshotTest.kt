@@ -36,11 +36,10 @@ class MainScreensScreenshotTest {
     }
 
     private fun tapTab(label: String) {
-        val tab = device.wait(Until.findObject(By.desc("$" + "{label} 탭")), 8_000)
+        val tab = device.wait(Until.findObject(By.desc("${label} 탭")), 8_000)
             ?: device.wait(Until.findObject(By.text(label)), 2_000)
         if (tab == null) dumpFailedUi(label)
-        assertNotNull("하단 탐색 탭을 찾을 수 없음: $label", tab)
-        tab.click()
+        requireNotNull(tab) { "하단 탐색 탭을 찾을 수 없음: $label" }.click()
         device.waitForIdle()
     }
 
@@ -48,8 +47,7 @@ class MainScreensScreenshotTest {
         val button = device.wait(Until.findObject(By.text(label)), 5_000)
             ?: device.wait(Until.findObject(By.desc(label)), 5_000)
         if (button == null) dumpFailedUi(label)
-        assertNotNull("버튼을 찾을 수 없음: $label", button)
-        button.click()
+        requireNotNull(button) { "버튼을 찾을 수 없음: $label" }.click()
         device.waitForIdle()
     }
 
