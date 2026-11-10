@@ -60,7 +60,7 @@ fun ScreenHeader(
 fun DemoNotice() {
     val palette = LocalHomeCrewColors.current
     Text(
-        text = "집·구성원 설정은 기기에 유지 · 집안일 변경과 완료 기록은 실행 중에만 반영됩니다",
+        text = "집·구성원·집안일과 완료 기록은 이 기기에 저장됩니다. 다른 기기와 동기화되지 않습니다",
         style = MaterialTheme.typography.bodySmall,
         color = palette.muted,
         modifier = Modifier
