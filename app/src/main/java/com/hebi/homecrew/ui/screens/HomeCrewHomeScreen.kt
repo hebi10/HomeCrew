@@ -154,7 +154,7 @@ fun HomeCrewHomeScreen(
         }
         item {
             Text(
-                "로컬 시연 화면 · 자동 배정과 저장은 후속 단계에서 구현합니다.",
+                "집안일 등록·완료·분담은 이 실행 중에만 유지됩니다. 기기 저장은 2-A 단계입니다.",
                 color = palette.muted,
                 style = MaterialTheme.typography.bodySmall
             )

@@ -38,11 +38,11 @@ import java.time.LocalDate
 fun HomeCrewChoresScreen(
     today: LocalDate,
     chores: List<DemoChore>,
-    onDetails: (DemoChore) -> Unit,
-    onAdd: () -> Unit
+    onDetails: (ChoreDefinition) -> Unit,
+    onAdd: () -> Unit,
+    definitions: List<ChoreDefinition> = chores.map { it.definition }.distinctBy { it.id }
 ) {
     val palette = LocalHomeCrewColors.current
-    val definitions = chores.map { it.definition }.distinctBy { it.id }
     var search by rememberSaveable { mutableStateOf("") }
     var category by rememberSaveable { mutableStateOf("전체") }
     var status by rememberSaveable { mutableStateOf("전체") }
@@ -127,7 +127,7 @@ fun HomeCrewChoresScreen(
                 EmptyResult(
                     if (definitions.isEmpty()) "아직 등록된 집안일이 없습니다"
                     else "조건에 맞는 집안일이 없습니다",
-                    if (definitions.isEmpty()) "집안일 등록은 다음 구현 단계에서 지원합니다."
+                    if (definitions.isEmpty()) "집안일 추가 버튼을 눌러 시작하세요."
                     else "검색어나 필터를 변경해보세요."
                 )
             }
@@ -136,7 +136,7 @@ fun HomeCrewChoresScreen(
                 val todayTask = todayInstances[definition.id]
                 BorderedSection(
                     modifier = Modifier.clickable {
-                        todayTask?.let(onDetails)
+                        onDetails(definition)
                     }
                 ) {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -168,7 +168,7 @@ fun HomeCrewChoresScreen(
         }
         item {
             Text(
-                "집안일 원본 목록 예시입니다. 추가·편집·삭제는 2-A에서 구현합니다.",
+                "등록·수정·삭제는 앱 실행 중에만 유지됩니다. 기기 저장은 2-A에서 지원합니다.",
                 style = MaterialTheme.typography.bodySmall,
                 color = palette.muted
             )
