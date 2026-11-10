@@ -80,6 +80,67 @@ class HomeCrewRoomRepository(
                 .distinctBy { it.id }.map { it.asEntity() }
         }
         dao.seedOnce(definitions, people, instances)
+        extendUpcoming(today)
+    }
+
+    suspend fun extendUpcoming(today: LocalDate) {
+        val rows = dao.readRows()
+        val definitions = assembleSnapshot(rows).definitions
+        val storedByDefinition = rows.occurrences.groupBy { it.definitionId }
+        val pointsByDefinition = rows.definitions.associate { it.id to it.points }
+        val firstDay = today.toEpochDay()
+        val loads = mutableMapOf<String, Int>()
+        rows.occurrences.filter { row ->
+            row.scheduledEpochDay >= firstDay &&
+                row.scheduledEpochDay < today.plusDays(7).toEpochDay()
+        }.forEach { row ->
+            loads[row.assignedMember] = (loads[row.assignedMember] ?: 0) +
+                (pointsByDefinition[row.definitionId] ?: 0)
+        }
+
+        val missing = mutableListOf<ChoreOccurrenceEntity>()
+        val lastDay = today.plusDays(62)
+        definitions.forEach { definition ->
+            val rule = definition.recurrence ?: return@forEach
+            val start = definition.startDate ?: today
+            val dates = com.hebi.homecrew.ui.screens.nextChoreDates(
+                start, rule, start, lastDay
+            )
+            if (dates.isEmpty()) return@forEach
+            val participants = definition.assignment?.members.orEmpty()
+                .ifEmpty { listOf(definition.owner) }
+            val mode = definition.assignment?.mode ?: ChoreAssignmentMode.FIXED
+            val stored = storedByDefinition[definition.id].orEmpty()
+            val savedDays = stored.map { it.scheduledEpochDay }.toHashSet()
+            val lastStored = stored.maxByOrNull { it.scheduledEpochDay }
+            val lastIndex = lastStored?.let { last ->
+                dates.indexOfFirst { date -> date.toEpochDay() == last.scheduledEpochDay }
+            } ?: -1
+            val lastMember = lastStored?.let { participants.indexOf(it.assignedMember) } ?: -1
+            val rotationOffset = if (lastIndex >= 0 && lastMember >= 0) {
+                (lastMember - lastIndex % participants.size + participants.size) % participants.size
+            } else 0
+
+            dates.forEachIndexed { index, date ->
+                val epoch = date.toEpochDay()
+                if (epoch < firstDay || epoch in savedDays) return@forEachIndexed
+                val owner = when (mode) {
+                    ChoreAssignmentMode.FIXED -> participants.first()
+                    ChoreAssignmentMode.ROUND_ROBIN ->
+                        participants[(index + rotationOffset) % participants.size]
+                    ChoreAssignmentMode.BALANCED ->
+                        participants.minBy { loads[it] ?: 0 }
+                }
+                missing += ChoreOccurrenceEntity(
+                    id = "${definition.id}-$epoch",
+                    definitionId = definition.id,
+                    scheduledEpochDay = epoch,
+                    assignedMember = owner
+                )
+                loads[owner] = (loads[owner] ?: 0) + definition.points
+            }
+        }
+        if (missing.isNotEmpty()) dao.insertMissingOccurrences(missing)
     }
 
     suspend fun save(
