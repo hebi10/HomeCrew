@@ -60,7 +60,7 @@ fun ScreenHeader(
 fun DemoNotice() {
     val palette = LocalHomeCrewColors.current
     Text(
-        text = "화면 시연용 데이터 · 변경 사항은 앱을 종료하면 초기화됩니다",
+        text = "집·구성원 설정은 기기에 유지 · 집안일 변경과 완료 기록은 실행 중에만 반영됩니다",
         style = MaterialTheme.typography.bodySmall,
         color = palette.muted,
         modifier = Modifier
