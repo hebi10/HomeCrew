@@ -12,6 +12,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -24,6 +25,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import java.time.Duration
+import java.time.LocalDate
+import java.time.ZonedDateTime
+import kotlinx.coroutines.delay
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hebi.homecrew.ui.components.HomeCrewBottomBar
 import com.hebi.homecrew.ui.components.HomeTab
@@ -53,7 +61,24 @@ fun HomeCrewMainScreens(
     val loadError by viewModel.loadError.collectAsState()
     val operationError by viewModel.operationError.collectAsState()
     val saveState by viewModel.saveState.collectAsState()
-    val currentDate = viewModel.today
+    val currentDate by viewModel.todayState.collectAsState()
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, viewModel) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) viewModel.refreshDate(LocalDate.now())
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        viewModel.refreshDate(LocalDate.now())
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    LaunchedEffect(viewModel) {
+        while (true) {
+            val now = ZonedDateTime.now()
+            val midnight = now.toLocalDate().plusDays(1).atStartOfDay(now.zone)
+            delay(Duration.between(now, midnight).toMillis().coerceIn(1_000L, 60_000L))
+            viewModel.refreshDate(LocalDate.now())
+        }
+    }
     val memberNames = householdSetup?.members ?: listOf("나", "지민")
 
     LaunchedEffect(householdSetup) {
@@ -235,6 +260,7 @@ fun HomeCrewMainScreens(
                     onBack = { page = ChorePage.MAIN },
                     onEdit = ::openEdit,
                     onToggle = { id -> viewModel.toggleCompleted(id, currentMember) },
+                    onSkip = { id, reason -> viewModel.toggleSkipped(id, reason) },
                     onDelete = {
                         scope.launch {
                             try {

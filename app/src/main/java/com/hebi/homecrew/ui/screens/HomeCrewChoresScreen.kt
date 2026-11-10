@@ -107,7 +107,7 @@ fun HomeCrewChoresScreen(
                     .horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                listOf("전체", "예정", "완료", "기한 초과").forEach { option ->
+                listOf("전체", "예정", "완료", "건너뜀", "기한 초과").forEach { option ->
                     HomeCrewFilterChip(
                         label = option,
                         selected = status == option,

@@ -19,6 +19,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 sealed interface EditorSaveState {
     data object Idle : EditorSaveState
@@ -30,7 +32,10 @@ sealed interface EditorSaveState {
 class DemoChoreViewModel(
     private val roomRepository: HomeCrewRoomRepository? = null
 ) : ViewModel() {
-    val today: LocalDate = LocalDate.now()
+    private val _today = MutableStateFlow(LocalDate.now())
+    val todayState: StateFlow<LocalDate> = _today.asStateFlow()
+    val today: LocalDate get() = _today.value
+    private val dateRefreshMutex = Mutex()
 
     private val _chores = MutableStateFlow(
         if (roomRepository == null) sampleChores(today) else emptyList()
@@ -104,6 +109,40 @@ class DemoChoreViewModel(
 
     fun dismissOperationError() {
         _operationError.value = null
+    }
+
+    fun refreshDate(date: LocalDate = LocalDate.now()) {
+        if (date == today) return
+        val repository = roomRepository
+        if (repository == null || _configuredHousehold.value == null) {
+            _today.value = date
+            return
+        }
+        viewModelScope.launch {
+            dateRefreshMutex.withLock {
+                if (date == today) return@withLock
+                try {
+                    repository.extendUpcoming(date)
+                    _today.value = date
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (error: Exception) {
+                    _operationError.value = "날짜 변경에 따른 반복 일정을 갱신하지 못했습니다. 다시 열어 주세요."
+                }
+            }
+        }
+    }
+
+    suspend fun exportLocalBackup(): String {
+        val household = checkNotNull(_configuredHousehold.value) { "집 설정을 불러오지 못했습니다." }
+        return checkNotNull(roomRepository) { "로컬 저장소가 없습니다." }.exportBackup(household)
+    }
+
+    suspend fun restoreLocalBackup(json: String) {
+        val household = checkNotNull(_configuredHousehold.value) { "집 설정을 불러오지 못했습니다." }
+        val repository = checkNotNull(roomRepository) { "로컬 저장소가 없습니다." }
+        repository.restoreBackup(json, household)
+        applySnapshot(repository.snapshot())
     }
 
     fun openEditor(definition: ChoreDefinition?, members: List<String>) {
@@ -221,6 +260,23 @@ class DemoChoreViewModel(
         check(roomRepository == null) { "로컬 저장 모드에서는 deleteDefinitionPersisted를 사용해야 합니다." }
         _definitions.update { current -> current.filterNot { it.id == id } }
         _chores.update { current -> current.filterNot { it.definition.id == id } }
+    }
+
+    fun toggleSkipped(id: String, reason: String? = null) {
+        val repository = roomRepository ?: return
+        if (!pendingToggles.add(id)) return
+        viewModelScope.launch {
+            try {
+                repository.toggleSkipped(id, reason)
+                applySnapshot(repository.snapshot())
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                _operationError.value = "건너뛰기 상태를 저장하지 못했습니다. 다시 시도해 주세요."
+            } finally {
+                pendingToggles.remove(id)
+            }
+        }
     }
 
     fun toggleCompleted(id: String, actingMember: String = "나") {

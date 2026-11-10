@@ -24,12 +24,17 @@ data class DemoChore(
     val id: String,
     val definition: ChoreDefinition,
     val date: LocalDate,
-    val completed: Boolean = false
-)
+    val completed: Boolean = false,
+    val skippedAtEpochMillis: Long? = null,
+    val skipReason: String? = null
+) {
+    val skipped: Boolean get() = skippedAtEpochMillis != null
+}
 
 data class ChoreSummary(
     val total: Int,
     val completed: Int,
+    val skipped: Int,
     val assignedPoints: Int,
     val completedPoints: Int
 ) {
@@ -86,6 +91,7 @@ fun sampleChores(today: LocalDate): List<DemoChore> {
 
 fun demoChoreStatus(chore: DemoChore, today: LocalDate): ChoreStatus = when {
     chore.completed -> ChoreStatus.COMPLETED
+    chore.skipped -> ChoreStatus.SKIPPED
     chore.date.isBefore(today) -> ChoreStatus.OVERDUE
     else -> ChoreStatus.PLANNED
 }
@@ -93,6 +99,7 @@ fun demoChoreStatus(chore: DemoChore, today: LocalDate): ChoreStatus = when {
 fun summaryFor(chores: List<DemoChore>): ChoreSummary = ChoreSummary(
     total = chores.size,
     completed = chores.count { it.completed },
+    skipped = chores.count { it.skipped },
     assignedPoints = chores.sumOf { it.definition.points },
     completedPoints = chores.filter { it.completed }.sumOf { it.definition.points }
 )

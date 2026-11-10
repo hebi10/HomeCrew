@@ -229,6 +229,66 @@ class HomeCrewRoomRepositoryTest {
         assertTrue(first.saveState.value is EditorSaveState.Idle)
     }
 
+
+    @Test
+    fun skippedOccurrenceSurvivesEditAndDatabaseReopen() = runBlocking {
+        val household = setup(emptyList())
+        repository.initializeIfNeeded(household, today)
+        val id = repository.save(
+            ChoreEditorDraft(
+                name = "쉬는 날",
+                startDate = today,
+                repeat = ChoreRepeat(ChoreRepeatMode.DAILY),
+                assignment = ChoreAssignment(members = listOf("나"))
+            ),
+            members,
+            emptyList(),
+            today
+        )
+        val instance = repository.snapshot().chores.first { it.definition.id == id }
+        repository.toggleSkipped(instance.id, "출장")
+        assertTrue(repository.snapshot().chores.single { it.id == instance.id }.skipped)
+        repository.save(
+            ChoreEditorDraft(
+                editingId = id,
+                name = "수정된 쉬는 날",
+                startDate = today,
+                repeat = ChoreRepeat(ChoreRepeatMode.DAILY),
+                assignment = ChoreAssignment(members = listOf("나"))
+            ),
+            members,
+            repository.snapshot().chores,
+            today
+        )
+        reopenDatabase()
+        val restored = repository.snapshot().chores.single { it.id == instance.id }
+        assertTrue(restored.skipped)
+        assertEquals("출장", restored.skipReason)
+        assertFalse(restored.completed)
+        repository.toggleSkipped(instance.id, null)
+        assertFalse(repository.snapshot().chores.single { it.id == instance.id }.skipped)
+        repository.toggleSkipped(instance.id, "다음에")
+        repository.toggleCompleted(instance.id, "나")
+        val completed = repository.snapshot().chores.single { it.id == instance.id }
+        assertTrue(completed.completed)
+        assertFalse(completed.skipped)
+        assertNull(completed.skipReason)
+    }
+
+    @Test
+    fun dateRolloverExtendsHorizonWithoutRestart() = runBlocking {
+        val household = setup(listOf("dishes"))
+        val vm = DemoChoreViewModel(repository)
+        vm.configureHousehold(household)
+        withTimeout(10_000) { vm.configuredHousehold.filterNotNull().first() }
+        val next = vm.today.plusDays(40)
+        vm.refreshDate(next)
+        withTimeout(10_000) { vm.todayState.first { it == next } }
+        assertTrue(repository.snapshot().chores.any {
+            it.definition.id == "dishes" && it.date == next.plusDays(62)
+        })
+    }
+
     @Test
     fun monthlyLeapDayAndOneTimeSeedMarkerPersist() = runBlocking {
         val household = setup(emptyList())

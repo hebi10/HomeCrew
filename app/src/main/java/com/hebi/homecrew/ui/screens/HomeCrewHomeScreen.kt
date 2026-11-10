@@ -52,7 +52,7 @@ fun HomeCrewHomeScreen(
         .sortedBy { it.completed }
     val others = todayChores.filter { it.definition.owner != currentMember }
         .sortedBy { it.completed }
-    val remaining = myChores.count { !it.completed }
+    val remaining = myChores.count { !it.completed && !it.skipped }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),

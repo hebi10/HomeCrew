@@ -99,6 +99,7 @@ fun HomeCrewStatusChip(status: ChoreStatus) {
     val (foreground, backgroundColor) = when (status) {
         ChoreStatus.PLANNED -> palette.muted to palette.subtle
         ChoreStatus.COMPLETED -> palette.success to palette.success.copy(alpha = 0.13f)
+        ChoreStatus.SKIPPED -> palette.muted to palette.subtle
         ChoreStatus.OVERDUE -> palette.warning to palette.warning.copy(alpha = 0.13f)
     }
     Surface(
