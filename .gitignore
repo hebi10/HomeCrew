@@ -10,3 +10,11 @@ local.properties
 signing.properties
 *.properties.local
 .DS_Store
+__pycache__/
+*.pyc
+.superpowers/
+output/
+_site/
+gha-creds-*.json
+*.aab
+*.apk
