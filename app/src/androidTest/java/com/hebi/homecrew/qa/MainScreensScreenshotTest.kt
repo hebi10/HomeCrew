@@ -64,6 +64,7 @@ class MainScreensScreenshotTest {
     }
 
     private fun awaitScreenTitle(title: String) {
+        device.dismissLauncherAnr()
         val node = device.wait(
             Until.findObject(By.desc("화면 제목: $title")),
             12_000
@@ -80,6 +81,7 @@ class MainScreensScreenshotTest {
     }
 
     private fun completeSetupIfShown() {
+        device.dismissLauncherAnr()
         val start = device.wait(Until.findObject(By.text("시작하기")), 3_000)
         if (start == null) return
         screenshot("00-setup-intro")
