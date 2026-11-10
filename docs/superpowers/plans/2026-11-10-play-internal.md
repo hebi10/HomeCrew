@@ -31,9 +31,9 @@
 
 **Interfaces:** Consumes GitHub event/exact main CI metadata and environment signer. Produces verified source SHA/mode, code allocation, signed artifact checks and internal-only Publisher commands.
 
-- [ ] Copy/adapt template tests first, add HomeCrew future-job and optional screenshot-QA guard cases; run RED before installing production scripts.
-- [ ] Adapt tested source/Publisher/signing/native implementations; retain version/hash/stale inventory/first-upload protections; remove promotion support and JSON fallback.
-- [ ] Run both complete Python release suites; expected PASS.
+- [x] Copy/adapt template tests first, add HomeCrew future-job and optional screenshot-QA guard cases; run RED before installing production scripts.
+- [x] Adapt tested source/Publisher/signing/native implementations; retain version/hash/stale inventory/first-upload protections; remove promotion support and JSON fallback.
+- [x] Run both complete Python release suites; expected PASS.
 
 ### Task 2: Actions and registration
 
@@ -41,7 +41,14 @@
 
 **Interfaces:** Consumes source SHA/mode and verified runtime binary readiness from Task 1; produces immutable signed artifacts, internal-only uploads and truthful registration materials.
 
-- [ ] Add workflow binding tests for internal-only target, exact-source gates, private signer cleanup, WIF and unchanged toolchain; observe RED.
-- [ ] Add/adapt Actions and minimal Gradle signing. Describe actual local setup/demo limitations and pending setup/QA.
-- [ ] Run complete Python suites, syntax/whitespace/JSON checks and review the full diff; expected PASS.
-- [ ] Create branch/PR against fresh main and inspect CI. Do not merge or perform Play mutations from this task.
+- [x] Add workflow binding tests for internal-only target, exact-source gates, private signer cleanup, WIF and unchanged toolchain; observe RED.
+- [x] Add/adapt Actions and minimal Gradle signing. Describe actual local setup/demo limitations and pending setup/QA.
+- [x] Run complete Python suites, syntax/whitespace/JSON checks and review the full diff; expected PASS.
+- [x] Create branch/PR against fresh main and inspect CI. Do not merge or perform Play mutations from this task.
+
+## Follow-up verification
+
+- [x] Automatic-only bounded polling for missing/pending screenshot QA; manual and terminal failure checks remain immediate.
+- [x] Every poll rechecks current main; pre-build and pre-upload recheck latest CI/QA including reruns.
+- [x] Latest run selection uses attempt start timestamp with created-at fallback, then run ID/attempt.
+- [x] Behavioral RED→GREEN tests cover pending/missing success, timeout, terminal failure, stale main, manual behavior, one auto trigger and older-ID newer-attempt freshness.

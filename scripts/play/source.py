@@ -7,10 +7,13 @@ from pathlib import Path
 import re
 import subprocess
 import sys
+import time
 
 REPO = 'hebi10/HomeCrew'
 WORKFLOW = '.github/workflows/android.yml'
 REQUIRED_JOBS = {'verify'}
+CI_WAIT_TIMEOUT = 3000
+CI_POLL_INTERVAL = 30
 
 
 class SourceError(RuntimeError):
@@ -63,6 +66,7 @@ def required_workflows(root=Path('.')):
 
 def verify_ci(sha, run, jobs, workflow='android.yml'):
     if (run.get('head_sha') != sha or run.get('head_branch') != 'main' or run.get('conclusion') != 'success'
+            or run.get('status', 'completed') != 'completed'
             or run.get('event') not in ('push', 'workflow_dispatch') or run.get('path') != '.github/workflows/' + workflow):
         raise SourceError('Required main verification has not succeeded for this exact source SHA')
     successful = {job.get('name') for job in jobs if job.get('conclusion') == 'success'}
@@ -81,6 +85,34 @@ def gh(path):
         raise SourceError('Invalid GitHub verification metadata') from None
 
 
+def require_workflow(sha, workflow, wait=False):
+    deadline = time.monotonic() + CI_WAIT_TIMEOUT
+    while True:
+        require_current_main(sha, gh(f'repos/{REPO}/git/ref/heads/main')['object']['sha'])
+        runs = gh(f'repos/{REPO}/actions/workflows/{workflow}/runs?head_sha={sha}&branch=main&per_page=100')['workflow_runs']
+        candidates = [run for run in runs if run.get('event') in ('push', 'workflow_dispatch')]
+        if candidates:
+            run = max(candidates, key=lambda value: (
+                value.get('run_started_at') or value.get('created_at') or '',
+                value['id'], value.get('run_attempt', 1)))
+            payload = gh(f'repos/{REPO}/actions/runs/{run["id"]}/jobs?per_page=100')
+            jobs = payload['jobs']
+            if payload.get('total_count', len(jobs)) != len(jobs):
+                raise SourceError('Required CI job list is incomplete')
+            if any(job.get('conclusion') not in (None, 'success') for job in jobs):
+                raise SourceError('A required CI job failed or was skipped; release is blocked')
+            if run.get('conclusion') is not None or run.get('status') == 'completed':
+                verify_ci(sha, run, jobs, workflow)
+                return str(run['id'])
+        if not wait:
+            raise SourceError('Required ' + workflow + ' is missing or pending for the exact main source SHA')
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise SourceError('Timed out waiting for exact-main ' + workflow + '; release is blocked')
+        print('Waiting for exact-main ' + workflow + '; no release has started', flush=True)
+        time.sleep(min(CI_POLL_INTERVAL, remaining))
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--assert-current', metavar='SHA')
@@ -89,7 +121,9 @@ def main():
         if args.assert_current:
             current = gh(f'repos/{REPO}/git/ref/heads/main')['object']['sha']
             require_current_main(args.assert_current, current)
-            print('Release source still matches current main')
+            for workflow in required_workflows():
+                require_workflow(args.assert_current, workflow)
+            print('Release source still matches current main and latest required CI/QA passed')
             return 0
         event = json.loads(Path(os.environ['GITHUB_EVENT_PATH']).read_text(encoding='utf-8'))
         sha = resolve(os.environ, event)
@@ -100,17 +134,8 @@ def main():
             raise SourceError('Release source is not an ancestor of the trusted main branch')
         run_ids = []
         for workflow in required_workflows():
-            runs = gh(f'repos/{REPO}/actions/workflows/{workflow}/runs?head_sha={sha}&branch=main&per_page=100')['workflow_runs']
-            candidates = [run for run in runs if run.get('event') in ('push', 'workflow_dispatch')]
-            if not candidates:
-                raise SourceError('Required ' + workflow + ' run is missing for the exact main source SHA')
-            run = max(candidates, key=lambda value: (value['id'], value.get('run_attempt', 1)))
-            payload = gh(f'repos/{REPO}/actions/runs/{run["id"]}/jobs?per_page=100')
-            jobs = payload['jobs']
-            if payload.get('total_count', len(jobs)) != len(jobs):
-                raise SourceError('Required CI job list is incomplete')
-            verify_ci(sha, run, jobs, workflow)
-            run_ids.append(str(run['id']))
+            wait = os.environ.get('GITHUB_EVENT_NAME') == 'workflow_run' and workflow != 'android.yml'
+            run_ids.append(require_workflow(sha, workflow, wait=wait))
         subject = subprocess.run(['git', 'show', '-s', '--format=%s', sha], capture_output=True, check=False, text=True)
         if subject.returncode:
             raise SourceError('Could not inspect the trusted release commit subject')

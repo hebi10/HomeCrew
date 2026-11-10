@@ -46,7 +46,7 @@ Actions의 `Play internal release`를 main에서 실행합니다.
 
 같은 저장소의 main push에 대한 `Android CI` 성공은 자동으로 내부 `deploy`를 요청합니다. 초기화를 의도한 신뢰된 main 커밋 제목의 독립 토큰 `[initialize-play]`는 그 실행만 `initialize`로 선택합니다. 수동 초기화는 `mode=initialize`로 선택합니다. 최초 바이너리가 없으면 일반 deploy는 차단되며 자동으로 초기화하지 않습니다.
 
-현재 `.github/workflows/android.yml`의 `verify` 및 해당 실행의 모든 job이 exact current main에서 성공해야 합니다. 미래 instrumentation job이 추가되면 그 job도 성공해야 합니다. main에 `screenshot-qa.yml`이 존재하면 같은 SHA의 push/수동 실행이 성공해야 하며 PR 실행은 인정하지 않습니다. 빌드 전에 한 번, 업로드 직전에 다시 현재 main과 비교합니다. 실패/생략/대기/과거 SHA는 우회하지 않습니다.
+현재 `.github/workflows/android.yml`의 `verify` 및 해당 실행의 모든 job이 exact current main에서 성공해야 합니다. 미래 instrumentation job이 추가되면 그 job도 성공해야 합니다. main에 `screenshot-qa.yml`이 존재하면 같은 SHA의 push/수동 실행이 성공해야 하며 PR 실행은 인정하지 않습니다. 자동 Android CI 완료 실행만 아직 생성되지 않았거나 실행 중인 QA를 최대 50분 동안 30초마다 확인하고 매번 현재 main을 재확인합니다. 실패/생략 job은 즉시 중단하며, 수동 실행은 대기하지 않습니다. 별도 QA 완료 자동 트리거를 추가하지 않아 중복 제출을 피합니다. 빌드 전과 업로드 직전에는 현재 main 및 최신 CI/QA 재실행 상태도 다시 확인합니다. 실패/생략/대기/과거 SHA는 우회하지 않습니다.
 
 버전 할당은 미배정 AAB·APK와 모든 트랙의 초안까지 포함합니다. 빌드 중 더 높은 코드가 나타나면 다시 빌드하도록 중단합니다. 업로드 응답 SHA-256이 로컬 AAB와 같아야 트랙을 변경합니다. 최종 커밋 또는 새 edit 읽기가 불확실하면 성공으로 보고하지 않으며 Console 확인 전 같은 제출을 반복하지 않습니다.
 
@@ -62,7 +62,7 @@ Actions의 `Play internal release`를 main에서 실행합니다.
 
 ## 준비 상태와 남은 확인
 
-2026-11-10 기준 이 작업의 시작 main은 `2826e8ea1718eabda970c5f73275dac161660401`이며 1-C 로컬 설정과 1-B 네 화면을 포함합니다. 기존 앱 CI 외에 별도 에뮬레이터 스크린샷 QA는 아직 확인되지 않았습니다. PR #3의 screenshot QA와 별도 UI 개발을 이 변경에서 병합하거나 완료로 표시하지 않습니다.
+2026-11-10 기준 이 작업의 시작 main은 `2826e8ea1718eabda970c5f73275dac161660401`이며 1-C 로컬 설정과 1-B 네 화면을 포함합니다. 작업 도중 별도 PR #3이 main `c666024f8bf1a3e367b354ea7103355804e7b5de`에 병합되어 screenshot QA와 instrumentation 의존성이 추가되었습니다. 이 변경은 그 최신 main을 기준으로 기존 의존성과 UI를 유지하며, QA 실행 완료 여부는 exact main의 실제 결과로 별도 확인합니다.
 
 - [ ] HomeCrew 앱 Console 생성 및 실제 패키지/무료 설정/연락처 확인
 - [ ] HomeCrew 전용 키의 비공개 준비와 secret 등록, App Signing 등록 상태 확인
