@@ -49,7 +49,7 @@
 
 ## 검증 항목
 
-- [ ] CI: `testDebugUnitTest lintDebug assembleDebug` 통과
+- [x] CI: `testDebugUnitTest lintDebug assembleDebug` 통과 ([PR 검증](https://github.com/hebi10/HomeCrew/actions/runs/42764487419))
 - [ ] 메인 4개 화면 렌더링 및 탭 전환
 - [ ] 홈 완료 ↔ 일정 및 통계 재집계
 - [ ] 월/주/일 날짜 선택·이동·오늘 복귀

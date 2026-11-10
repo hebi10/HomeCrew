@@ -41,7 +41,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: homecrew-1a-build-reports
+          name: homecrew-debug-ci
           path: |
             app/build/reports/
             app/build/test-results/
