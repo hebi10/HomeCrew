@@ -32,6 +32,16 @@ jobs:
           gradle-version: '8.13'
       - name: Install Android SDK
         run: sdkmanager 'platforms;android-36' 'build-tools;35.0.0'
+      - name: Enable KVM for Android emulator
+        run: |
+          if [ ! -e /dev/kvm ]; then
+            echo "::error::/dev/kvm unavailable; cannot run hardware-accelerated emulator."
+            exit 1
+          fi
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          ls -l /dev/kvm
       - name: Capture four tabs on API 35
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -40,7 +50,7 @@ jobs:
           target: google_apis
           profile: pixel_6
           disable-animations: true
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -accel on
           script: bash .github/scripts/capture-screenshots.sh
       - name: Upload UI screenshots and instrumentation report
         if: always()
