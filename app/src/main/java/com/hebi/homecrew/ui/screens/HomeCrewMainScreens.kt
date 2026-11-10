@@ -1,6 +1,9 @@
 package com.hebi.homecrew.ui.screens
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.Alignment
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
@@ -34,19 +37,22 @@ fun HomeCrewMainScreens(
     viewModel: DemoChoreViewModel = viewModel()
 ) {
     val palette = LocalHomeCrewColors.current
-    val originalChores by viewModel.chores.collectAsState()
+    val chores by viewModel.chores.collectAsState()
+    val configuredHousehold by viewModel.configuredHousehold.collectAsState()
     val currentDate = viewModel.today
-    var setupChores by remember(householdSetup) {
-        mutableStateOf(householdSetup?.let { previewChoresForSetup(it, currentDate) })
-    }
-    val chores = setupChores ?: originalChores
     val memberNames = householdSetup?.members ?: listOf("나", "지민")
-    val toggleCompleted: (String) -> Unit = { id ->
-        if (householdSetup == null) viewModel.toggleCompleted(id)
-        else setupChores = setupChores?.map { task ->
-            if (task.id == id) task.copy(completed = !task.completed) else task
-        }
+
+    LaunchedEffect(householdSetup) {
+        householdSetup?.let(viewModel::configureHousehold)
     }
+
+    if (householdSetup != null && configuredHousehold != householdSetup) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator()
+        }
+        return
+    }
+
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val saveableStateHolder = rememberSaveableStateHolder()
@@ -81,7 +87,7 @@ fun HomeCrewMainScreens(
                         currentMember = currentMember,
                         themeMode = themeMode,
                         onMemberSelected = { currentMember = it },
-                        onToggle = toggleCompleted,
+                        onToggle = viewModel::toggleCompleted,
                         onDetails = { detailId = it.id },
                         onAdd = showAddInfo,
                         onOpenDesignSystem = onOpenDesignSystem,
@@ -94,7 +100,7 @@ fun HomeCrewMainScreens(
                     HomeTab.SCHEDULE -> HomeCrewScheduleScreen(
                         today = currentDate,
                         chores = chores,
-                        onToggle = toggleCompleted,
+                        onToggle = viewModel::toggleCompleted,
                         onDetails = { detailId = it.id }
                     )
                     HomeTab.CHORES -> HomeCrewChoresScreen(
