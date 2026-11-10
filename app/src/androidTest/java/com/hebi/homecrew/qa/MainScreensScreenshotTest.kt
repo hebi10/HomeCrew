@@ -22,17 +22,39 @@ class MainScreensScreenshotTest {
     private val device: UiDevice
         get() = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
 
+    private fun qaDirectory(): File {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        return File(requireNotNull(context.getExternalFilesDir(null)), "screen-qa").also {
+            assertTrue(it.isDirectory || it.mkdirs())
+        }
+    }
+
+    private fun dumpFailedUi(label: String) {
+        val safeLabel = label.replace(Regex("[^A-Za-z0-9가-힣]"), "_")
+        device.takeScreenshot(File(qaDirectory(), "error-${safeLabel}.png"))
+        device.dumpWindowHierarchy(File(qaDirectory(), "hierarchy-${safeLabel}.xml"))
+    }
+
     private fun tapTab(label: String) {
-        val tab = device.wait(Until.findObject(By.text(label)), 10_000)
-        assertNotNull("탭을 찾을 수 없음: $label", tab)
+        val tab = device.wait(Until.findObject(By.desc("$" + "{label} 탭")), 8_000)
+            ?: device.wait(Until.findObject(By.text(label)), 2_000)
+        if (tab == null) dumpFailedUi(label)
+        assertNotNull("하단 탐색 탭을 찾을 수 없음: $label", tab)
         tab.click()
         device.waitForIdle()
     }
 
+    private fun tapButton(label: String) {
+        val button = device.wait(Until.findObject(By.text(label)), 5_000)
+            ?: device.wait(Until.findObject(By.desc(label)), 5_000)
+        if (button == null) dumpFailedUi(label)
+        assertNotNull("버튼을 찾을 수 없음: $label", button)
+        button.click()
+        device.waitForIdle()
+    }
+
     private fun screenshot(name: String) {
-        val context = InstrumentationRegistry.getInstrumentation().targetContext
-        val directory = File(requireNotNull(context.getExternalFilesDir(null)), "screen-qa")
-        assertTrue(directory.isDirectory || directory.mkdirs())
+        val directory = qaDirectory()
         device.waitForIdle()
         assertTrue("화면 캡처 실패: $name", device.takeScreenshot(File(directory, "$name.png")))
     }
@@ -44,11 +66,11 @@ class MainScreensScreenshotTest {
         start.click()
         device.waitForIdle()
         screenshot("00-setup-household")
-        tapTab("다음")
+        tapButton("다음")
         screenshot("00-setup-members")
-        tapTab("다음")
+        tapButton("다음")
         screenshot("00-setup-templates")
-        tapTab("선택한 집안일로 시작")
+        tapButton("선택한 집안일로 시작")
     }
 
     @Test
