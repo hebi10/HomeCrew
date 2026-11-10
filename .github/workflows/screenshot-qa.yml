@@ -5,6 +5,13 @@ on:
     paths:
       - 'app/**'
       - '.github/workflows/screenshot-qa.yml'
+      - '.github/scripts/capture-screenshots.sh'
+  push:
+    branches: [main]
+    paths:
+      - 'app/**'
+      - '.github/workflows/screenshot-qa.yml'
+      - '.github/scripts/capture-screenshots.sh'
   workflow_dispatch:
 
 permissions:
