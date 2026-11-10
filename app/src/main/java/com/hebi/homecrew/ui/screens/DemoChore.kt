@@ -13,7 +13,11 @@ data class ChoreDefinition(
     val owner: String,
     val repeat: String,
     val points: Int,
-    val time: String
+    val time: String,
+    val description: String = "",
+    val recurrence: ChoreRepeat? = null,
+    val assignment: ChoreAssignment? = null,
+    val startDate: LocalDate? = null
 )
 
 data class DemoChore(

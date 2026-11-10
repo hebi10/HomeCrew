@@ -52,3 +52,9 @@
 - [x] Every poll rechecks current main; pre-build and pre-upload recheck latest CI/QA including reruns.
 - [x] Latest run selection validates attempt start timestamp with created-at fallback only for attempt 1, then run ID/attempt; missing/invalid rerun timestamps fail closed.
 - [x] Behavioral RED→GREEN tests cover pending/missing success, timeout, terminal failure, stale main, manual behavior, one auto trigger and older-ID newer-attempt freshness.
+
+## Latest-main integration
+
+- [x] Preserve main `d89481b13e384cd6c5b7004bfa648c13c4235ac6` and its 1-D app, tests and README content; resolve only the release-documentation footer conflict in README.
+- [x] Keep release source/workflows/signing safeguards unchanged and rerun the complete Python release suite.
+- [x] Align listing/privacy with actual session-only chore editing, repeat and assignment behavior; record the account owner's verified nonsecret setup state separately from deployment results.

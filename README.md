@@ -2,7 +2,7 @@
 
 집안일 분담, 반복 일정 및 완료율을 관리하기 위한 Android 앱입니다.
 
-## 현재 단계 — 1-B 네 개 메인 화면
+## 현재 단계 — 1-D 집안일 등록·반복·담당·상세 화면
 
 Kotlin + Jetpack Compose 기반으로 **홈·일정·집안일·통계** 네 화면을 구현했습니다. 기존 1-A 디자인 시스템과 라이트·다크 테마를 유지합니다.
 
@@ -10,11 +10,13 @@ Kotlin + Jetpack Compose 기반으로 **홈·일정·집안일·통계** 네 화
 - **일정:** 월·주·일 전환, 날짜 선택 및 이동, 일자별 완료 상태
 - **집안일:** 이름 검색, 카테고리·상태 필터, 반복 작업 목록
 - **통계:** 주·월 완료율, 완료 개수, 배정/완료 난이도, 주간 차트, 구성원 비교
+- **1-D 하위 화면:** 집안일 등록·수정, 반복 6종, 담당 방식 3종, 상세·완료·삭제 확인
 
-**주의:** 현재 실행 화면은 예시 데이터 기반이며, 실제 집안일 등록·수정·저장, 반복 자동 생성, Firebase 로그인/공유는 구현하지 않았습니다. 완료 체크와 필터 동작은 앱 실행 중 메모리 상태에만 반영됩니다.
+**주의:** 1-D에서는 집안일 등록·수정·삭제와 반복·담당자 배정을 앱 실행 중 **시연 데이터**로 동작시킵니다. 재시작 후 남는 것은 1-C의 집·구성원 설정뿐이며, 집안일 자체와 완료 이력은 Room 2-A까지 영구 보관되지 않습니다. Firebase 로그인·초대·공유도 미구현입니다.
 
 - [1-A 공통 디자인 시스템](docs/design-system-1a.md)
 - [1-B 화면별 구현/검증 기준](docs/screen-design-1b.md)
+- [1-D 집안일 등록·반복·담당·상세 화면](docs/screen-design-1d.md)
 - [1-B 시안 이미지](docs/design/02-homecrew-main-screens.png)
 - [HomeCrew Google Drive](https://drive.google.com/drive/folders/16xQAcSuTapJ-D8sUdJBUJvfCtBIdo_Tx)
 
@@ -37,6 +39,9 @@ app/src/main/java/com/hebi/homecrew/
         ├── HomeCrewScreenParts.kt
         ├── DemoChore.kt
         ├── DemoChoreViewModel.kt
+        ├── ChoreEditing.kt
+        ├── HomeCrewChoreEditorScreens.kt
+        ├── HomeCrewChoreDetailScreen.kt
         └── DateLabels.kt
 ```
 

@@ -11,11 +11,11 @@
 | 개인정보처리방침 예정 URL | https://hebi10.github.io/HomeCrew/privacy-policy.html |
 | 배포 범위 | 내부 테스트만, 비공개·공개·프로덕션 승격 없음 |
 
-`listing-ko.json`은 현재 구현된 로컬 초기 설정과 시연 화면만 설명합니다. 앱의 기능 완성, 기기 QA, Play 등록, App Signing, 심사 및 설치 가능 상태는 각각 별도로 확인합니다. 판매자 여부·대상 연령·콘텐츠 등급은 실제 사실을 확인하여 Console에 입력해야 합니다.
+`listing-ko.json`은 현재 구현된 로컬 초기 설정과 1-D의 실행 중 집안일 등록·반복·담당·상세 기능을 설명합니다. 앱의 기능 완성, 기기 QA, Play 등록, App Signing, 심사 및 설치 가능 상태는 각각 별도로 확인합니다. 판매자 여부·대상 연령·콘텐츠 등급은 실제 사실을 확인하여 Console에 입력해야 합니다.
 
 ## 계정과 앱별 서명
 
-다음 값은 준비 기준이며 이 문서를 추가한 시점에 설정 완료를 확인한 것은 아닙니다.
+다음 값은 이 앱 전용 설정입니다. 2026-11-10 계정 설정 담당자가 앱 생성, 전용 서비스 계정 활성화, WIF 연결, GitHub secret/변수 등록 및 main 전용 환경 제한을 확인했습니다. 실제 서명 빌드와 Play 제출 결과는 별도로 확인합니다.
 
 - Cloud 프로젝트 `hebi-app-release-80847404` · 번호 `973619009476`
 - 전용 서비스 계정 `play-homecrew@hebi-app-release-80847404.iam.gserviceaccount.com`
@@ -23,7 +23,7 @@
 - 저장소 ID `1452185829` · 소유자 ID `80847404` · ref `refs/heads/main` · 환경 `google-play`
 - 예정 provider: `projects/973619009476/locations/global/workloadIdentityPools/homecrew-github/providers/github-main`
 
-GitHub의 `google-play` 환경은 main 브랜치만 허용하도록 제한합니다. WIF의 신뢰 조건도 위 저장소 ID·소유자 ID·main·환경을 한정해야 합니다. 서비스 계정에는 이 Play 앱의 내부 테스트에 필요한 권한만 부여합니다. 정적 서비스 계정 JSON 인증은 사용하지 않습니다.
+GitHub의 `google-play` 환경은 main 브랜치만 허용합니다. WIF의 신뢰 조건은 위 저장소 ID·소유자 ID·main과 `repo:hebi10/HomeCrew:environment:google-play`를 한정합니다. 서비스 계정은 HomeCrew 앱에만 조회·테스트 출시·테스터 관리 권한이 활성화되어 있으며 프로덕션 권한은 없습니다. 정적 서비스 계정 JSON 인증은 사용하지 않습니다.
 
 | 종류 | 이름 |
 | --- | --- |
@@ -56,23 +56,25 @@ Actions의 `Play internal release`를 main에서 실행합니다.
 
 ## 현재 앱의 개인정보와 제한
 
-- 집 이름·구성원 이름·기본 구성원·선택 템플릿은 SharedPreferences에 현재 기기만 저장합니다. 완료 체크는 메모리 상태이며 프로세스 종료 뒤 초기화됩니다.
+- 집 이름·구성원 이름·기본 구성원·선택 템플릿은 SharedPreferences에 현재 기기만 저장합니다. 1-D에서 등록·수정한 집안일의 설명·반복 규칙·담당 방식·예정 회차와 완료 체크는 메모리 상태이며 프로세스 종료 뒤 초기화됩니다.
 - 로그인·가족 초대·클라우드 동기화·광고·분석·결제·개발자 서버 업로드 기능이 없습니다. 현재 manifest에 인터넷 권한이 없으며 `android:allowBackup="false"`로 설정합니다. `dataExtractionRules`는 별도로 지정하지 않았으므로 Android 버전/제조사별 기기 간 이전까지 불가능하다고 단정하지 않습니다.
-- 선택 템플릿은 오늘의 임시 집안일을 만듭니다. 실제 등록/수정/반복 생성/완료 이력 영속화는 아직 없습니다. 통계는 이 시연 상태에서 계산됩니다.
+- 초기 선택 템플릿은 오늘의 임시 집안일을 만듭니다. 1-D에서는 등록·수정·삭제, 반복 6종, 담당 방식 3종 및 상세를 실행 중 시연 상태로 제공합니다. 저장 시 반복 규칙에 따른 예정 회차를 메모리에 만들지만 집안일/완료 이력 영속화와 백그라운드 알림은 아직 없습니다. 통계도 이 실행 중 상태에서 계산됩니다.
 - 실제 APK/AAB의 package·versionName·versionCode와 업로드 인증서, ELF32 최소 4 KB/ELF64 최소 16 KB 및 APK ZIP 정렬을 검사합니다. 네이티브가 없으면 `--allow-no-native`에서만 비적용으로 기록하고 ZIP 정렬 검사는 유지합니다.
 - Play 데이터 보안 양식은 출시할 실제 APK/포함 SDK/동작을 재확인한 뒤 신고합니다. 앱의 로컬 처리와 플랫폼 자체 처리를 구분합니다.
 
 ## 준비 상태와 남은 확인
 
-2026-11-10 기준 이 작업의 시작 main은 `2826e8ea1718eabda970c5f73275dac161660401`이며 1-C 로컬 설정과 1-B 네 화면을 포함합니다. 작업 도중 별도 PR #3이 main `c666024f8bf1a3e367b354ea7103355804e7b5de`에 병합되어 screenshot QA와 instrumentation 의존성이 추가되었습니다. 이 변경은 그 최신 main을 기준으로 기존 의존성과 UI를 유지하며, QA 실행 완료 여부는 exact main의 실제 결과로 별도 확인합니다.
+2026-11-10 기준 이 작업의 시작 main은 `2826e8ea1718eabda970c5f73275dac161660401`이었습니다. 별도 PR #3의 screenshot QA에 이어 PR #7의 1-D 집안일 등록·반복·담당·상세가 main `d89481b13e384cd6c5b7004bfa648c13c4235ac6`에 병합되었습니다. 이 릴리스 변경은 해당 최신 main의 앱·테스트·의존성과 README의 1-D 설명을 보존하고, 등록 자료만 실제 기능에 맞춰 갱신했습니다. QA 실행 완료 여부는 배포할 exact main의 실제 결과로 별도 확인합니다.
 
-- [ ] HomeCrew 앱 Console 생성 및 실제 패키지/무료 설정/연락처 확인
-- [ ] HomeCrew 전용 키의 비공개 준비와 secret 등록, App Signing 등록 상태 확인
-- [ ] Cloud 서비스 계정/WIF/Play 권한과 main 전용 환경 설정
-- [ ] GitHub Pages의 Source를 GitHub Actions로 설정하고 위 URL의 공개 HTTPS 응답 확인
+- [x] HomeCrew 앱 Console 생성 및 패키지 `com.hebi.homecrew` 확인
+- [x] HomeCrew 전용 업로드 키 준비, 소유자 전용 비공개 백업 및 5개 signer secret 등록
+- [x] 전용 Cloud 서비스 계정/WIF/앱별 Play 테스트 권한, 2개 인증 변수 및 main 전용 환경 설정
+- [x] GitHub Pages의 Source를 GitHub Actions로 설정
+- [ ] App Signing 등록 상태, 무료 설정과 스토어 연락처 최종 확인
+- [ ] 정책 Pages 배포 후 위 URL의 공개 HTTPS 응답 확인
 - [ ] exact main Android CI 및 추가된 경우 screenshot QA 성공
 - [ ] `check`, 서명 `build` 및 최초 내부 `initialize` 결과 확인
 - [ ] 내부 테스터 지정, Console 초안/심사/게시 상태 및 실제 설치 확인
 - [ ] 화면별 실제 기기/에뮬레이터 QA와 필요 시 16 KB 기기 실행
 
-이 작업은 코드와 등록 자료를 준비합니다. 계정 설정·공개 정책 URL·서명 빌드·Play 제출·기기 QA가 완료됐다고 주장하지 않습니다.
+계정 연결과 비공개 키 보관은 담당자의 확인을 반영했습니다. 공개 정책 URL·실제 서명 빌드·Play 제출·전체 기기 QA의 완료를 의미하지 않습니다.
