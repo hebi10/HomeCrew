@@ -1,6 +1,8 @@
 package com.hebi.homecrew.data.local
 
 import androidx.room.Dao
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Upsert
@@ -57,6 +59,9 @@ abstract class HomeCrewDao {
 
     @Upsert
     abstract suspend fun upsertOccurrences(values: List<ChoreOccurrenceEntity>)
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    abstract suspend fun insertMissingOccurrences(values: List<ChoreOccurrenceEntity>)
 
     @Query("DELETE FROM chore_assignment_members WHERE definitionId = :id")
     abstract suspend fun deleteAssignmentMembers(id: String)
