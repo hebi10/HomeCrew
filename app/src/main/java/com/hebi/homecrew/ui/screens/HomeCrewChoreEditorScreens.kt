@@ -111,7 +111,7 @@ fun HomeCrewChoreFormScreen(
     ChoreSubpageLayout(
         title = if (draft.editingId == null) "집안일 추가" else "집안일 수정",
         subtitle = "내용을 입력하고 반복·담당 방식을 설정하세요.",
-        primaryLabel = "시연 집안일 저장",
+        primaryLabel = "집안일 저장",
         onBack = onBack,
         onPrimary = onSave,
         error = error
@@ -242,7 +242,7 @@ fun HomeCrewChoreFormScreen(
             }
         }
         Text(
-            "이 단계의 등록·수정은 앱 실행 중 시연 데이터에만 반영됩니다. 기기에 실제로 저장하는 기능은 2-A에서 연결합니다.",
+            "등록·수정한 집안일과 반복 일정은 이 기기에 저장됩니다. 기기 간 공유는 지원하지 않습니다.",
             style = MaterialTheme.typography.bodySmall, color = palette.muted
         )
     }
@@ -442,7 +442,7 @@ fun HomeCrewAssignmentScreen(
             }
         }
         Text(
-            "자동 분담은 현재 시연 상태의 예상 결과입니다. 영구적인 배정 기록은 2-A 이후 지원합니다.",
+            "자동 분담은 이 기기에 저장된 집안일의 예상 업무량을 기준으로 계산합니다.",
             color = palette.muted, style = MaterialTheme.typography.bodySmall
         )
     }
