@@ -37,9 +37,24 @@ class MainScreensScreenshotTest {
         assertTrue("화면 캡처 실패: $name", device.takeScreenshot(File(directory, "$name.png")))
     }
 
+    private fun completeSetupIfShown() {
+        val start = device.wait(Until.findObject(By.text("시작하기")), 3_000)
+        if (start == null) return
+        screenshot("00-setup-intro")
+        start.click()
+        device.waitForIdle()
+        screenshot("00-setup-household")
+        tapTab("다음")
+        screenshot("00-setup-members")
+        tapTab("다음")
+        screenshot("00-setup-templates")
+        tapTab("선택한 집안일로 시작")
+    }
+
     @Test
     fun captureMainTabsAndBasicInteractions() {
         device.waitForIdle()
+        completeSetupIfShown()
         screenshot("01-home-light")
         tapTab("일정")
         screenshot("02-schedule-light")
