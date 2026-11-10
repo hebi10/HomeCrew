@@ -1,0 +1,104 @@
+package com.hebi.homecrew.qa
+
+import androidx.test.ext.junit.rules.ActivityScenarioRule
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.uiautomator.By
+import androidx.test.uiautomator.UiDevice
+import androidx.test.uiautomator.Until
+import com.hebi.homecrew.MainActivity
+import java.io.File
+import org.junit.Assert.assertTrue
+import org.junit.Rule
+import org.junit.Test
+import org.junit.runner.RunWith
+
+@RunWith(AndroidJUnit4::class)
+class ChoreEditorScreenshotTest {
+    @get:Rule val activityRule = ActivityScenarioRule(MainActivity::class.java)
+
+    private val device: UiDevice
+        get() = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
+
+    private fun outputDirectory(): File {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val dir = InstrumentationRegistry.getArguments()
+            .getString("additionalTestOutputDir")?.takeIf { it.isNotBlank() }
+            ?.let(::File) ?: requireNotNull(context.externalMediaDirs.firstOrNull())
+        return File(dir, "screen-qa").also { assertTrue(it.isDirectory || it.mkdirs()) }
+    }
+
+    private fun screenshot(name: String) {
+        device.waitForIdle()
+        assertTrue(device.takeScreenshot(File(outputDirectory(), "$name.png")))
+    }
+
+    private fun press(text: String) {
+        val node = device.wait(Until.findObject(By.text(text)), 12_000)
+            ?: device.wait(Until.findObject(By.desc(text)), 4_000)
+        if (node == null) {
+            screenshot("error-1d-button")
+            device.dumpWindowHierarchy(File(outputDirectory(), "error-1d.xml"))
+        }
+        requireNotNull(node) { "버튼을 찾을 수 없음: $text" }.click()
+        device.waitForIdle()
+    }
+
+    private fun awaitScreen(title: String) {
+        val node = device.wait(Until.findObject(By.desc("화면 제목: $title")), 12_000)
+        if (node == null) screenshot("error-1d-screen")
+        requireNotNull(node) { "화면 전환 실패: $title" }
+        device.waitForIdle()
+    }
+
+    private fun completeSetupIfNeeded() {
+        if (device.wait(Until.findObject(By.text("시작하기")), 2_000) != null) {
+            press("시작하기")
+            press("다음")
+            press("다음")
+            press("선택한 집안일로 시작")
+        }
+        awaitScreen("우리 집")
+    }
+
+    @Test
+    fun captureFourChorePagesAndValidation() {
+        completeSetupIfNeeded()
+        press("+ 집안일 추가")
+        awaitScreen("집안일 추가")
+        screenshot("08-chore-add")
+
+        press("시연 집안일 저장")
+        val validation = device.wait(
+            Until.findObject(By.text("집안일 이름을 입력해 주세요.")), 8_000
+        )
+        requireNotNull(validation) { "필수 이름 검증이 동작하지 않습니다." }
+        screenshot("08-chore-add-error")
+
+        press("반복 설정")
+        awaitScreen("반복 설정")
+        screenshot("09-chore-repeat")
+        press("반복 설정 적용")
+        awaitScreen("집안일 추가")
+
+        press("담당 방식 설정")
+        awaitScreen("담당 방식")
+        screenshot("10-chore-assignment")
+        press("담당 방식 적용")
+        awaitScreen("집안일 추가")
+
+        press("이전")
+        awaitScreen("우리 집")
+        press("설거지")
+        awaitScreen("설거지")
+        screenshot("11-chore-detail")
+
+        press("이 회차 완료 처리")
+        val undo = device.wait(Until.findObject(By.text("이 회차 완료 취소")), 8_000)
+        requireNotNull(undo) { "선택한 회차 완료 상태가 반영되지 않습니다." }
+        screenshot("11-chore-detail-completed")
+        press("집안일 수정")
+        awaitScreen("집안일 수정")
+        screenshot("12-chore-edit")
+    }
+}
