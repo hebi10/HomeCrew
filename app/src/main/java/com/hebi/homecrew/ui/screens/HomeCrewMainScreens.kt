@@ -52,6 +52,7 @@ fun HomeCrewMainScreens(
     val configuredHousehold by viewModel.configuredHousehold.collectAsState()
     val loadError by viewModel.loadError.collectAsState()
     val operationError by viewModel.operationError.collectAsState()
+    val saveState by viewModel.saveState.collectAsState()
     val currentDate = viewModel.today
     val memberNames = householdSetup?.members ?: listOf("나", "지민")
 
@@ -91,8 +92,24 @@ fun HomeCrewMainScreens(
     var initialEditor by remember { mutableStateOf<ChoreEditorDraft?>(null) }
     var formError by rememberSaveable { mutableStateOf<String?>(null) }
     var confirmDiscard by rememberSaveable { mutableStateOf(false) }
-    var saving by remember { mutableStateOf(false) }
     var pageError by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(saveState) {
+        when (val state = saveState) {
+            is EditorSaveState.Success -> {
+                detailId = state.id
+                selectedOccurrenceId = null
+                page = ChorePage.DETAIL
+                formError = null
+                viewModel.acknowledgeEditorSave()
+            }
+            is EditorSaveState.Failure -> {
+                formError = state.message
+                viewModel.acknowledgeEditorSave()
+            }
+            else -> Unit
+        }
+    }
 
     LaunchedEffect(page, editor) {
         if (page in listOf(ChorePage.FORM, ChorePage.REPEAT, ChorePage.ASSIGNMENT)
@@ -112,7 +129,7 @@ fun HomeCrewMainScreens(
     }
 
     fun requestFormBack() {
-        if (saving) return
+        if (saveState is EditorSaveState.Saving) return
         if (editor != null && editor != initialEditor) confirmDiscard = true
         else finishEditor()
     }
@@ -141,7 +158,7 @@ fun HomeCrewMainScreens(
     }
 
     fun back() {
-        if (saving) return
+        if (saveState is EditorSaveState.Saving) return
         when (page) {
             ChorePage.REPEAT, ChorePage.ASSIGNMENT -> page = ChorePage.FORM
             ChorePage.FORM -> requestFormBack()
@@ -255,31 +272,13 @@ fun HomeCrewMainScreens(
                     onRepeat = { page = ChorePage.REPEAT },
                     onAssignment = { page = ChorePage.ASSIGNMENT },
                     onSave = {
-                        if (!saving) {
+                        if (saveState !is EditorSaveState.Saving) {
                             val error = validationError(draft, memberNames)
                             if (error != null) {
                                 formError = error
                             } else {
-                                saving = true
-                                scope.launch {
-                                    try {
-                                        val savedId = viewModel.saveEditorPersisted(memberNames)
-                                        if (savedId == null) {
-                                            formError = "집안일을 적용하지 못했습니다. 입력 내용을 확인해 주세요."
-                                        } else {
-                                            detailId = savedId
-                                            selectedOccurrenceId = null
-                                            page = ChorePage.DETAIL
-                                            formError = null
-                                        }
-                                    } catch (error: CancellationException) {
-                                        throw error
-                                    } catch (error: Exception) {
-                                        formError = "기기 저장에 실패했습니다. 내용을 유지했으니 다시 시도해 주세요."
-                                    } finally {
-                                        saving = false
-                                    }
-                                }
+                                formError = null
+                                viewModel.saveEditorPersisted(memberNames)
                             }
                         }
                     },
