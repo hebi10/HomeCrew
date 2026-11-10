@@ -24,7 +24,12 @@ class MainScreensScreenshotTest {
 
     private fun qaDirectory(): File {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
-        return File(requireNotNull(context.getExternalFilesDir(null)), "screen-qa").also {
+        val outputDir = InstrumentationRegistry.getArguments()
+            .getString("additionalTestOutputDir")
+            ?.takeIf { it.isNotBlank() }
+            ?.let(::File)
+            ?: requireNotNull(context.externalMediaDirs.firstOrNull())
+        return File(outputDir, "screen-qa").also {
             assertTrue(it.isDirectory || it.mkdirs())
         }
     }
