@@ -6,6 +6,7 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.SQLiteConnection
+import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.sqlite.execSQL
 
 @Database(
@@ -23,16 +24,20 @@ abstract class HomeCrewDatabase : RoomDatabase() {
 
     companion object {
         val MIGRATION_1_2 = object : Migration(1, 2) {
+            private val statements = listOf(
+                "ALTER TABLE chore_occurrences " +
+                    "ADD COLUMN workloadPoints INTEGER NOT NULL DEFAULT 0",
+                "UPDATE chore_occurrences SET workloadPoints = " +
+                    "COALESCE((SELECT points FROM chore_definitions " +
+                    "WHERE chore_definitions.id = chore_occurrences.definitionId), 0)"
+            )
+
+            override fun migrate(db: SupportSQLiteDatabase) {
+                statements.forEach(db::execSQL)
+            }
+
             override fun migrate(connection: SQLiteConnection) {
-                connection.execSQL(
-                    "ALTER TABLE chore_occurrences " +
-                        "ADD COLUMN workloadPoints INTEGER NOT NULL DEFAULT 0"
-                )
-                connection.execSQL(
-                    "UPDATE chore_occurrences SET workloadPoints = " +
-                        "COALESCE((SELECT points FROM chore_definitions " +
-                        "WHERE chore_definitions.id = chore_occurrences.definitionId), 0)"
-                )
+                statements.forEach(connection::execSQL)
             }
         }
 
