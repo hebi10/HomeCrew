@@ -20,6 +20,13 @@ import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+sealed interface EditorSaveState {
+    data object Idle : EditorSaveState
+    data object Saving : EditorSaveState
+    data class Success(val id: String) : EditorSaveState
+    data class Failure(val message: String) : EditorSaveState
+}
+
 class DemoChoreViewModel(
     private val roomRepository: HomeCrewRoomRepository? = null
 ) : ViewModel() {
@@ -41,6 +48,9 @@ class DemoChoreViewModel(
     private val _configuredHousehold = MutableStateFlow<HouseholdSetup?>(null)
     val configuredHousehold: StateFlow<HouseholdSetup?> = _configuredHousehold.asStateFlow()
 
+    private val _saveState = MutableStateFlow<EditorSaveState>(EditorSaveState.Idle)
+    val saveState: StateFlow<EditorSaveState> = _saveState.asStateFlow()
+
     private val _loadError = MutableStateFlow<String?>(null)
     val loadError: StateFlow<String?> = _loadError.asStateFlow()
 
@@ -50,6 +60,7 @@ class DemoChoreViewModel(
     private var loadingHousehold: HouseholdSetup? = null
     private var observeJob: Job? = null
     private val pendingToggles = mutableSetOf<String>()
+    private var committedSaveId: String? = null
 
     fun configureHousehold(setup: HouseholdSetup) {
         if (_configuredHousehold.value == setup || loadingHousehold == setup) return
@@ -96,6 +107,8 @@ class DemoChoreViewModel(
     }
 
     fun openEditor(definition: ChoreDefinition?, members: List<String>) {
+        _saveState.value = EditorSaveState.Idle
+        committedSaveId = null
         _editor.value = if (definition == null) {
             ChoreEditorDraft(
                 startDate = today,
@@ -112,16 +125,54 @@ class DemoChoreViewModel(
 
     fun discardDraft() {
         _editor.value = null
+        committedSaveId = null
+        _saveState.value = EditorSaveState.Idle
     }
 
-    suspend fun saveEditorPersisted(members: List<String>): String? {
-        val repository = roomRepository ?: return saveEditor(members)
-        val draft = _editor.value ?: return null
-        if (validationError(draft, members) != null) return null
-        val id = repository.save(draft, members, _chores.value, today)
-        applySnapshot(repository.snapshot())
-        discardDraft()
-        return id
+    fun saveEditorPersisted(members: List<String>) {
+        if (_saveState.value is EditorSaveState.Saving ||
+            _saveState.value is EditorSaveState.Success
+        ) return
+        val draft = _editor.value ?: return
+        val error = validationError(draft, members)
+        if (error != null) {
+            _saveState.value = EditorSaveState.Failure(error)
+            return
+        }
+        _saveState.value = EditorSaveState.Saving
+        viewModelScope.launch {
+            try {
+                val repository = roomRepository
+                val id = if (repository == null) {
+                    saveEditor(members)
+                } else {
+                    val stableDraft = draft.copy(editingId = committedSaveId ?: draft.editingId)
+                    repository.save(stableDraft, members, _chores.value, today).also {
+                        committedSaveId = it
+                    }
+                }
+                if (id == null) {
+                    _saveState.value = EditorSaveState.Failure("집안일을 저장하지 못했습니다.")
+                } else {
+                    if (repository != null) applySnapshot(repository.snapshot())
+                    _saveState.value = EditorSaveState.Success(id)
+                }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                _saveState.value = EditorSaveState.Failure(
+                    "기기 저장에 실패했습니다. 내용을 유지했으니 다시 시도해 주세요."
+                )
+            }
+        }
+    }
+
+    fun acknowledgeEditorSave() {
+        if (_saveState.value is EditorSaveState.Success) {
+            discardDraft()
+        } else if (_saveState.value is EditorSaveState.Failure) {
+            _saveState.value = EditorSaveState.Idle
+        }
     }
 
     suspend fun deleteDefinitionPersisted(id: String) {
