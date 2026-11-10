@@ -107,7 +107,12 @@ fun HomeCrewHomeScreen(
             val summary = summaryFor(todayChores)
             HomeCrewProgressCard(summary.completed, summary.total)
         }
-        item { SectionHeading("내가 할 일", "${remaining}개 남음") }
+        item {
+            SectionHeading(
+                if (currentMember == "나") "내가 할 일" else "${currentMember}의 할 일",
+                "${remaining}개 남음"
+            )
+        }
         if (myChores.isEmpty()) {
             item {
                 EmptyResult("담당 집안일이 없습니다", "현재 구성원에게 배정된 작업이 없습니다.")
