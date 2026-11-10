@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -u
+adb shell cmd uimode night no
 set +e
 ./gradlew --no-daemon connectedDebugAndroidTest --stacktrace
 test_exit=$?
