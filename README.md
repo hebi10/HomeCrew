@@ -66,4 +66,3 @@ Windows PowerShell:
 - 서명키와 인증정보는 GitHub에 커밋하지 않습니다.
 - Firebase 연동은 별도 구현 및 검증 단계에서 진행합니다.
 - Play 내부 배포 자동화와 계정 준비 상태는 [내부 등록 문서](docs/play-store/registration.md)에 정리합니다. 코드 준비와 실제 등록·게시 완료 상태를 구분합니다.
-

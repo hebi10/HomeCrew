@@ -50,4 +50,3 @@ class PreflightTests(unittest.TestCase):
     def test_invalid_expected_certificate_blocks_before_running_tools(self):
         with self.assertRaises(preflight.PreflightError):
             self.verify(expected='new-key-please')
-

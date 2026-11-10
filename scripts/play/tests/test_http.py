@@ -54,4 +54,3 @@ class HttpFixtureTests(unittest.TestCase):
             server.shutdown()
             server.server_close()
             worker.join()
-

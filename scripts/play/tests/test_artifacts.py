@@ -37,4 +37,3 @@ class ArtifactIdentityTests(unittest.TestCase):
         for code in ('0', '-1', '1x', True, '2100000001'):
             with self.subTest(code=code), self.assertRaises(artifacts.IdentityError):
                 artifacts.verify('app.aab', 'app.apk', 'bundletool.jar', 'aapt2', code, forbidden)
-

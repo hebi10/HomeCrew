@@ -31,4 +31,3 @@ if __name__ == '__main__':
     except (OSError, ValueError, RuntimeError):
         print('Pinned bundletool preparation failed', file=sys.stderr)
         sys.exit(1)
-

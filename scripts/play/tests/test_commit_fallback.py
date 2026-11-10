@@ -103,4 +103,3 @@ class CommitFallbackTests(unittest.TestCase):
         with tempfile.NamedTemporaryFile() as bundle:
             result = publisher.Publisher(FirstUploadServer()).initialize(bundle.name)
         self.assertNotIn('reviewHoldParameterOmitted', result)
-

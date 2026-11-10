@@ -151,5 +151,3 @@ class NativeTests(unittest.TestCase):
                 archive.writestr('lib/arm64-v8a/libtest.so', b'broken')
             with self.assertRaises(native.AlignmentError):
                 native.verify(bundle, apk, 'bundletool.jar', 'zipalign', allow_no_native=True)
-
-

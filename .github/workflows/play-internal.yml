@@ -270,4 +270,3 @@ jobs:
           path: output/play-preflight.json
           if-no-files-found: ignore
           retention-days: 30
-

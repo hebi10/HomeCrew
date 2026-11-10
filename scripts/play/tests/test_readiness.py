@@ -85,4 +85,3 @@ class ReadinessWorkflowTests(unittest.TestCase):
         readiness = internal.split('      - name: Verify registered binary before normal API deployment', 1)[1].split('      - name:', 1)[0]
         self.assertIn("if: needs.source.outputs.mode == 'deploy'", readiness)
         self.assertNotIn("mode == 'initialize'", readiness)
-

@@ -196,4 +196,3 @@ class InitializeWorkflowTests(unittest.TestCase):
         self.assertIn('PLAY_RELEASE_MODE: ${{ needs.source.outputs.mode }}', release)
         self.assertNotIn('PLAY_CONSOLE_INITIALIZED=true', workflow)
         self.assertNotIn('gh variable set', workflow)
-
