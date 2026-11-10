@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -50,7 +51,12 @@ fun HomeCrewChoreDetailScreen(
     val finished = occurrences.filter { it.completed }.takeLast(3).reversed()
     var showingDelete by rememberSaveable { mutableStateOf(false) }
 
-    LazyColumn(
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = palette.background,
+        contentColor = palette.ink
+    ) {
+        LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
             horizontal = HomeCrewDimensions.screenPadding,
@@ -167,6 +173,7 @@ fun HomeCrewChoreDetailScreen(
                 color = palette.muted
             )
         }
+    }
     }
 
     if (showingDelete) {
