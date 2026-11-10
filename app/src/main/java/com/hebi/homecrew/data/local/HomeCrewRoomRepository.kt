@@ -18,6 +18,8 @@ import com.hebi.homecrew.ui.setup.previewChoresForSetup
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.util.UUID
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 
@@ -40,11 +42,13 @@ class HomeCrewRoomRepository(
 
     suspend fun snapshot(): HomeCrewSnapshot = assembleSnapshot(dao.readRows())
 
-    suspend fun exportBackup(household: HouseholdSetup): String =
-        HomeCrewLocalBackup.encode(household, dao.readRows())
+    suspend fun exportBackup(household: HouseholdSetup): String {
+        val rows = dao.readRows()
+        return withContext(Dispatchers.Default) { HomeCrewLocalBackup.encode(household, rows) }
+    }
 
     suspend fun restoreBackup(json: String, household: HouseholdSetup) {
-        val rows = HomeCrewLocalBackup.decode(json, household)
+        val rows = withContext(Dispatchers.Default) { HomeCrewLocalBackup.decode(json, household) }
         dao.replaceFromBackup(rows)
     }
 

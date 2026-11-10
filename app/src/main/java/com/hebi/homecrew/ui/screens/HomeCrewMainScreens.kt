@@ -41,7 +41,7 @@ import com.hebi.homecrew.ui.theme.ThemeMode
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
-private enum class ChorePage { MAIN, DETAIL, FORM, REPEAT, ASSIGNMENT }
+private enum class ChorePage { MAIN, DETAIL, FORM, REPEAT, ASSIGNMENT, DATA }
 
 @Composable
 fun HomeCrewMainScreens(
@@ -187,7 +187,7 @@ fun HomeCrewMainScreens(
         when (page) {
             ChorePage.REPEAT, ChorePage.ASSIGNMENT -> page = ChorePage.FORM
             ChorePage.FORM -> requestFormBack()
-            ChorePage.DETAIL -> page = ChorePage.MAIN
+            ChorePage.DETAIL, ChorePage.DATA -> page = ChorePage.MAIN
             ChorePage.MAIN -> Unit
         }
     }
@@ -239,7 +239,8 @@ fun HomeCrewMainScreens(
                                     page = ChorePage.DETAIL
                                 },
                                 onAdd = ::openAdd,
-                                definitions = definitions
+                                definitions = definitions,
+                                onDataManagement = { page = ChorePage.DATA }
                             )
                             HomeTab.STATS -> HomeCrewStatsScreen(
                                 today = currentDate, chores = chores, members = memberNames
@@ -328,6 +329,12 @@ fun HomeCrewMainScreens(
                     onBack = { page = ChorePage.FORM }
                 )
             }
+        }
+        ChorePage.DATA -> {
+            HomeCrewLocalDataScreen(
+                viewModel = viewModel,
+                onBack = { page = ChorePage.MAIN }
+            )
         }
         ChorePage.ASSIGNMENT -> {
             val draft = editor

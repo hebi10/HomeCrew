@@ -27,6 +27,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.hebi.homecrew.ui.components.HomeCrewFilterChip
+import com.hebi.homecrew.ui.components.HomeCrewSecondaryButton
 import com.hebi.homecrew.ui.components.HomeCrewStatusChip
 import com.hebi.homecrew.ui.components.HomeCrewTextField
 import com.hebi.homecrew.ui.theme.HomeCrewDimensions
@@ -40,7 +41,8 @@ fun HomeCrewChoresScreen(
     chores: List<DemoChore>,
     onDetails: (ChoreDefinition) -> Unit,
     onAdd: () -> Unit,
-    definitions: List<ChoreDefinition> = chores.map { it.definition }.distinctBy { it.id }
+    definitions: List<ChoreDefinition> = chores.map { it.definition }.distinctBy { it.id },
+    onDataManagement: () -> Unit = {}
 ) {
     val palette = LocalHomeCrewColors.current
     var search by rememberSaveable { mutableStateOf("") }
@@ -165,6 +167,13 @@ fun HomeCrewChoresScreen(
                     }
                 }
             }
+        }
+        item {
+            HomeCrewSecondaryButton(
+                text = "데이터 백업·복원",
+                onClick = onDataManagement,
+                modifier = Modifier.fillMaxWidth()
+            )
         }
         item {
             Text(
