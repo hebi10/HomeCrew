@@ -163,6 +163,7 @@ class ChoreEditorScreenshotTest {
             press("담당 방식 적용")
             awaitScreen("집안일 수정")
             press("이전")
+            device.wait(Until.findObject(By.text("변경사항 버리기")), 1_500)?.click()
             awaitScreen("설거지")
             screenshot("11-chore-detail-dark")
         } finally {
