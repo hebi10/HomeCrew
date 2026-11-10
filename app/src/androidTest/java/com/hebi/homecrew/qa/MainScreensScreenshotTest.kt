@@ -56,6 +56,23 @@ class MainScreensScreenshotTest {
         device.waitForIdle()
     }
 
+    private fun awaitText(label: String) {
+        val node = device.wait(Until.findObject(By.text(label)), 12_000)
+        if (node == null) dumpFailedUi(label)
+        requireNotNull(node) { "화면에서 텍스트가 표시되지 않음: $label" }
+        device.waitForIdle()
+    }
+
+    private fun awaitScreenTitle(title: String) {
+        val node = device.wait(
+            Until.findObject(By.desc("화면 제목: $title")),
+            12_000
+        )
+        if (node == null) dumpFailedUi(title)
+        requireNotNull(node) { "화면 전환이 완료되지 않음: $title" }
+        device.waitForIdle()
+    }
+
     private fun screenshot(name: String) {
         val directory = qaDirectory()
         device.waitForIdle()
@@ -67,43 +84,64 @@ class MainScreensScreenshotTest {
         if (start == null) return
         screenshot("00-setup-intro")
         start.click()
-        device.waitForIdle()
+        awaitText("우리 집 만들기")
         screenshot("00-setup-household")
         tapButton("다음")
+        awaitText("함께할 사람 등록")
         screenshot("00-setup-members")
         tapButton("다음")
+        awaitText("집안일을 선택하세요")
         screenshot("00-setup-templates")
         tapButton("선택한 집안일로 시작")
+        awaitScreenTitle("우리 집")
     }
 
     @Test
     fun captureMainTabsAndBasicInteractions() {
         device.waitForIdle()
         completeSetupIfShown()
+        awaitScreenTitle("우리 집")
         screenshot("01-home-light")
+
         tapTab("일정")
+        awaitScreenTitle("일정")
         screenshot("02-schedule-light")
+
         tapTab("집안일")
+        awaitScreenTitle("집안일")
         screenshot("03-chores-light")
+
         tapTab("통계")
+        awaitScreenTitle("통계")
         screenshot("04-stats-light")
 
         tapTab("홈")
+        awaitScreenTitle("우리 집")
         val complete = device.wait(Until.findObject(By.desc("완료 처리")), 10_000)
-        assertNotNull("완료 버튼을 찾을 수 없음", complete)
-        complete.click()
+        if (complete == null) dumpFailedUi("완료 처리")
+        requireNotNull(complete) { "완료 버튼을 찾을 수 없음" }.click()
+        awaitText("1 / 4")
         screenshot("05-home-after-completion")
 
         tapTab("통계")
+        awaitScreenTitle("통계")
+        awaitText("25%")
         screenshot("06-stats-after-completion")
 
         tapTab("홈")
+        awaitScreenTitle("우리 집")
         repeat(2) {
             val theme = device.wait(Until.findObject(By.descContains("테마 전환")), 10_000)
-            assertNotNull("테마 버튼을 찾을 수 없음", theme)
-            theme.click()
+            if (theme == null) dumpFailedUi("테마 전환")
+            requireNotNull(theme) { "테마 버튼을 찾을 수 없음" }.click()
             device.waitForIdle()
         }
+        val dark = device.wait(
+            Until.findObject(By.desc("테마 전환 · 현재 다크")),
+            10_000
+        )
+        if (dark == null) dumpFailedUi("다크 모드")
+        requireNotNull(dark) { "다크 모드 적용을 확인하지 못했습니다." }
         screenshot("07-home-dark")
     }
 }
