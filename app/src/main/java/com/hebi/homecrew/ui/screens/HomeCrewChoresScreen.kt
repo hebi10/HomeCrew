@@ -125,8 +125,10 @@ fun HomeCrewChoresScreen(
         if (visible.isEmpty()) {
             item {
                 EmptyResult(
-                    "조건에 맞는 집안일이 없습니다",
-                    "검색어나 필터를 변경해보세요."
+                    if (definitions.isEmpty()) "아직 등록된 집안일이 없습니다"
+                    else "조건에 맞는 집안일이 없습니다",
+                    if (definitions.isEmpty()) "집안일 등록은 다음 구현 단계에서 지원합니다."
+                    else "검색어나 필터를 변경해보세요."
                 )
             }
         } else {
