@@ -8,9 +8,15 @@ import com.hebi.homecrew.ui.screens.ChoreAssignmentMode
 import com.hebi.homecrew.ui.screens.ChoreEditorDraft
 import com.hebi.homecrew.ui.screens.ChoreRepeat
 import com.hebi.homecrew.ui.screens.ChoreRepeatMode
+import com.hebi.homecrew.ui.screens.DemoChoreViewModel
+import com.hebi.homecrew.ui.screens.EditorSaveState
 import com.hebi.homecrew.ui.setup.HouseholdSetup
 import java.time.LocalDate
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.filterIsInstance
+import kotlinx.coroutines.flow.first
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -188,6 +194,39 @@ class HomeCrewRoomRepositoryTest {
         repository.initializeIfNeeded(household, today.plusDays(30))
         val occurrences = repository.snapshot().chores.filter { it.definition.id == id }
         assertEquals(listOf(futureDate), occurrences.map { it.date })
+    }
+
+    @Test
+    fun viewModelOwnsOneSaveWhileUiRecreates() = runBlocking {
+        val household = setup(emptyList())
+        val first = DemoChoreViewModel(repository)
+        first.configureHousehold(household)
+        withTimeout(10_000) { first.configuredHousehold.filterNotNull().first() }
+        first.openEditor(null, members)
+        first.editDraft {
+            it.copy(
+                name = "ViewModel 복원",
+                category = "청소",
+                repeat = ChoreRepeat(ChoreRepeatMode.DAILY)
+            )
+        }
+
+        first.saveEditorPersisted(members)
+        first.saveEditorPersisted(members)
+        val saved = withTimeout(20_000) {
+            first.saveState.filterIsInstance<EditorSaveState.Success>().first()
+        }
+        assertEquals(1, repository.snapshot().definitions.count { it.id == saved.id })
+
+        val recreated = DemoChoreViewModel(repository)
+        recreated.configureHousehold(household)
+        withTimeout(10_000) { recreated.configuredHousehold.filterNotNull().first() }
+        assertEquals(1, recreated.definitions.value.count { it.id == saved.id })
+        assertEquals(1, recreated.chores.value.count { it.date == today && it.definition.id == saved.id })
+
+        first.acknowledgeEditorSave()
+        assertNull(first.editor.value)
+        assertTrue(first.saveState.value is EditorSaveState.Idle)
     }
 
     @Test
