@@ -148,5 +148,25 @@ class ChoreEditorScreenshotTest {
         press("집안일 수정")
         awaitScreen("집안일 수정")
         screenshot("12-chore-edit")
+
+        device.executeShellCommand("cmd uimode night yes")
+        try {
+            Thread.sleep(800)
+            awaitScreen("집안일 수정")
+            screenshot("12-chore-edit-dark")
+            openEditorSubpage("반복 설정 열기", "반복 설정")
+            screenshot("09-chore-repeat-dark")
+            press("반복 설정 적용")
+            awaitScreen("집안일 수정")
+            openEditorSubpage("담당 방식 설정 열기", "담당 방식")
+            screenshot("10-chore-assignment-dark")
+            press("담당 방식 적용")
+            awaitScreen("집안일 수정")
+            press("이전")
+            awaitScreen("설거지")
+            screenshot("11-chore-detail-dark")
+        } finally {
+            device.executeShellCommand("cmd uimode night no")
+        }
     }
 }
