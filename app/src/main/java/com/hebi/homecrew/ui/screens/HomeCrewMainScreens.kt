@@ -23,12 +23,14 @@ import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hebi.homecrew.ui.components.HomeCrewBottomBar
 import com.hebi.homecrew.ui.components.HomeTab
 import com.hebi.homecrew.ui.setup.HouseholdSetup
 import com.hebi.homecrew.ui.theme.LocalHomeCrewColors
 import com.hebi.homecrew.ui.theme.ThemeMode
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 private enum class ChorePage { MAIN, DETAIL, FORM, REPEAT, ASSIGNMENT }
@@ -39,13 +41,17 @@ fun HomeCrewMainScreens(
     onThemeModeChange: (ThemeMode) -> Unit,
     onOpenDesignSystem: () -> Unit,
     householdSetup: HouseholdSetup? = null,
-    viewModel: DemoChoreViewModel = viewModel()
+    viewModel: DemoChoreViewModel = viewModel(
+        factory = DemoChoreViewModel.Factory(LocalContext.current.applicationContext)
+    )
 ) {
     val palette = LocalHomeCrewColors.current
     val chores by viewModel.chores.collectAsState()
     val definitions by viewModel.definitions.collectAsState()
     val editor by viewModel.editor.collectAsState()
     val configuredHousehold by viewModel.configuredHousehold.collectAsState()
+    val loadError by viewModel.loadError.collectAsState()
+    val operationError by viewModel.operationError.collectAsState()
     val currentDate = viewModel.today
     val memberNames = householdSetup?.members ?: listOf("나", "지민")
 
@@ -54,7 +60,18 @@ fun HomeCrewMainScreens(
     }
     if (householdSetup != null && configuredHousehold != householdSetup) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator()
+            if (loadError == null) {
+                CircularProgressIndicator()
+            } else {
+                androidx.compose.foundation.layout.Column(
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(loadError.orEmpty())
+                    TextButton(onClick = { viewModel.retryConfigureHousehold(householdSetup) }) {
+                        Text("다시 시도")
+                    }
+                }
+            }
         }
         return
     }
@@ -74,6 +91,8 @@ fun HomeCrewMainScreens(
     var initialEditor by remember { mutableStateOf<ChoreEditorDraft?>(null) }
     var formError by rememberSaveable { mutableStateOf<String?>(null) }
     var confirmDiscard by rememberSaveable { mutableStateOf(false) }
+    var saving by remember { mutableStateOf(false) }
+    var pageError by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(page, editor) {
         if (page in listOf(ChorePage.FORM, ChorePage.REPEAT, ChorePage.ASSIGNMENT)
@@ -93,6 +112,7 @@ fun HomeCrewMainScreens(
     }
 
     fun requestFormBack() {
+        if (saving) return
         if (editor != null && editor != initialEditor) confirmDiscard = true
         else finishEditor()
     }
@@ -121,6 +141,7 @@ fun HomeCrewMainScreens(
     }
 
     fun back() {
+        if (saving) return
         when (page) {
             ChorePage.REPEAT, ChorePage.ASSIGNMENT -> page = ChorePage.FORM
             ChorePage.FORM -> requestFormBack()
@@ -149,7 +170,7 @@ fun HomeCrewMainScreens(
                                 currentMember = currentMember,
                                 themeMode = themeMode,
                                 onMemberSelected = { currentMember = it },
-                                onToggle = viewModel::toggleCompleted,
+                                onToggle = { id -> viewModel.toggleCompleted(id, currentMember) },
                                 onDetails = ::openDetails,
                                 onAdd = ::openAdd,
                                 onOpenDesignSystem = onOpenDesignSystem,
@@ -164,7 +185,7 @@ fun HomeCrewMainScreens(
                             HomeTab.SCHEDULE -> HomeCrewScheduleScreen(
                                 today = currentDate,
                                 chores = chores,
-                                onToggle = viewModel::toggleCompleted,
+                                onToggle = { id -> viewModel.toggleCompleted(id, currentMember) },
                                 onDetails = ::openDetails
                             )
                             HomeTab.CHORES -> HomeCrewChoresScreen(
@@ -196,15 +217,21 @@ fun HomeCrewMainScreens(
                     selectedOccurrenceId = selectedOccurrenceId,
                     onBack = { page = ChorePage.MAIN },
                     onEdit = ::openEdit,
-                    onToggle = viewModel::toggleCompleted,
+                    onToggle = { id -> viewModel.toggleCompleted(id, currentMember) },
                     onDelete = {
-                        viewModel.deleteDefinition(definition.id)
-                        detailId = null
-                        selectedOccurrenceId = null
-                        tab = HomeTab.CHORES
-                        page = ChorePage.MAIN
                         scope.launch {
-                            snackbar.showSnackbar("집안일이 현재 시연 세션에서 삭제됐습니다.")
+                            try {
+                                viewModel.deleteDefinitionPersisted(definition.id)
+                                detailId = null
+                                selectedOccurrenceId = null
+                                tab = HomeTab.CHORES
+                                page = ChorePage.MAIN
+                                snackbar.showSnackbar("집안일과 관련 기록을 기기에서 삭제했습니다.")
+                            } catch (error: CancellationException) {
+                                throw error
+                            } catch (error: Exception) {
+                                pageError = "집안일을 삭제하지 못했습니다. 다시 시도해 주세요."
+                            }
                         }
                     }
                 )
@@ -228,19 +255,30 @@ fun HomeCrewMainScreens(
                     onRepeat = { page = ChorePage.REPEAT },
                     onAssignment = { page = ChorePage.ASSIGNMENT },
                     onSave = {
-                        val error = validationError(draft, memberNames)
-                        if (error != null) formError = error
-                        else {
-                            val savedId = viewModel.saveEditor(memberNames)
-                            if (savedId == null) {
-                                formError = "집안일을 적용하지 못했습니다. 입력 내용을 확인해 주세요."
+                        if (!saving) {
+                            val error = validationError(draft, memberNames)
+                            if (error != null) {
+                                formError = error
                             } else {
-                                detailId = savedId
-                                selectedOccurrenceId = null
-                                page = ChorePage.DETAIL
-                                formError = null
+                                saving = true
                                 scope.launch {
-                                    snackbar.showSnackbar("시연 세션에 반영됐습니다. 앱 재시작 시 초기화됩니다.")
+                                    try {
+                                        val savedId = viewModel.saveEditorPersisted(memberNames)
+                                        if (savedId == null) {
+                                            formError = "집안일을 적용하지 못했습니다. 입력 내용을 확인해 주세요."
+                                        } else {
+                                            detailId = savedId
+                                            selectedOccurrenceId = null
+                                            page = ChorePage.DETAIL
+                                            formError = null
+                                        }
+                                    } catch (error: CancellationException) {
+                                        throw error
+                                    } catch (error: Exception) {
+                                        formError = "기기 저장에 실패했습니다. 내용을 유지했으니 다시 시도해 주세요."
+                                    } finally {
+                                        saving = false
+                                    }
                                 }
                             }
                         }
@@ -284,6 +322,23 @@ fun HomeCrewMainScreens(
                 )
             }
         }
+    }
+
+    if (pageError != null || operationError != null) {
+        AlertDialog(
+            onDismissRequest = {
+                pageError = null
+                viewModel.dismissOperationError()
+            },
+            title = { Text("저장 오류") },
+            text = { Text(pageError ?: operationError.orEmpty()) },
+            confirmButton = {
+                TextButton(onClick = {
+                    pageError = null
+                    viewModel.dismissOperationError()
+                }) { Text("확인") }
+            }
+        )
     }
 
     if (confirmDiscard) {
