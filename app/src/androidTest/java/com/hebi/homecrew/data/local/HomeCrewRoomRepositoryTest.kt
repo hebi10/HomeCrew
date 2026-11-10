@@ -115,13 +115,15 @@ class HomeCrewRoomRepositoryTest {
 
         val completedId = restored.chores.first { it.date == today }.id
         repository.toggleCompleted(completedId, "민수")
-        val updated = draft.copy(editingId = id, name = "복원 확인 수정")
+        val updated = draft.copy(editingId = id, name = "복원 확인 수정", points = 5)
         repository.save(updated, members, repository.snapshot().chores, today)
 
         reopenDatabase()
         restored = repository.snapshot()
         assertEquals("복원 확인 수정", restored.definitions.single().name)
         assertTrue(restored.chores.single { it.id == completedId }.completed)
+        assertEquals(2, restored.chores.single { it.id == completedId }.definition.points)
+        assertEquals(5, restored.chores.single { it.date == today.plusDays(1) }.definition.points)
         assertEquals("민수", database.chores().findOccurrence(completedId)?.completedBy)
 
         repository.delete(id)
