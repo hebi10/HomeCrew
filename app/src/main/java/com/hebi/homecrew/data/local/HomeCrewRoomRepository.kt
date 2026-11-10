@@ -146,9 +146,9 @@ class HomeCrewRoomRepository(
                     participants.size
             } else 0
 
-            dates.forEach { date ->
+            dates.forEach dateLoop@ { date ->
                 val epoch = date.toEpochDay()
-                if (epoch < firstDay || epoch in savedDays) return@forEachIndexed
+                if (epoch < firstDay || epoch in savedDays) return@dateLoop
                 val owner = when (mode) {
                     ChoreAssignmentMode.FIXED -> participants.first()
                     ChoreAssignmentMode.ROUND_ROBIN ->
