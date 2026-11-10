@@ -9,7 +9,7 @@ set -e
 mkdir -p qa-screenshots
 source_dir="app/build/outputs/connected_android_test_additional_output"
 if [ -d "$source_dir" ]; then
-  find "$source_dir" -type f \( -name '*.png' -o -name 'hierarchy-*.xml' \) -print0 |
+  find "$source_dir" -type f \( -name '*.png' -o -name '*.xml' \) -print0 |
     while IFS= read -r -d '' item; do
       cp -v "$item" qa-screenshots/
     done
