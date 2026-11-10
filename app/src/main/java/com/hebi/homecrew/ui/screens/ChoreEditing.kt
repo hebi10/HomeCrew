@@ -134,6 +134,18 @@ fun assignedOwners(
     }
 }
 
+fun workloadBaseline(
+    chores: List<DemoChore>,
+    draft: ChoreEditorDraft,
+    today: LocalDate
+): Map<String, Int> =
+    chores.filter { task ->
+        task.definition.id != draft.editingId &&
+            !task.date.isBefore(today) && task.date.isBefore(today.plusDays(7))
+    }.groupBy { it.definition.owner }.mapValues { (_, tasks) ->
+        tasks.sumOf { it.definition.points }
+    }
+
 fun previewDraftInstances(
     draft: ChoreEditorDraft,
     today: LocalDate,
