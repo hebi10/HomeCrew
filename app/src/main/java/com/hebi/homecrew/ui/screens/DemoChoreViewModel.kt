@@ -141,7 +141,7 @@ class DemoChoreViewModel(
     suspend fun restoreLocalBackup(json: String) {
         val household = checkNotNull(_configuredHousehold.value) { "집 설정을 불러오지 못했습니다." }
         val repository = checkNotNull(roomRepository) { "로컬 저장소가 없습니다." }
-        repository.restoreBackup(json, household)
+        repository.restoreBackup(json, household, today)
         applySnapshot(repository.snapshot())
     }
 

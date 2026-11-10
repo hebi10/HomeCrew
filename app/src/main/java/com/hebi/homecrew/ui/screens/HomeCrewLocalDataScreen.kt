@@ -46,18 +46,16 @@ fun HomeCrewLocalDataScreen(
     val scope = rememberCoroutineScope()
     var message by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
-    var pendingExport by remember { mutableStateOf<String?>(null) }
-    var pendingRestore by remember { mutableStateOf<String?>(null) }
+     var pendingRestore by remember { mutableStateOf<String?>(null) }
 
     val exportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/json")
     ) { uri ->
-        val data = pendingExport
-        pendingExport = null
-        if (uri != null && data != null) {
+        if (uri != null) {
             scope.launch {
                 busy = true
                 try {
+                    val data = viewModel.exportLocalBackup()
                     withContext(Dispatchers.IO) {
                         val stream = checkNotNull(context.contentResolver.openOutputStream(uri)) {
                             "파일을 열 수 없습니다."
@@ -120,17 +118,7 @@ fun HomeCrewLocalDataScreen(
                         text = "백업 파일 저장",
                         enabled = !busy,
                         onClick = {
-                            scope.launch {
-                                busy = true
-                                try {
-                                    pendingExport = viewModel.exportLocalBackup()
-                                    exportLauncher.launch("HomeCrew-" + LocalDate.now() + ".json")
-                                } catch (error: Exception) {
-                                    message = error.message ?: "백업 데이터를 준비하지 못했습니다."
-                                } finally {
-                                    busy = false
-                                }
-                            }
+                            exportLauncher.launch("HomeCrew-" + LocalDate.now() + ".json")
                         },
                         modifier = Modifier.fillMaxWidth()
                     )

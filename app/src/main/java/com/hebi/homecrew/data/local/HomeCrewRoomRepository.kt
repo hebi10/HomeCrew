@@ -47,9 +47,12 @@ class HomeCrewRoomRepository(
         return withContext(Dispatchers.Default) { HomeCrewLocalBackup.encode(household, rows) }
     }
 
-    suspend fun restoreBackup(json: String, household: HouseholdSetup) {
-        val rows = withContext(Dispatchers.Default) { HomeCrewLocalBackup.decode(json, household) }
-        dao.replaceFromBackup(rows)
+    suspend fun restoreBackup(json: String, household: HouseholdSetup, today: LocalDate) {
+        val restored = withContext(Dispatchers.Default) {
+            val rows = HomeCrewLocalBackup.decode(json, household)
+            rows.copy(occurrences = rows.occurrences + missingUpcoming(rows, today))
+        }
+        dao.replaceFromBackup(restored)
     }
 
     suspend fun initializeIfNeeded(household: HouseholdSetup, today: LocalDate) {
@@ -96,7 +99,14 @@ class HomeCrewRoomRepository(
     }
 
     suspend fun extendUpcoming(today: LocalDate) {
-        val rows = dao.readRows()
+        val missing = missingUpcoming(dao.readRows(), today)
+        if (missing.isNotEmpty()) dao.insertMissingOccurrences(missing)
+    }
+
+    private fun missingUpcoming(
+        rows: HomeCrewRows,
+        today: LocalDate
+    ): List<ChoreOccurrenceEntity> {
         val definitions = assembleSnapshot(rows).definitions
         val storedByDefinition = rows.occurrences.groupBy { it.definitionId }
         val pointsByDefinition = rows.definitions.associate { it.id to it.points }
@@ -153,7 +163,7 @@ class HomeCrewRoomRepository(
                 loads[owner] = (loads[owner] ?: 0) + definition.points
             }
         }
-        if (missing.isNotEmpty()) dao.insertMissingOccurrences(missing)
+        return missing
     }
 
     suspend fun save(

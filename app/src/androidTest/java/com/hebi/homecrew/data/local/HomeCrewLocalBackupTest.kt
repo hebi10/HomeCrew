@@ -79,7 +79,7 @@ class HomeCrewLocalBackupTest {
         assertTrue(repository.snapshot().chores.isEmpty())
         assertTrue(repository.snapshot().definitions.isEmpty())
 
-        repository.restoreBackup(backup, household)
+        repository.restoreBackup(backup, household, today)
         assertEquals(expected, repository.snapshot())
         val restored = repository.snapshot().chores.filter { it.definition.id == id }
         assertTrue(restored[0].completed)
@@ -101,7 +101,7 @@ class HomeCrewLocalBackupTest {
         val valid = repository.exportBackup(household)
         val wrongHousehold = JSONObject(valid).put("homeName", "다른 집").toString()
         assertTrue(runCatching {
-            repository.restoreBackup(wrongHousehold, household)
+            repository.restoreBackup(wrongHousehold, household, today)
         }.isFailure)
         assertEquals(expected, repository.snapshot())
 
@@ -109,14 +109,33 @@ class HomeCrewLocalBackupTest {
         val occurrences = duplicate.getJSONArray("occurrences")
         occurrences.put(occurrences.getJSONObject(0))
         assertTrue(runCatching {
-            repository.restoreBackup(duplicate.toString(), household)
+            repository.restoreBackup(duplicate.toString(), household, today)
+        }.isFailure)
+        assertEquals(expected, repository.snapshot())
+
+        val impossibleDate = JSONObject(valid)
+        impossibleDate.getJSONArray("occurrences").getJSONObject(0)
+            .put("scheduledEpochDay", Long.MAX_VALUE)
+        assertTrue(runCatching {
+            repository.restoreBackup(impossibleDate.toString(), household, today)
         }.isFailure)
         assertEquals(expected, repository.snapshot())
 
         assertTrue(runCatching {
-            repository.restoreBackup("malformed", household)
+            repository.restoreBackup("malformed", household, today)
         }.isFailure)
         assertEquals(expected, repository.snapshot())
+    }
+
+    @Test
+    fun oldBackupReplenishesCurrentWindowOnRestore() = runBlocking {
+        createTask()
+        val previous = repository.exportBackup(household)
+        val later = today.plusDays(100)
+        repository.restoreBackup(previous, household, later)
+        assertTrue(repository.snapshot().chores.any {
+            it.date == later.plusDays(62)
+        })
     }
 
     @Test
@@ -125,7 +144,7 @@ class HomeCrewLocalBackupTest {
         val task = repository.snapshot().chores.first { it.definition.id == id }
         repository.toggleSkipped(task.id, "휴식")
         val backup = repository.exportBackup(household)
-        repository.restoreBackup(backup, household)
+        repository.restoreBackup(backup, household, today)
 
         val skipped = repository.snapshot().chores.single { it.id == task.id }
         assertTrue(skipped.skipped)

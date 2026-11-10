@@ -4,6 +4,7 @@ import com.hebi.homecrew.ui.setup.HouseholdSetup
 import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
+import java.time.LocalDate
 
 /**
  * Versioned, user-selected local backup. No credentials or device-specific paths are stored.
@@ -176,7 +177,9 @@ object HomeCrewLocalBackup {
             "중복되거나 비어 있는 집안일 ID가 있습니다."
         }
         val ids = definitionIds.toSet()
-        require(rows.definitions.all { it.points in 1..5 &&
+        val validEpochDays = LocalDate.MIN.toEpochDay()..LocalDate.MAX.toEpochDay()
+        require(rows.definitions.all { (it.startEpochDay == null || it.startEpochDay in validEpochDays) &&
+            it.points in 1..5 &&
             it.name.length in 1..40 && it.description.length <= 300 &&
             it.repeatIntervalDays in 1..30 &&
             it.repeatMode in setOf("NONE", "DAILY", "WEEKLY", "BIWEEKLY", "MONTHLY", "CUSTOM") &&
@@ -195,6 +198,7 @@ object HomeCrewLocalBackup {
         }
         require(rows.occurrences.all { item ->
             item.definitionId in ids && item.id.isNotBlank() &&
+                item.scheduledEpochDay in validEpochDays &&
                 item.assignedMember.isNotBlank() && item.workloadPoints in 0..5 &&
                 !(item.completed && item.skippedAtEpochMillis != null) &&
                 (item.skippedAtEpochMillis != null || item.skipReason == null) &&
