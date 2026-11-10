@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Resolve an immutable main source and require its completed verification run."""
 import argparse
+from datetime import datetime, timezone
 import json
 import os
 from pathlib import Path
@@ -85,6 +86,23 @@ def gh(path):
         raise SourceError('Invalid GitHub verification metadata') from None
 
 
+def run_order(run):
+    try:
+        run_id, attempt = run['id'], run['run_attempt']
+        if type(run_id) is not int or type(attempt) is not int or run_id <= 0 or attempt <= 0:
+            raise ValueError
+        started = run.get('run_started_at')
+        if not started and attempt == 1:
+            started = run.get('created_at')
+        if not isinstance(started, str) or not re.fullmatch(
+                r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})', started):
+            raise ValueError
+        timestamp = datetime.fromisoformat(started.replace('Z', '+00:00')).astimezone(timezone.utc)
+        return timestamp, run_id, attempt
+    except (KeyError, TypeError, ValueError):
+        raise SourceError('Required CI run ordering metadata is missing or invalid') from None
+
+
 def require_workflow(sha, workflow, wait=False):
     deadline = time.monotonic() + CI_WAIT_TIMEOUT
     while True:
@@ -92,9 +110,7 @@ def require_workflow(sha, workflow, wait=False):
         runs = gh(f'repos/{REPO}/actions/workflows/{workflow}/runs?head_sha={sha}&branch=main&per_page=100')['workflow_runs']
         candidates = [run for run in runs if run.get('event') in ('push', 'workflow_dispatch')]
         if candidates:
-            run = max(candidates, key=lambda value: (
-                value.get('run_started_at') or value.get('created_at') or '',
-                value['id'], value.get('run_attempt', 1)))
+            run = max(candidates, key=run_order)
             payload = gh(f'repos/{REPO}/actions/runs/{run["id"]}/jobs?per_page=100')
             jobs = payload['jobs']
             if payload.get('total_count', len(jobs)) != len(jobs):

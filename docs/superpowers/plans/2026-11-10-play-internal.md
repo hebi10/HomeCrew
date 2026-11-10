@@ -50,5 +50,5 @@
 
 - [x] Automatic-only bounded polling for missing/pending screenshot QA; manual and terminal failure checks remain immediate.
 - [x] Every poll rechecks current main; pre-build and pre-upload recheck latest CI/QA including reruns.
-- [x] Latest run selection uses attempt start timestamp with created-at fallback, then run ID/attempt.
+- [x] Latest run selection validates attempt start timestamp with created-at fallback only for attempt 1, then run ID/attempt; missing/invalid rerun timestamps fail closed.
 - [x] Behavioral RED→GREEN tests cover pending/missing success, timeout, terminal failure, stale main, manual behavior, one auto trigger and older-ID newer-attempt freshness.

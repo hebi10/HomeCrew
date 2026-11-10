@@ -21,6 +21,7 @@ class SourceWaitTests(unittest.TestCase):
         sleeps = []
         qa_reads = [0]
         ci = {'id': 10, 'head_sha': SHA, 'head_branch': 'main', 'event': 'push',
+              'run_attempt': 1, 'created_at': '2026-11-10T09:00:00Z', 'run_started_at': '2026-11-10T09:00:00Z',
               'name': 'Android CI', 'path': '.github/workflows/android.yml',
               'conclusion': 'success', 'status': 'completed',
               'head_repository': {'full_name': source.REPO}}
@@ -148,6 +149,39 @@ class SourceWaitTests(unittest.TestCase):
 
         with mock.patch.object(source, 'gh', side_effect=api):
             with self.assertRaises(source.SourceError):
+                source.require_workflow(SHA, 'android.yml')
+
+    def test_rerun_without_valid_attempt_start_timestamp_fails_closed(self):
+        successful = {'id': 20, 'run_attempt': 1, 'run_started_at': '2026-11-10T10:00:00Z',
+                      'head_sha': SHA, 'head_branch': 'main', 'event': 'push', 'conclusion': 'success',
+                      'status': 'completed', 'path': '.github/workflows/android.yml'}
+        for started in (None, '', 'invalid', '2026-11-10T11:00:00'):
+            rerun = dict(successful, id=10, run_attempt=2, run_started_at=started,
+                         created_at='2026-11-10T08:00:00Z', conclusion=None, status='queued')
+            def api(path):
+                if path.endswith('/git/ref/heads/main'):
+                    return {'object': {'sha': SHA}}
+                if '/workflows/android.yml/runs?' in path:
+                    return {'workflow_runs': [successful, rerun]}
+                return {'total_count': 1, 'jobs': [{'name': 'verify', 'conclusion': 'success'}]}
+            with self.subTest(started=started), mock.patch.object(source, 'gh', side_effect=api):
+                with self.assertRaisesRegex(source.SourceError, 'ordering metadata'):
+                    source.require_workflow(SHA, 'android.yml')
+
+    def test_new_queued_first_attempt_uses_creation_time_and_blocks_old_success(self):
+        successful = {'id': 20, 'run_attempt': 1, 'run_started_at': '2026-11-10T10:00:00Z',
+                      'head_sha': SHA, 'head_branch': 'main', 'event': 'push', 'conclusion': 'success',
+                      'status': 'completed', 'path': '.github/workflows/android.yml'}
+        queued = dict(successful, id=30, run_started_at=None, created_at='2026-11-10T11:00:00Z',
+                      conclusion=None, status='queued')
+        def api(path):
+            if path.endswith('/git/ref/heads/main'):
+                return {'object': {'sha': SHA}}
+            if '/workflows/android.yml/runs?' in path:
+                return {'workflow_runs': [successful, queued]}
+            return {'total_count': 0, 'jobs': []}
+        with mock.patch.object(source, 'gh', side_effect=api):
+            with self.assertRaisesRegex(source.SourceError, 'pending'):
                 source.require_workflow(SHA, 'android.yml')
 
 
