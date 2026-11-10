@@ -6,7 +6,6 @@ import androidx.room.Transaction
 import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
 
-@Dao
 data class HomeCrewRows(
     val definitions: List<ChoreDefinitionEntity>,
     val members: List<ChoreAssignmentMemberEntity>,
@@ -15,6 +14,7 @@ data class HomeCrewRows(
 
 private const val SEED_KEY = "homecrew.initial_household.v1"
 
+@Dao
 abstract class HomeCrewDao {
     @Query("SELECT * FROM chore_definitions ORDER BY name COLLATE NOCASE, id")
     abstract fun observeDefinitions(): Flow<List<ChoreDefinitionEntity>>
