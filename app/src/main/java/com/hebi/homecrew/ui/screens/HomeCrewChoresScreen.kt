@@ -42,7 +42,7 @@ fun HomeCrewChoresScreen(
     onAdd: () -> Unit
 ) {
     val palette = LocalHomeCrewColors.current
-    val definitions = choreDefinitions()
+    val definitions = chores.map { it.definition }.distinctBy { it.id }
     var search by rememberSaveable { mutableStateOf("") }
     var category by rememberSaveable { mutableStateOf("전체") }
     var status by rememberSaveable { mutableStateOf("전체") }
@@ -91,7 +91,7 @@ fun HomeCrewChoresScreen(
                     .horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                listOf("전체", "주방", "청소", "세탁", "쓰레기", "생활").forEach { option ->
+                (listOf("전체") + definitions.map { it.category }.distinct()).forEach { option ->
                     HomeCrewFilterChip(
                         label = option,
                         selected = category == option,
