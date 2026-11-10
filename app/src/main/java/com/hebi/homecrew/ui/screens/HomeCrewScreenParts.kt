@@ -15,6 +15,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.hebi.homecrew.ui.components.HomeCrewTaskRow
@@ -37,7 +39,11 @@ fun ScreenHeader(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            Text(title, style = MaterialTheme.typography.headlineSmall)
+            Text(
+            title,
+            style = MaterialTheme.typography.headlineSmall,
+            modifier = Modifier.semantics { contentDescription = "화면 제목: $title" }
+        )
             if (subtitle != null) {
                 Text(
                     subtitle,
