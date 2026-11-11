@@ -15,7 +15,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
-import androidx.compose.material.icons.outlined.WbSunny
+import androidx.compose.material.icons.outlined.DarkMode
+import androidx.compose.material.icons.outlined.LightMode
+import androidx.compose.material.icons.outlined.SettingsBrightness
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -56,6 +58,17 @@ fun HomeCrewHomeScreen(
     val others = todayChores.filter { it.definition.owner != currentMember }
         .sortedBy { it.completed }
     val remaining = myChores.count { !it.completed }
+    val myStatus = when {
+        myChores.isEmpty() -> "오늘 배정 없음"
+        remaining == 0 -> "모두 완료"
+        else -> "${remaining}개 남음"
+    }
+    val otherRemaining = others.count { !it.completed }
+    val otherStatus = when {
+        others.isEmpty() -> "오늘 배정 없음"
+        otherRemaining == 0 -> "모두 완료"
+        else -> "${otherRemaining}개 남음"
+    }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -71,8 +84,13 @@ fun HomeCrewHomeScreen(
                 subtitle = "${koreanDateLabel(today)} · 오늘"
             ) {
                 IconButton(onClick = onCycleTheme) {
+                    val themeIcon = when (themeMode) {
+                        ThemeMode.SYSTEM -> Icons.Outlined.SettingsBrightness
+                        ThemeMode.LIGHT -> Icons.Outlined.LightMode
+                        ThemeMode.DARK -> Icons.Outlined.DarkMode
+                    }
                     Icon(
-                        Icons.Outlined.WbSunny,
+                        themeIcon,
                         contentDescription = "테마 전환 · 현재 ${themeMode.label}"
                     )
                 }
@@ -114,7 +132,7 @@ fun HomeCrewHomeScreen(
                         style = MaterialTheme.typography.titleMedium
                     )
                     Text(
-                        "${remaining}개 남음",
+                        myStatus,
                         style = MaterialTheme.typography.bodySmall,
                         color = palette.muted
                     )
@@ -155,7 +173,7 @@ fun HomeCrewHomeScreen(
             item {
                 SectionHeading(
                     "다른 구성원의 집안일",
-                    "${others.count { !it.completed }}개 남음"
+                    otherStatus
                 )
             }
             if (others.isEmpty()) {
