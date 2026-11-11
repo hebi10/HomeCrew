@@ -1,0 +1,64 @@
+name: HomeCrew ko-KR store listing ASSET-02
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: play-com-hebi-homecrew
+  cancel-in-progress: false
+
+jobs:
+  listing:
+    if: >-
+      github.repository == 'hebi10/HomeCrew' &&
+      github.event.issue.pull_request != null &&
+      github.event.issue.title == 'ASSET-02 — 한국어 스토어 설명 최신화' &&
+      github.event.comment.user.login == 'hebi10' &&
+      (github.event.comment.body == '/homecrew-listing-check-20261111' ||
+       github.event.comment.body == '/homecrew-listing-apply-20261111')
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    environment: google-play
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate copy and prevent unrelated Play changes
+        run: |
+          python3 -m unittest discover -s scripts/play/tests -p 'test_listing_ko.py'
+          python3 scripts/play/listing_ko.py --mode validate
+      - name: Authenticate app-scoped Play account
+        id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.PLAY_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.PLAY_SERVICE_ACCOUNT }}
+          token_format: access_token
+          access_token_scopes: https://www.googleapis.com/auth/androidpublisher
+          create_credentials_file: false
+          export_environment_variables: false
+      - name: Read or patch only ko-KR descriptions
+        env:
+          PLAY_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+          LISTING_MODE: ${{ github.event.comment.body == '/homecrew-listing-apply-20261111' && 'apply' || 'check' }}
+        run: |
+          python3 scripts/play/listing_ko.py --mode "$LISTING_MODE"
+          echo "HomeCrew ASSET-02: ko-KR listing operation complete. Play review and published visibility require Console confirmation." >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: homecrew-ko-KR-listing-asset02
+          path: output/homecrew-listing-ko-asset02.json
+          if-no-files-found: ignore
+          retention-days: 30
