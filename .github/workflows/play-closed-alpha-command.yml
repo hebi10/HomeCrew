@@ -1,0 +1,83 @@
+name: HomeCrew approved existing-binary closed alpha
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: homecrew-existing-binary-closed-alpha
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    if: >-
+      github.repository == 'hebi10/HomeCrew' &&
+      github.event.issue.number == 12 &&
+      github.event.issue.pull_request != null &&
+      github.event.comment.user.login == 'hebi10' &&
+      github.event.comment.body == '/deploy-homecrew-closed-20261111'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: google-play
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Require immutable binary source of completed internal code 2
+        shell: bash
+        run: |
+          set -euo pipefail
+          base=88ab4bbbbcdb65dc99e90876637559db9e914ef2
+          git merge-base --is-ancestor "$base" HEAD
+          git diff --quiet "$base" HEAD -- app build.gradle.kts settings.gradle.kts gradle.properties gradle
+          test "$GITHUB_REF" = refs/heads/main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify publisher regression tests
+        run: python3 -m unittest discover -s scripts/play/tests -p 'test_*.py'
+      - name: Check Play auth configuration
+        id: credentials
+        env:
+          PLAY_WORKLOAD_IDENTITY_PROVIDER: ${{ vars.PLAY_WORKLOAD_IDENTITY_PROVIDER }}
+          PLAY_SERVICE_ACCOUNT: ${{ vars.PLAY_SERVICE_ACCOUNT }}
+        run: python3 scripts/play/preflight.py auth
+      - name: Authenticate approved app-scoped Play account
+        id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.PLAY_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.PLAY_SERVICE_ACCOUNT }}
+          token_format: access_token
+          access_token_scopes: https://www.googleapis.com/auth/androidpublisher
+          create_credentials_file: false
+          export_environment_variables: false
+      - name: Inspect existing registered binary
+        id: readiness
+        env:
+          PLAY_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+        run: python3 scripts/play/publisher.py --report output/closed-readiness.json inspect --require-binary
+      - name: Promote only completed internal version 2 to existing closed alpha
+        env:
+          PLAY_CONSOLE_INITIALIZED: ${{ steps.readiness.outputs.initialized }}
+          PLAY_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+        run: |
+          python3 scripts/play/publisher.py --report output/closed-promotion.json promote --version-code 2 --track alpha
+          echo 'Closed alpha API result and fresh track readback recorded; Console review and tester availability require separate confirmation.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Save non-secret Play reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: homecrew-closed-alpha-${{ github.run_id }}
+          path: |
+            output/closed-readiness.json
+            output/closed-promotion.json
+          if-no-files-found: ignore
+          retention-days: 30
