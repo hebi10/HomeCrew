@@ -50,13 +50,18 @@ fun HomeCrewStatsScreen(
         StatisticsPeriod.WEEK -> tasksForWeek(chores, today)
         StatisticsPeriod.MONTH -> tasksForMonth(chores, today)
     }
-    val summary = summaryFor(periodChores)
-    val memberNames = members
-    val memberPoints = memberNames.map { member ->
+    var selectedMember by rememberSaveable { mutableStateOf("전체") }
+    val activeMember = selectedMember.takeIf { it in members } ?: "전체"
+    val visibleChores = if (activeMember == "전체") periodChores else {
+        periodChores.filter { it.definition.owner == activeMember }
+    }
+    val summary = summaryFor(visibleChores)
+    val memberPoints = members.map { member ->
         member to periodChores.filter { it.definition.owner == member }
             .sumOf { it.definition.points }
     }
     val maxPoints = memberPoints.maxOfOrNull { it.second }?.coerceAtLeast(1) ?: 1
+    val overdue = visibleChores.count { !it.completed && it.date.isBefore(today) }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -77,6 +82,28 @@ fun HomeCrewStatsScreen(
                     )
                 }
             }
+        }
+        item {
+            androidx.compose.foundation.lazy.LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(members.size + 1) { index ->
+                    val name = if (index == 0) "전체" else members[index - 1]
+                    HomeCrewFilterChip(
+                        label = name,
+                        selected = activeMember == name,
+                        onClick = { selectedMember = name }
+                    )
+                }
+            }
+        }
+        item {
+            Text(
+                if (period == StatisticsPeriod.WEEK) "이번 주 월요일~일요일 · ${if (activeMember == "전체") "전체 구성원" else activeMember}" else
+                    "이번 달 1일~말일 · ${if (activeMember == "전체") "전체 구성원" else activeMember}",
+                color = palette.muted,
+                style = MaterialTheme.typography.bodySmall
+            )
         }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -109,14 +136,16 @@ fun HomeCrewStatsScreen(
         item {
             BorderedSection {
                 Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                    SectionHeading("주간 완료 추이")
-                    WeekBarChart(
+                    SectionHeading(if (period == StatisticsPeriod.WEEK) "요일별 완료 현황" else "주차별 완료 현황")
+                    PeriodBarChart(
                         today = today,
-                        chores = chores,
+                        period = period,
+                        chores = visibleChores,
                         modifier = Modifier.fillMaxWidth()
                     )
                     Text(
-                        "막대는 각 요일에 완료한 집안일 개수입니다.",
+                        if (period == StatisticsPeriod.WEEK) "막대는 월~일 각 날짜의 완료 건수입니다." else
+                            "막대는 이번 달 각 주차에 예정된 회차 중 완료한 건수입니다.",
                         color = palette.muted,
                         style = MaterialTheme.typography.bodySmall
                     )
@@ -151,13 +180,29 @@ fun HomeCrewStatsScreen(
             }
         }
         item {
+            BorderedSection {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SectionHeading("집계 기준")
+                    Text(
+                        "완료 ${summary.completed} / 대상 ${summary.total}건 · 지난 미완료 ${overdue}건",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Text(
+                        "완료율 = 선택 기간의 완료 회차 ÷ 전체 예정 회차. 기한 초과는 오늘 이전의 미완료 회차이며, 미래 예정 회차도 기간 내 분모에 포함됩니다.",
+                        color = palette.muted,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            }
+        }
+        item {
             Text(
                 "업무량은 집안일 난이도(1~5점)의 합계입니다. 실제 소요 시간과 같지는 않습니다.",
                 color = palette.muted,
                 style = MaterialTheme.typography.bodySmall
             )
         }
-        if (periodChores.isEmpty()) {
+        if (visibleChores.isEmpty()) {
             item {
                 EmptyResult("통계 데이터가 없습니다", "집안일 기록이 있는 기간을 선택해보세요.")
             }
@@ -193,15 +238,25 @@ private fun SummaryStatCard(
 }
 
 @Composable
-private fun WeekBarChart(
+private fun PeriodBarChart(
     today: LocalDate,
+    period: StatisticsPeriod,
     chores: List<DemoChore>,
     modifier: Modifier = Modifier
 ) {
     val palette = LocalHomeCrewColors.current
-    val start = weekStart(today)
-    val counts = (0..6).map { i ->
-        chores.count { it.date == start.plusDays(i.toLong()) && it.completed }
+    val start = if (period == StatisticsPeriod.WEEK) weekStart(today) else today.withDayOfMonth(1)
+    val bucketCount = if (period == StatisticsPeriod.WEEK) 7 else
+        ((today.lengthOfMonth() + start.dayOfWeek.value - 2) / 7) + 1
+    val counts = (0 until bucketCount).map { index ->
+        chores.count { chore ->
+            if (!chore.completed) false else if (period == StatisticsPeriod.WEEK) {
+                chore.date == start.plusDays(index.toLong())
+            } else {
+                val weekIndex = (chore.date.dayOfMonth + start.dayOfWeek.value - 2) / 7
+                weekIndex == index
+            }
+        }
     }
     val maxCount = counts.maxOrNull()?.coerceAtLeast(1) ?: 1
 
@@ -211,7 +266,6 @@ private fun WeekBarChart(
         verticalAlignment = Alignment.Bottom
     ) {
         counts.forEachIndexed { index, count ->
-            val date = start.plusDays(index.toLong())
             val barHeight = (count.toFloat() / maxCount * 80).dp
             Column(
                 modifier = Modifier.weight(1f),
@@ -237,7 +291,7 @@ private fun WeekBarChart(
                     }
                 }
                 Text(
-                    weekdayLabel(date),
+                    if (period == StatisticsPeriod.WEEK) weekdayLabel(start.plusDays(index.toLong())) else "${index + 1}주",
                     textAlign = TextAlign.Center,
                     style = MaterialTheme.typography.bodySmall,
                     color = palette.muted
