@@ -24,7 +24,9 @@ data class DemoChore(
     val id: String,
     val definition: ChoreDefinition,
     val date: LocalDate,
-    val completed: Boolean = false
+    val completed: Boolean = false,
+    val completedAtEpochMillis: Long? = null,
+    val completedBy: String? = null
 )
 
 data class ChoreSummary(
