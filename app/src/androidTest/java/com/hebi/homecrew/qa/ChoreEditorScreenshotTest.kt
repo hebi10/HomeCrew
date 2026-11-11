@@ -57,7 +57,10 @@ class ChoreEditorScreenshotTest {
     }
 
     private fun awaitScreen(title: String) {
-        val node = device.wait(Until.findObject(By.desc("화면 제목: $title")), 12_000)
+        var node = device.wait(Until.findObject(By.desc("화면 제목: $title")), 12_000)
+        if (node == null && device.dismissEmulatorLauncherAnrIfShown()) {
+            node = device.wait(Until.findObject(By.desc("화면 제목: $title")), 8_000)
+        }
         if (node == null) {
             screenshot("error-1d-screen")
             device.dumpWindowHierarchy(File(outputDirectory(), "error-1d-hierarchy.xml"))
@@ -99,6 +102,7 @@ class ChoreEditorScreenshotTest {
     }
 
     private fun completeSetupIfNeeded() {
+        device.dismissEmulatorLauncherAnrIfShown()
         if (device.wait(Until.findObject(By.text("시작하기")), 2_000) != null) {
             press("시작하기")
             press("다음")
