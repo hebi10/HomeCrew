@@ -8,7 +8,7 @@ import org.junit.Test
 class HomeCrewStatePresentationTest {
     @Test
     fun noScheduledChoresDoesNotClaimZeroPercentCompleted() {
-        assertEquals("등록된 집안일 없음", homeProgressLabel(0, 0))
+        assertEquals("오늘 예정된 집안일 없음", homeProgressLabel(0, 0))
         assertEquals(0, completionPercent(0, 0))
     }
 
