@@ -194,6 +194,8 @@ class MainScreensScreenshotTest {
         )
         if (dark == null) dumpFailedUi("다크 모드")
         requireNotNull(dark) { "다크 모드 적용을 확인하지 못했습니다." }
+        // Wait for Compose item colors and system-bar appearance to finish updating.
+        Thread.sleep(900)
         screenshot("07-home-dark")
     }
 }
