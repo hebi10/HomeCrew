@@ -237,7 +237,13 @@ fun HomeCrewMainScreens(
                     assignedMembers = definitions.map { it.owner }.toSet(),
                     themeMode = themeMode,
                     onThemeModeChange = onThemeModeChange,
-                    onSave = onHouseholdChange,
+                    onSave = { updated ->
+                        val saved = onHouseholdChange(updated)
+                        if (saved && updated.defaultMember != householdSetup.defaultMember) {
+                            currentMember = updated.defaultMember
+                        }
+                        saved
+                    },
                     onBack = { page = ChorePage.MAIN }
                 )
             }
