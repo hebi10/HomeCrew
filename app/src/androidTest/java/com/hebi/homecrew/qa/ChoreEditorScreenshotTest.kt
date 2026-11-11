@@ -174,6 +174,34 @@ class ChoreEditorScreenshotTest {
         val undo = device.wait(Until.findObject(By.text("이 회차 완료 취소")), 8_000)
         requireNotNull(undo) { "선택한 회차 완료 상태가 반영되지 않습니다." }
         screenshot("11-chore-detail-completed")
+
+        var history = device.wait(Until.findObject(By.text("최근 완료 기록")), 1_000)
+        repeat(6) {
+            if (history == null) {
+                device.swipe(
+                    device.displayWidth / 2, device.displayHeight * 3 / 4,
+                    device.displayWidth / 2, device.displayHeight / 3, 18
+                )
+                device.waitForIdle()
+                history = device.wait(Until.findObject(By.text("최근 완료 기록")), 1_000)
+            }
+        }
+        requireNotNull(history) { "최근 완료 기록 목록이 표시되지 않습니다." }
+        screenshot("11-chore-recent-completions")
+
+        val completionDate = java.time.LocalDate.now()
+        val selectedHistory = device.wait(
+            Until.findObject(By.desc("회차 선택: 완료 · $completionDate")), 6_000
+        )
+        requireNotNull(selectedHistory) { "최근 완료 회차를 선택할 수 없습니다." }.click()
+        device.waitForIdle()
+        val undoForSelectedHistory = device.wait(
+            Until.findObject(By.text("이 회차 완료 취소")), 8_000
+        )
+        requireNotNull(undoForSelectedHistory) {
+            "선택한 완료 회차로 이동하지 못했습니다."
+        }
+        screenshot("11-chore-selected-completion")
         if (!originallyCompleted) press("이 회차 완료 취소")
         press("집안일 수정")
         awaitScreen("집안일 수정")
