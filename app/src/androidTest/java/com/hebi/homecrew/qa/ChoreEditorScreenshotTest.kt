@@ -127,7 +127,8 @@ class ChoreEditorScreenshotTest {
 
         openEditorSubpage("반복 설정 열기", "반복 설정")
         screenshot("09-chore-repeat")
-        press("매주")
+        press("반복 방식: 매주")
+        screenshot("09-chore-repeat-after-select-weekly")
         var weeklyPreview = device.wait(
             Until.findObject(By.text("다가오는 일정 · 최대 3회")), 1_000
         )
@@ -146,6 +147,10 @@ class ChoreEditorScreenshotTest {
                 )
             }
         }
+        if (weeklyPreview == null) {
+            screenshot("error-weekly-preview")
+            device.dumpWindowHierarchy(File(outputDirectory(), "error-weekly-preview.xml"))
+        }
         requireNotNull(weeklyPreview) { "주간 반복 미리보기를 스크롤해도 찾을 수 없습니다." }
         screenshot("09-chore-repeat-weekly")
         press("반복 설정 적용")
@@ -153,9 +158,9 @@ class ChoreEditorScreenshotTest {
 
         openEditorSubpage("담당 방식 설정 열기", "담당 방식")
         screenshot("10-chore-assignment")
-        press("순번제")
+        press("담당 방식: 순번제")
         screenshot("10-chore-assignment-round-robin")
-        press("업무량 균형")
+        press("담당 방식: 업무량 균형")
         screenshot("10-chore-assignment-balanced")
         press("담당 방식 적용")
         awaitScreen("집안일 추가")
