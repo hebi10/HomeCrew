@@ -33,13 +33,14 @@ import com.hebi.homecrew.ui.theme.ThemeMode
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
-private enum class ChorePage { MAIN, DETAIL, FORM, REPEAT, ASSIGNMENT }
+private enum class ChorePage { MAIN, DETAIL, FORM, REPEAT, ASSIGNMENT, SETTINGS }
 
 @Composable
 fun HomeCrewMainScreens(
     themeMode: ThemeMode,
     onThemeModeChange: (ThemeMode) -> Unit,
     householdSetup: HouseholdSetup? = null,
+    onHouseholdChange: (HouseholdSetup) -> Boolean = { false },
     viewModel: DemoChoreViewModel = viewModel(
         factory = DemoChoreViewModel.Factory(LocalContext.current.applicationContext)
     )
@@ -164,7 +165,7 @@ fun HomeCrewMainScreens(
         when (page) {
             ChorePage.REPEAT, ChorePage.ASSIGNMENT -> page = ChorePage.FORM
             ChorePage.FORM -> requestFormBack()
-            ChorePage.DETAIL -> page = ChorePage.MAIN
+            ChorePage.DETAIL, ChorePage.SETTINGS -> page = ChorePage.MAIN
             ChorePage.MAIN -> Unit
         }
     }
@@ -198,7 +199,8 @@ fun HomeCrewMainScreens(
                                     )
                                 },
                                 householdName = householdSetup?.homeName ?: "우리 집",
-                                members = memberNames
+                                members = memberNames,
+                                onOpenSettings = { page = ChorePage.SETTINGS }
                             )
                             HomeTab.SCHEDULE -> HomeCrewScheduleScreen(
                                 today = currentDate,
@@ -226,6 +228,18 @@ fun HomeCrewMainScreens(
                         }
                     }
                 }
+            }
+        }
+        ChorePage.SETTINGS -> {
+            if (householdSetup != null) {
+                HomeCrewSettingsScreen(
+                    household = householdSetup,
+                    assignedMembers = definitions.map { it.owner }.toSet(),
+                    themeMode = themeMode,
+                    onThemeModeChange = onThemeModeChange,
+                    onSave = onHouseholdChange,
+                    onBack = { page = ChorePage.MAIN }
+                )
             }
         }
         ChorePage.DETAIL -> {
