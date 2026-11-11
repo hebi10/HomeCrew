@@ -65,10 +65,10 @@ class MainScreensScreenshotTest {
     }
 
     private fun awaitScreenTitle(title: String) {
-        val node = device.wait(
-            Until.findObject(By.desc("화면 제목: $title")),
-            12_000
-        )
+        var node = device.wait(Until.findObject(By.desc("화면 제목: $title")), 12_000)
+        if (node == null && device.dismissEmulatorLauncherAnrIfShown()) {
+            node = device.wait(Until.findObject(By.desc("화면 제목: $title")), 8_000)
+        }
         if (node == null) dumpFailedUi(title)
         requireNotNull(node) { "화면 전환이 완료되지 않음: $title" }
         device.waitForIdle()
@@ -81,6 +81,7 @@ class MainScreensScreenshotTest {
     }
 
     private fun completeSetupIfShown() {
+        device.dismissEmulatorLauncherAnrIfShown()
         val start = device.wait(Until.findObject(By.text("시작하기")), 3_000)
         if (start == null) return
         assertNull("과거 시연 안내가 표시되면 안 됩니다.", device.findObject(By.textContains("현재 시연용")))

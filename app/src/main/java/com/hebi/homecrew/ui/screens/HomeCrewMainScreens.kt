@@ -298,6 +298,7 @@ fun HomeCrewMainScreens(
                 HomeCrewRepeatScreen(
                     initial = draft.repeat,
                     startDate = draft.startDate,
+                    today = currentDate,
                     onApply = { repeat ->
                         viewModel.editDraft { it.copy(repeat = repeat) }
                         formError = null
@@ -312,9 +313,9 @@ fun HomeCrewMainScreens(
             if (draft != null) {
                 val baseline = workloadBaseline(chores, draft, currentDate)
                 HomeCrewAssignmentScreen(
-                    initial = draft.assignment,
+                    draft = draft,
+                    today = currentDate,
                     members = memberNames,
-                    points = draft.points,
                     baseline = baseline,
                     onApply = { assignment ->
                         viewModel.editDraft { it.copy(assignment = assignment) }

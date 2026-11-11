@@ -31,10 +31,11 @@ class HomeCrewActivityRestartTest {
     private fun taskVisibleAfterActivityStart(taskName: String) {
         val scenario = ActivityScenario.launch(MainActivity::class.java)
         try {
-            assertNotNull(
-                "홈 화면에 진입하지 못했습니다.",
-                device.wait(Until.findObject(By.desc("화면 제목: 우리 집")), 15_000)
-            )
+            var home = device.wait(Until.findObject(By.desc("화면 제목: 우리 집")), 15_000)
+            if (home == null && device.dismissEmulatorLauncherAnrIfShown()) {
+                home = device.wait(Until.findObject(By.desc("화면 제목: 우리 집")), 8_000)
+            }
+            assertNotNull("홈 화면에 진입하지 못했습니다.", home)
             val choresTab = device.wait(Until.findObject(By.desc("집안일 탭")), 10_000)
             assertNotNull("집안일 탭이 보이지 않습니다.", choresTab)
             requireNotNull(choresTab).click()
