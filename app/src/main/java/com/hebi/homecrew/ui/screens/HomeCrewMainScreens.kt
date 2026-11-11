@@ -211,13 +211,14 @@ fun HomeCrewMainScreens(
                             HomeTab.CHORES -> HomeCrewChoresScreen(
                                 today = currentDate,
                                 chores = chores,
-                                onDetails = { definition ->
+                                onDetails = { definition, occurrenceId ->
                                     detailId = definition.id
-                                    selectedOccurrenceId = null
+                                    selectedOccurrenceId = occurrenceId
                                     page = ChorePage.DETAIL
                                 },
                                 onAdd = { openAdd() },
-                                definitions = definitions
+                                definitions = definitions,
+                                members = memberNames
                             )
                             HomeTab.STATS -> HomeCrewStatsScreen(
                                 today = currentDate, chores = chores, members = memberNames

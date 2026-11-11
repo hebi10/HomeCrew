@@ -149,7 +149,18 @@ class MainScreensScreenshotTest {
 
         tapTab("집안일")
         awaitScreenTitle("집안일")
+        awaitText("등록된 집안일")
+        awaitText("필터 및 정렬")
         screenshot("03-chores-light")
+        tapButton("필터 및 정렬")
+        awaitText("카테고리")
+        screenshot("03-chores-filters-expanded")
+        tapButton("필터 및 정렬")
+        tapButton("완료")
+        awaitText("필터 초기화")
+        screenshot("03-chores-status-filter")
+        tapButton("필터 초기화")
+        awaitText("등록된 집안일")
 
         tapTab("통계")
         awaitScreenTitle("통계")
