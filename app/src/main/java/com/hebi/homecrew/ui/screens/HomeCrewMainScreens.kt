@@ -133,8 +133,11 @@ fun HomeCrewMainScreens(
         else finishEditor()
     }
 
-    fun openAdd() {
-        viewModel.openEditor(null, listOf(currentMember) + memberNames.filter { it != currentMember })
+    fun openAdd(startDate: java.time.LocalDate? = null, preferredMember: String? = null) {
+        val member = preferredMember?.takeIf { it in memberNames } ?: currentMember
+        viewModel.openEditor(
+            null, listOf(member) + memberNames.filter { it != member }, startDate
+        )
         initialEditor = viewModel.editor.value
         editorOrigin = ChorePage.MAIN
         formError = null
@@ -188,7 +191,7 @@ fun HomeCrewMainScreens(
                                 onMemberSelected = { currentMember = it },
                                 onToggle = { id -> viewModel.toggleCompleted(id, currentMember) },
                                 onDetails = ::openDetails,
-                                onAdd = ::openAdd,
+                                onAdd = { openAdd() },
                                 onCycleTheme = {
                                     onThemeModeChange(
                                         ThemeMode.entries[(themeMode.ordinal + 1) % ThemeMode.entries.size]
@@ -200,8 +203,10 @@ fun HomeCrewMainScreens(
                             HomeTab.SCHEDULE -> HomeCrewScheduleScreen(
                                 today = currentDate,
                                 chores = chores,
+                                members = memberNames,
                                 onToggle = { id -> viewModel.toggleCompleted(id, currentMember) },
-                                onDetails = ::openDetails
+                                onDetails = ::openDetails,
+                                onAddForDate = { date, member -> openAdd(date, member) }
                             )
                             HomeTab.CHORES -> HomeCrewChoresScreen(
                                 today = currentDate,
@@ -211,7 +216,7 @@ fun HomeCrewMainScreens(
                                     selectedOccurrenceId = null
                                     page = ChorePage.DETAIL
                                 },
-                                onAdd = ::openAdd,
+                                onAdd = { openAdd() },
                                 definitions = definitions
                             )
                             HomeTab.STATS -> HomeCrewStatsScreen(
