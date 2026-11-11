@@ -43,8 +43,6 @@ internal fun repeatPreviewDates(
         to = today.plusDays(EDITOR_PREVIEW_DAYS_AHEAD)
     ).take(3)
 
-internal fun previewHeading(count: Int): String =
-    if (count == 0) "예정 일정" else "다가오는 일정 · 최대 3회"
-
-internal fun assignmentPreviewHeading(count: Int): String =
-    if (count == 0) "예정 담당자" else "예정 담당자 · 최대 3회"
+internal fun editorPreviewHeading(rule: ChoreRepeat): String =
+    if (rule.mode == ChoreRepeatMode.NONE) "예정 일정"
+    else "다가오는 일정 · 최대 3회"
