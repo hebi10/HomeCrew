@@ -112,7 +112,40 @@ class MainScreensScreenshotTest {
 
         tapTab("일정")
         awaitScreenTitle("일정")
+        awaitText("구성원별 일정")
         screenshot("02-schedule-light")
+
+        tapButton("월 보기")
+        screenshot("02-schedule-month-light")
+        tapButton("일 보기")
+        screenshot("02-schedule-day-light")
+        tapButton("다음 기간")
+        screenshot("02-schedule-next-day")
+        tapButton("선택 날짜에 집안일 추가")
+        awaitScreenTitle("집안일 추가")
+
+        val selectedDate = java.time.LocalDate.now().plusDays(1)
+        val startDateLabel = "시작일: ${selectedDate}"
+        var prefilledDate = device.wait(Until.findObject(By.text(startDateLabel)), 1_000)
+        repeat(6) {
+            if (prefilledDate == null) {
+                device.swipe(
+                    device.displayWidth / 2,
+                    device.displayHeight * 3 / 4,
+                    device.displayWidth / 2,
+                    device.displayHeight / 3,
+                    18
+                )
+                device.waitForIdle()
+                prefilledDate = device.wait(Until.findObject(By.text(startDateLabel)), 1_000)
+            }
+        }
+        assertNotNull("선택 날짜를 새 집안일의 시작일로 반영해야 합니다.", prefilledDate)
+        screenshot("02-schedule-date-prefilled-add")
+        device.pressBack()
+        awaitScreenTitle("일정")
+        tapButton("오늘")
+        tapButton("주 보기")
 
         tapTab("집안일")
         awaitScreenTitle("집안일")
