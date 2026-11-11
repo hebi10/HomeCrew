@@ -106,6 +106,8 @@ class MainScreensScreenshotTest {
         awaitScreenTitle("우리 집")
         assertNull("개발용 갤러리는 사용자 홈에 표시하면 안 됩니다.", device.findObject(By.desc("1-A 디자인 시스템 보기")))
         assertNull("홈에 중복 저장 안내를 표시하면 안 됩니다.", device.findObject(By.textContains("다른 기기와 동기화되지 않습니다")))
+        awaitText("오늘의 진행률")
+        awaitText("집안일 추가")
         screenshot("01-home-light")
 
         tapTab("일정")
