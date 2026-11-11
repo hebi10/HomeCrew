@@ -236,9 +236,11 @@ fun HomeCrewMainScreens(
                     chores = chores,
                     today = currentDate,
                     selectedOccurrenceId = selectedOccurrenceId,
+                    actingMember = currentMember,
                     onBack = { page = ChorePage.MAIN },
                     onEdit = ::openEdit,
                     onToggle = { id -> viewModel.toggleCompleted(id, currentMember) },
+                    onSelectOccurrence = { selectedOccurrenceId = it },
                     onDelete = {
                         scope.launch {
                             try {
