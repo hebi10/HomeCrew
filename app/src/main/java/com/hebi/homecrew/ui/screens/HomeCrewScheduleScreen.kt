@@ -147,7 +147,7 @@ fun HomeCrewScheduleScreen(
                             .clickable { mode = option }
                             .semantics {
                                 contentDescription = "${option.title} 보기"
-                                selected = active
+                                this.selected = active
                             },
                         contentAlignment = Alignment.Center
                     ) {
@@ -319,7 +319,7 @@ private fun CalendarWeekStrip(
                     .semantics {
                         contentDescription =
                             "${koreanDateLabel(day)}, 집안일 ${summary.total}개, 완료 ${summary.completed}개${if (day == today) ", 오늘" else ""}"
-                        selected = highlighted
+                        this.selected = highlighted
                     }
                     .padding(vertical = 8.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -396,7 +396,7 @@ private fun CalendarMonthGrid(
                                 .semantics {
                                     contentDescription =
                                         "${koreanDateLabel(day)}, 집안일 ${summary.total}개, 완료 ${summary.completed}개${if (day == today) ", 오늘" else ""}"
-                                    selected = highlighted
+                                    this.selected = highlighted
                                 }
                                 .padding(vertical = 5.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
