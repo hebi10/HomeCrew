@@ -83,7 +83,7 @@ internal fun ChoreSubpageLayout(
             modifier = Modifier.fillMaxSize().padding(insets)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = HomeCrewDimensions.screenPadding, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp)
+            verticalArrangement = Arrangement.spacedBy(HomeCrewDimensions.space16)
         ) {
             TextButton(onClick = onBack) { Text("이전") }
             ScreenHeader(title = title, subtitle = subtitle)
@@ -107,7 +107,7 @@ fun HomeCrewChoreFormScreen(
 ) {
     val context = LocalContext.current
     val palette = LocalHomeCrewColors.current
-    val preview = previewDraftInstances(draft, today, baseline, daysAhead = 370).take(3)
+    val preview = upcomingEditorOccurrences(draft, today, baseline)
     ChoreSubpageLayout(
         title = if (draft.editingId == null) "집안일 추가" else "집안일 수정",
         subtitle = "내용을 입력하고 반복·담당 방식을 설정하세요.",
@@ -124,7 +124,7 @@ fun HomeCrewChoreFormScreen(
             isError = error?.contains("이름") == true
         )
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("카테고리", style = MaterialTheme.typography.labelLarge)
+            Text("카테고리 · 좌우로 밀어 선택", style = MaterialTheme.typography.labelLarge)
             Row(
                 modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -150,7 +150,10 @@ fun HomeCrewChoreFormScreen(
         )
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("예상 업무량", style = MaterialTheme.typography.labelLarge)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 (1..5).forEach { point ->
                     HomeCrewFilterChip(
                         label = "$point",
@@ -166,19 +169,6 @@ fun HomeCrewChoreFormScreen(
         }
         BorderedSection {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("반복", style = MaterialTheme.typography.titleMedium)
-                Text(repeatDescription(draft.repeat), style = MaterialTheme.typography.bodyMedium)
-                HomeCrewSecondaryButton(
-                    text = "반복 설정",
-                    onClick = onRepeat,
-                    modifier = Modifier.fillMaxWidth().semantics {
-                        contentDescription = "반복 설정 열기"
-                    }
-                )
-            }
-        }
-        BorderedSection {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("담당 방식", style = MaterialTheme.typography.titleMedium)
                 Text(
                     "${draft.assignment.mode.label} · ${draft.assignment.members.joinToString(" · ")}",
@@ -189,6 +179,19 @@ fun HomeCrewChoreFormScreen(
                     onClick = onAssignment,
                     modifier = Modifier.fillMaxWidth().semantics {
                         contentDescription = "담당 방식 설정 열기"
+                    }
+                )
+            }
+        }
+        BorderedSection {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("반복", style = MaterialTheme.typography.titleMedium)
+                Text(repeatDescription(draft.repeat), style = MaterialTheme.typography.bodyMedium)
+                HomeCrewSecondaryButton(
+                    text = "반복 설정",
+                    onClick = onRepeat,
+                    modifier = Modifier.fillMaxWidth().semantics {
+                        contentDescription = "반복 설정 열기"
                     }
                 )
             }
@@ -228,17 +231,26 @@ fun HomeCrewChoreFormScreen(
         }
         BorderedSection {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("다가오는 일정 미리보기", style = MaterialTheme.typography.titleMedium)
+                Text(editorPreviewHeading(draft.repeat), style = MaterialTheme.typography.titleMedium)
                 if (preview.isEmpty()) {
-                    Text("미리보기 기간에 예정된 집안일이 없습니다.")
+                    Text(
+                        "오늘부터 62일 이내에 예정된 회차가 없습니다.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = palette.muted
+                    )
                 } else {
                     preview.forEach { occurrence ->
                         Text(
-                            "${occurrence.date} · ${occurrence.definition.time} · ${occurrence.definition.owner}",
+                            "${occurrence.date} · ${occurrence.time} · ${occurrence.owner}",
                             style = MaterialTheme.typography.bodyMedium
                         )
                     }
                 }
+                Text(
+                    "미리보기는 현재 기기의 향후 62일 회차 생성 범위를 기준으로 합니다.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = palette.muted
+                )
             }
         }
     }
