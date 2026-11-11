@@ -106,12 +106,16 @@ class DemoChoreViewModel(
         _operationError.value = null
     }
 
-    fun openEditor(definition: ChoreDefinition?, members: List<String>) {
+    fun openEditor(
+        definition: ChoreDefinition?,
+        members: List<String>,
+        startDate: LocalDate? = null
+    ) {
         _saveState.value = EditorSaveState.Idle
         committedSaveId = null
         _editor.value = if (definition == null) {
             ChoreEditorDraft(
-                startDate = today,
+                startDate = startDate ?: today,
                 assignment = ChoreAssignment(members = listOf(members.firstOrNull() ?: "나"))
             )
         } else {
