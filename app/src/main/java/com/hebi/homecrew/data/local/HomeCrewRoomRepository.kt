@@ -245,7 +245,9 @@ class HomeCrewRoomRepository(
                     points = row.workloadPoints.takeIf { it > 0 } ?: definition.points
                 ),
                 date = LocalDate.ofEpochDay(row.scheduledEpochDay),
-                completed = row.completed
+                completed = row.completed,
+                completedAtEpochMillis = row.completedAtEpochMillis,
+                completedBy = row.completedBy
             )
         }
         return HomeCrewSnapshot(definitions, chores)

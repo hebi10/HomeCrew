@@ -232,7 +232,14 @@ class DemoChoreViewModel(
         if (repository == null) {
             _chores.update { current ->
                 current.map { chore ->
-                    if (chore.id == id) chore.copy(completed = !chore.completed) else chore
+                    if (chore.id == id) {
+                        val nextCompleted = !chore.completed
+                        chore.copy(
+                            completed = nextCompleted,
+                            completedAtEpochMillis = if (nextCompleted) System.currentTimeMillis() else null,
+                            completedBy = if (nextCompleted) actingMember else null
+                        )
+                    } else chore
                 }
             }
             return
