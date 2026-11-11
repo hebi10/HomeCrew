@@ -57,20 +57,6 @@ fun ScreenHeader(
 }
 
 @Composable
-fun DemoNotice() {
-    val palette = LocalHomeCrewColors.current
-    Text(
-        text = "집·구성원·집안일과 완료 기록은 이 기기에 저장됩니다. 다른 기기와 동기화되지 않습니다",
-        style = MaterialTheme.typography.bodySmall,
-        color = palette.muted,
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(palette.subtle, RoundedCornerShape(4.dp))
-            .padding(horizontal = 12.dp, vertical = 9.dp)
-    )
-}
-
-@Composable
 fun SectionHeading(
     title: String,
     trailing: String? = null
@@ -144,7 +130,7 @@ fun DemoChoreDetails(
                 Text("예정일: ${task.date} · ${task.definition.time}")
                 Text("반복: ${task.definition.repeat} · 난이도 ${task.definition.points}점")
                 Text(
-                    "1-B 화면 미리보기이며 수정·저장은 후속 단계에서 구현합니다.",
+                    "저장한 집안일과 완료 기록은 현재 기기에서 유지됩니다.",
                     color = palette.muted,
                     style = MaterialTheme.typography.bodySmall
                 )

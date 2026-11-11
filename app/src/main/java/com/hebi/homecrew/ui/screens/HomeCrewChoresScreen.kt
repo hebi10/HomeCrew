@@ -75,7 +75,6 @@ fun HomeCrewChoresScreen(
                 }
             }
         }
-        item { DemoNotice() }
         item {
             HomeCrewTextField(
                 label = "집안일 검색",
@@ -165,13 +164,6 @@ fun HomeCrewChoresScreen(
                     }
                 }
             }
-        }
-        item {
-            Text(
-                "등록·수정·삭제 결과는 이 기기에 저장됩니다. 앱 재실행 후에도 유지됩니다.",
-                style = MaterialTheme.typography.bodySmall,
-                color = palette.muted
-            )
         }
     }
 }

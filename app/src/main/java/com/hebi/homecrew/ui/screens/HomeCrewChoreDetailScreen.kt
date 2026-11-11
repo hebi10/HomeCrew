@@ -71,7 +71,6 @@ fun HomeCrewChoreDetailScreen(
                 subtitle = "${definition.category} · 난이도 ${definition.points}점"
             )
         }
-        item { DemoNotice() }
         if (definition.description.isNotBlank()) {
             item {
                 BorderedSection {
@@ -167,8 +166,7 @@ fun HomeCrewChoreDetailScreen(
         }
         item {
             Text(
-                "등록·수정·완료·삭제는 이 기기에 저장됩니다. " +
-                    "수정 시 기존 완료·과거 회차를 보존하며, 삭제 시 해당 집안일의 기록을 모두 제거합니다.",
+                "수정 시 기존 완료·과거 회차를 보존하며, 삭제 시 해당 집안일의 관련 기록이 모두 제거됩니다.",
                 style = MaterialTheme.typography.bodySmall,
                 color = palette.muted
             )

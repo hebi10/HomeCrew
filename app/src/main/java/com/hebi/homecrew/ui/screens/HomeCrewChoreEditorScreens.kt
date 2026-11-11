@@ -241,10 +241,6 @@ fun HomeCrewChoreFormScreen(
                 }
             }
         }
-        Text(
-            "등록·수정한 집안일과 반복 일정은 이 기기에 저장됩니다. 기기 간 공유는 지원하지 않습니다.",
-            style = MaterialTheme.typography.bodySmall, color = palette.muted
-        )
     }
 }
 

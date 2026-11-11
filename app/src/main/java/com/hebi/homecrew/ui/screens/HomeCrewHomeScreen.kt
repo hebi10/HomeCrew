@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.WbSunny
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -41,7 +40,6 @@ fun HomeCrewHomeScreen(
     onToggle: (String) -> Unit,
     onDetails: (DemoChore) -> Unit,
     onAdd: () -> Unit,
-    onOpenDesignSystem: () -> Unit,
     onCycleTheme: () -> Unit,
     householdName: String = "우리 집",
     members: List<String> = listOf("나", "지민")
@@ -73,15 +71,8 @@ fun HomeCrewHomeScreen(
                         contentDescription = "테마 전환 · 현재 ${themeMode.label}"
                     )
                 }
-                IconButton(onClick = onOpenDesignSystem) {
-                    Icon(
-                        Icons.Outlined.Palette,
-                        contentDescription = "1-A 디자인 시스템 보기"
-                    )
-                }
             }
         }
-        item { DemoNotice() }
         item {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
@@ -152,13 +143,6 @@ fun HomeCrewHomeScreen(
                 modifier = Modifier.fillMaxWidth()
             )
         }
-        item {
-            Text(
-                "집안일 등록·완료·분담 기록은 이 기기에 저장되며 앱을 다시 실행해도 유지됩니다.",
-                color = palette.muted,
-                style = MaterialTheme.typography.bodySmall
-            )
-        }
     }
 }
 
@@ -169,7 +153,7 @@ private fun PreviewHomeLight() {
     HomeCrewTheme(darkTheme = false) {
         HomeCrewHomeScreen(
             today, sampleChores(today), "나", ThemeMode.LIGHT,
-            {}, {}, {}, {}, {}, {}
+            {}, {}, {}, {}, {}
         )
     }
 }
@@ -181,7 +165,7 @@ private fun PreviewHomeDark() {
     HomeCrewTheme(darkTheme = true) {
         HomeCrewHomeScreen(
             today, sampleChores(today), "나", ThemeMode.DARK,
-            {}, {}, {}, {}, {}, {}
+            {}, {}, {}, {}, {}
         )
     }
 }

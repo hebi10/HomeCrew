@@ -77,7 +77,6 @@ fun HomeCrewScheduleScreen(
         verticalArrangement = Arrangement.spacedBy(18.dp)
     ) {
         item { ScreenHeader(title = "일정", subtitle = "날짜별 집안일 관리") }
-        item { DemoNotice() }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 CalendarMode.entries.forEach { option ->
