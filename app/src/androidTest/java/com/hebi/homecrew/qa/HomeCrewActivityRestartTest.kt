@@ -97,7 +97,12 @@ class HomeCrewActivityRestartTest {
             val defaultChoice = device.wait(Until.findObject(By.text("기본으로 설정")), 5_000)
             assertNotNull("기본 구성원 설정 버튼 없음", defaultChoice)
             requireNotNull(defaultChoice).click()
-            assertTrue("기본 구성원 저장 실패", store.load()?.defaultMember in store.load()!!.members)
+            assertTrue("기본 구성원 변경이 저장되지 않았습니다.", store.load()?.defaultMember != base.defaultMember)
+            device.pressBack()
+            assertNotNull(
+                "설정 종료 후 홈 화면 복귀 실패",
+                device.wait(Until.findObject(By.desc("화면 제목: $homeName")), 10_000)
+            )
             scenario.recreate()
             assertNotNull(
                 "재시작 후 집 이름이 반영되지 않았습니다.",
