@@ -128,10 +128,25 @@ class ChoreEditorScreenshotTest {
         openEditorSubpage("반복 설정 열기", "반복 설정")
         screenshot("09-chore-repeat")
         press("매주")
-        val weeklyPreview = device.wait(
-            Until.findObject(By.text("다가오는 일정 · 최대 3회")), 8_000
+        var weeklyPreview = device.wait(
+            Until.findObject(By.text("다가오는 일정 · 최대 3회")), 1_000
         )
-        requireNotNull(weeklyPreview) { "주간 반복의 다음 날짜 미리보기가 보이지 않습니다." }
+        repeat(5) {
+            if (weeklyPreview == null) {
+                device.swipe(
+                    device.displayWidth / 2,
+                    device.displayHeight * 3 / 4,
+                    device.displayWidth / 2,
+                    device.displayHeight / 3,
+                    20
+                )
+                device.waitForIdle()
+                weeklyPreview = device.wait(
+                    Until.findObject(By.text("다가오는 일정 · 최대 3회")), 1_000
+                )
+            }
+        }
+        requireNotNull(weeklyPreview) { "주간 반복 미리보기를 스크롤해도 찾을 수 없습니다." }
         screenshot("09-chore-repeat-weekly")
         press("반복 설정 적용")
         awaitScreen("집안일 추가")
