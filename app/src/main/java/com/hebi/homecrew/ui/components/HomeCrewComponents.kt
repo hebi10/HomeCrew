@@ -16,9 +16,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.outlined.BarChart
 import androidx.compose.material.icons.outlined.CalendarMonth
+import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.Schedule
+import androidx.compose.material.icons.outlined.WarningAmber
 import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.FormatListBulleted
 import androidx.compose.material.icons.outlined.Home
@@ -30,7 +32,6 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -42,7 +43,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -101,16 +104,32 @@ fun HomeCrewStatusChip(status: ChoreStatus) {
         ChoreStatus.COMPLETED -> palette.success to palette.success.copy(alpha = 0.13f)
         ChoreStatus.OVERDUE -> palette.warning to palette.warning.copy(alpha = 0.13f)
     }
+    val statusIcon = when (status) {
+        ChoreStatus.PLANNED -> Icons.Outlined.Schedule
+        ChoreStatus.COMPLETED -> Icons.Outlined.CheckCircle
+        ChoreStatus.OVERDUE -> Icons.Outlined.WarningAmber
+    }
     Surface(
         color = backgroundColor,
         shape = RoundedCornerShape(3.dp)
     ) {
-        Text(
-            text = status.label,
-            color = foreground,
-            style = MaterialTheme.typography.labelMedium,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
-        )
+        Row(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Icon(
+                imageVector = statusIcon,
+                contentDescription = null,
+                tint = foreground,
+                modifier = Modifier.size(16.dp)
+            )
+            Text(
+                text = status.label,
+                color = foreground,
+                style = MaterialTheme.typography.labelMedium
+            )
+        }
     }
 }
 
@@ -156,6 +175,12 @@ fun HomeCrewTextField(
     )
 }
 
+fun homeProgressLabel(completed: Int, total: Int): String = when {
+    total <= 0 -> "등록된 집안일 없음"
+    completed >= total -> "모두 완료"
+    else -> "${completionPercent(completed, total)}% 완료"
+}
+
 @Composable
 fun HomeCrewProgressCard(completed: Int, total: Int) {
     val palette = LocalHomeCrewColors.current
@@ -175,18 +200,30 @@ fun HomeCrewProgressCard(completed: Int, total: Int) {
                 fontWeight = FontWeight.Bold
             )
             Text(
-                text = "  ${percent}% 완료",
+                text = "  ${homeProgressLabel(completed, total)}",
                 modifier = Modifier.padding(bottom = 3.dp),
                 style = MaterialTheme.typography.bodySmall,
                 color = palette.muted
             )
         }
-        LinearProgressIndicator(
-            progress = { percent / 100f },
-            modifier = Modifier.fillMaxWidth().height(6.dp),
-            color = palette.ink,
-            trackColor = palette.border
-        )
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(6.dp)
+                .background(palette.border)
+                .semantics {
+                    progressBarRangeInfo = ProgressBarRangeInfo(percent.toFloat(), 0f..100f)
+                }
+        ) {
+            if (percent > 0) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(percent / 100f)
+                        .height(6.dp)
+                        .background(palette.ink)
+                )
+            }
+        }
     }
 }
 
@@ -213,7 +250,7 @@ fun HomeCrewTaskRow(
             modifier = Modifier.size(HomeCrewDimensions.touchTarget)
         ) {
             Icon(
-                imageVector = if (completed) Icons.Filled.CheckCircle
+                imageVector = if (completed) Icons.Outlined.CheckCircle
                     else Icons.Outlined.RadioButtonUnchecked,
                 contentDescription = if (completed) "완료 취소" else "완료 처리",
                 tint = if (completed) palette.success else palette.muted
