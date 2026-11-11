@@ -78,7 +78,7 @@ class HomeCrewActivityRestartTest {
         repeat(5) {
             try {
                 val fields = device.findObjects(By.clazz("android.widget.EditText"))
-                if (index < fields.size) {
+                if (index >= 0 && index < fields.size) {
                     fields[index].text = value
                     device.waitForIdle()
                     return
