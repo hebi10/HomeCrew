@@ -5,6 +5,7 @@ import android.app.TimePickerDialog
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -32,6 +33,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.LocalContext
@@ -260,6 +262,7 @@ fun HomeCrewChoreFormScreen(
 fun HomeCrewRepeatScreen(
     initial: ChoreRepeat,
     startDate: LocalDate,
+    today: LocalDate,
     onApply: (ChoreRepeat) -> Unit,
     onBack: () -> Unit
 ) {
@@ -270,7 +273,15 @@ fun HomeCrewRepeatScreen(
     var error by rememberSaveable { mutableStateOf<String?>(null) }
     val frequency = ChoreRepeatMode.valueOf(mode)
     val rule = ChoreRepeat(frequency, days.map(DayOfWeek::valueOf).toSet(), interval)
-    val preview = nextChoreDates(startDate, rule, startDate, startDate.plusDays(400)).take(3)
+    val preview = repeatPreviewDates(startDate, today, rule)
+
+    fun selectRepeatMode(option: ChoreRepeatMode) {
+        mode = option.name
+        error = null
+        if (option in setOf(ChoreRepeatMode.WEEKLY, ChoreRepeatMode.BIWEEKLY)
+            && days.isEmpty()
+        ) days = listOf(startDate.dayOfWeek.name)
+    }
 
     ChoreSubpageLayout(
         title = "반복 설정",
@@ -290,23 +301,19 @@ fun HomeCrewRepeatScreen(
         ChoreRepeatMode.entries.forEach { option ->
             Row(
                 modifier = Modifier.fillMaxWidth()
+                    .heightIn(min = HomeCrewDimensions.touchTarget)
+                    .selectable(
+                        selected = frequency == option,
+                        onClick = { selectRepeatMode(option) },
+                        role = Role.RadioButton
+                    )
                     .border(1.dp, palette.border, RoundedCornerShape(4.dp))
                     .padding(8.dp),
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(HomeCrewDimensions.space8)
             ) {
-                RadioButton(
-                    selected = frequency == option,
-                    onClick = {
-                        mode = option.name
-                        error = null
-                        if (option in listOf(ChoreRepeatMode.WEEKLY, ChoreRepeatMode.BIWEEKLY)
-                            && days.isEmpty()
-                        ) days = listOf(startDate.dayOfWeek.name)
-                    }
-                )
-                TextButton(onClick = { mode = option.name; error = null }) {
-                    Text(option.label)
-                }
+                RadioButton(selected = frequency == option, onClick = null)
+                Text(option.label, style = MaterialTheme.typography.bodyLarge)
             }
         }
         if (frequency in setOf(ChoreRepeatMode.WEEKLY, ChoreRepeatMode.BIWEEKLY)) {
@@ -349,8 +356,21 @@ fun HomeCrewRepeatScreen(
         }
         BorderedSection {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("다음 3회 일정", style = MaterialTheme.typography.titleMedium)
-                preview.forEach { Text(it.toString()) }
+                Text(editorPreviewHeading(rule), style = MaterialTheme.typography.titleMedium)
+                if (preview.isEmpty()) {
+                    Text(
+                        "오늘부터 62일 이내에 예정된 회차가 없습니다.",
+                        color = palette.muted,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                } else {
+                    preview.forEach { Text(it.toString(), style = MaterialTheme.typography.bodyMedium) }
+                }
+                Text(
+                    "기존 시작일을 기준으로 계산한 오늘 이후의 예정 날짜입니다.",
+                    color = palette.muted,
+                    style = MaterialTheme.typography.bodySmall
+                )
             }
         }
     }
@@ -358,21 +378,30 @@ fun HomeCrewRepeatScreen(
 
 @Composable
 fun HomeCrewAssignmentScreen(
-    initial: ChoreAssignment,
+    draft: ChoreEditorDraft,
+    today: LocalDate,
     members: List<String>,
-    points: Int,
     baseline: Map<String, Int>,
     onApply: (ChoreAssignment) -> Unit,
     onBack: () -> Unit
 ) {
     val palette = LocalHomeCrewColors.current
-    var mode by rememberSaveable { mutableStateOf(initial.mode.name) }
-    var selected by rememberSaveable { mutableStateOf(initial.members) }
+    var mode by rememberSaveable { mutableStateOf(draft.assignment.mode.name) }
+    var selected by rememberSaveable { mutableStateOf(draft.assignment.members) }
     var error by rememberSaveable { mutableStateOf<String?>(null) }
     val choice = ChoreAssignmentMode.valueOf(mode)
     val orderedSelection = orderedParticipants(selected, members)
     val rule = ChoreAssignment(choice, orderedSelection)
-    val upcoming = assignedOwners(rule, 3, points, baseline)
+    val upcoming = upcomingEditorOccurrences(draft, today, baseline, rule)
+
+    fun selectAssignmentMode(option: ChoreAssignmentMode) {
+        mode = option.name
+        error = null
+        if (option == ChoreAssignmentMode.FIXED) {
+            val first = orderedParticipants(selected, members).firstOrNull() ?: members.firstOrNull()
+            selected = listOfNotNull(first)
+        }
+    }
 
     ChoreSubpageLayout(
         title = "담당 방식",
@@ -391,23 +420,19 @@ fun HomeCrewAssignmentScreen(
         ChoreAssignmentMode.entries.forEach { option ->
             Row(
                 modifier = Modifier.fillMaxWidth()
+                    .heightIn(min = HomeCrewDimensions.touchTarget)
+                    .selectable(
+                        selected = choice == option,
+                        onClick = { selectAssignmentMode(option) },
+                        role = Role.RadioButton
+                    )
                     .border(1.dp, palette.border, RoundedCornerShape(4.dp))
                     .padding(8.dp),
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(HomeCrewDimensions.space8)
             ) {
-                RadioButton(
-                    selected = choice == option,
-                    onClick = {
-                        mode = option.name
-                        if (option == ChoreAssignmentMode.FIXED)
-                            selected = listOf(selected.firstOrNull() ?: members.first())
-                    }
-                )
-                TextButton(onClick = {
-                    mode = option.name
-                    if (option == ChoreAssignmentMode.FIXED)
-                        selected = listOf(selected.firstOrNull() ?: members.first())
-                }) { Text(option.label) }
+                RadioButton(selected = choice == option, onClick = null)
+                Text(option.label, style = MaterialTheme.typography.bodyLarge)
             }
         }
         val explanation = when (choice) {
@@ -418,6 +443,22 @@ fun HomeCrewAssignmentScreen(
         }
         Text(explanation, style = MaterialTheme.typography.bodyMedium, color = palette.muted)
         Text("참여 구성원", style = MaterialTheme.typography.titleMedium)
+        if (choice == ChoreAssignmentMode.ROUND_ROBIN && orderedSelection.isNotEmpty()) {
+            Text(
+                "배정 순서: ${orderedSelection.joinToString(" → ")}",
+                color = palette.muted,
+                style = MaterialTheme.typography.bodySmall
+            )
+        }
+        if (choice == ChoreAssignmentMode.BALANCED && orderedSelection.isNotEmpty()) {
+            Text(
+                "기준 업무량: " + orderedSelection.joinToString(" · ") {
+                    "${it} ${baseline[it] ?: 0}점"
+                },
+                color = palette.muted,
+                style = MaterialTheme.typography.bodySmall
+            )
+        }
         members.forEach { member ->
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -442,10 +483,25 @@ fun HomeCrewAssignmentScreen(
         }
         BorderedSection {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("다음 3회 배정 미리보기", style = MaterialTheme.typography.titleMedium)
-                if (upcoming.isEmpty()) Text("참여자를 선택해 주세요.")
-                upcoming.forEachIndexed { index, member ->
-                    Text("${index + 1}회차 · $member", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    if (draft.repeat.mode == ChoreRepeatMode.NONE) "예정 담당자"
+                    else "예정 담당자 · 최대 3회",
+                    style = MaterialTheme.typography.titleMedium
+                )
+                if (upcoming.isEmpty()) {
+                    Text(
+                        if (orderedSelection.isEmpty()) "참여자를 선택해 주세요."
+                        else "오늘부터 62일 이내에 예정된 회차가 없습니다.",
+                        color = palette.muted,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                } else {
+                    upcoming.forEachIndexed { index, occurrence ->
+                        Text(
+                            "${index + 1}회차 · ${occurrence.date} · ${occurrence.owner}",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
                 }
             }
         }
@@ -475,6 +531,7 @@ private fun PreviewRepeatDark() {
     HomeCrewTheme(darkTheme = true) {
         HomeCrewRepeatScreen(
             ChoreRepeat(ChoreRepeatMode.WEEKLY, setOf(DayOfWeek.MONDAY)),
+            LocalDate.of(2026, 11, 10),
             LocalDate.of(2026, 11, 10), {}, {}
         )
     }
