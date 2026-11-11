@@ -358,7 +358,13 @@ fun HomeCrewRepeatScreen(
         }
         BorderedSection {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(editorPreviewHeading(rule), style = MaterialTheme.typography.titleMedium)
+                Text(
+                    editorPreviewHeading(rule),
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.semantics {
+                        contentDescription = "반복 일정 미리보기: ${rule.mode.label}, 예정 ${preview.size}건"
+                    }
+                )
                 if (preview.isEmpty()) {
                     Text(
                         "오늘부터 62일 이내에 예정된 회차가 없습니다.",
