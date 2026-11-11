@@ -59,6 +59,58 @@ class HomeCrewActivityRestartTest {
     }
 
     @Test
+    fun householdSettingsPersistAfterActivityRestart() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val store = LocalHouseholdStore(context)
+        val original = store.load()
+        val base = original ?: HouseholdSetup(
+            homeName = "우리 집",
+            members = listOf("나", "지민"),
+            defaultMember = "나",
+            selectedTemplateIds = suggestedTemplateIds
+        )
+        assertTrue(store.save(base))
+        val unique = System.currentTimeMillis().toString().takeLast(7)
+        val homeName = "QA집" + unique
+        val member = "QA" + unique
+        val scenario = ActivityScenario.launch(MainActivity::class.java)
+        try {
+            assertNotNull(
+                "홈 화면 진입 실패",
+                device.wait(Until.findObject(By.desc("화면 제목: ${base.homeName}")), 20_000)
+            )
+            val settings = device.wait(Until.findObject(By.desc("집 및 앱 설정")), 10_000)
+            assertNotNull("설정 진입 버튼이 없습니다.", settings)
+            requireNotNull(settings).click()
+            assertNotNull("설정 화면 진입 실패", device.wait(Until.findObject(By.text("설정")), 8_000))
+            val fields = device.findObjects(By.clazz("android.widget.EditText"))
+            assertTrue("집 이름 입력칸 없음", fields.isNotEmpty())
+            fields[0].text = homeName
+            requireNotNull(device.wait(Until.findObject(By.text("집 이름 저장")), 5_000)).click()
+            assertTrue("집 이름이 저장되지 않았습니다.", store.load()?.homeName == homeName)
+            val newMemberField = device.wait(Until.findObject(By.text("새 구성원 이름")), 5_000)
+                ?: device.findObjects(By.clazz("android.widget.EditText")).lastOrNull()
+            assertNotNull("구성원 입력칸 없음", newMemberField)
+            requireNotNull(newMemberField).text = member
+            requireNotNull(device.wait(Until.findObject(By.text("구성원 추가")), 5_000)).click()
+            assertTrue("구성원 추가가 저장되지 않았습니다.", member in (store.load()?.members ?: emptyList()))
+            val defaultChoice = device.wait(Until.findObject(By.text("기본으로 설정")), 5_000)
+            assertNotNull("기본 구성원 설정 버튼 없음", defaultChoice)
+            requireNotNull(defaultChoice).click()
+            assertTrue("기본 구성원 저장 실패", store.load()?.defaultMember in store.load()!!.members)
+            scenario.recreate()
+            assertNotNull(
+                "재시작 후 집 이름이 반영되지 않았습니다.",
+                device.wait(Until.findObject(By.desc("화면 제목: $homeName")), 20_000)
+            )
+            assertTrue("재시작 후 구성원이 유지되지 않았습니다.", member in store.load()!!.members)
+        } finally {
+            scenario.close()
+            if (original != null) store.save(original) else store.save(base)
+        }
+    }
+
+    @Test
     fun taskAndCompletionRemainAfterNewActivityAndViewModel() = runBlocking {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val store = LocalHouseholdStore(context)
