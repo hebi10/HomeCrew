@@ -1,28 +1,32 @@
 package com.hebi.homecrew.ui.screens
 
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.WbSunny
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.hebi.homecrew.ui.components.HomeCrewFilterChip
-import com.hebi.homecrew.ui.components.HomeCrewPrimaryButton
 import com.hebi.homecrew.ui.components.HomeCrewProgressCard
 import com.hebi.homecrew.ui.theme.HomeCrewDimensions
 import com.hebi.homecrew.ui.theme.HomeCrewTheme
@@ -46,6 +50,7 @@ fun HomeCrewHomeScreen(
 ) {
     val palette = LocalHomeCrewColors.current
     val todayChores = tasksForDay(chores, today)
+    val summary = summaryFor(todayChores)
     val myChores = todayChores.filter { it.definition.owner == currentMember }
         .sortedBy { it.completed }
     val others = todayChores.filter { it.definition.owner != currentMember }
@@ -56,9 +61,9 @@ fun HomeCrewHomeScreen(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
             horizontal = HomeCrewDimensions.screenPadding,
-            vertical = HomeCrewDimensions.space24
+            vertical = HomeCrewDimensions.space16
         ),
-        verticalArrangement = Arrangement.spacedBy(18.dp)
+        verticalArrangement = Arrangement.spacedBy(HomeCrewDimensions.space12)
     ) {
         item {
             ScreenHeader(
@@ -74,15 +79,18 @@ fun HomeCrewHomeScreen(
             }
         }
         item {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            HomeCrewProgressCard(summary.completed, summary.total)
+        }
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(HomeCrewDimensions.space4)) {
                 Text(
-                    "현재 보는 구성원",
+                    "구성원",
                     style = MaterialTheme.typography.labelLarge,
                     color = palette.muted
                 )
                 Row(
                     modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(HomeCrewDimensions.space8)
                 ) {
                     members.forEach { name ->
                         HomeCrewFilterChip(
@@ -95,18 +103,43 @@ fun HomeCrewHomeScreen(
             }
         }
         item {
-            val summary = summaryFor(todayChores)
-            HomeCrewProgressCard(summary.completed, summary.total)
-        }
-        item {
-            SectionHeading(
-                if (currentMember == "나") "내가 할 일" else "${currentMember}의 할 일",
-                "${remaining}개 남음"
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(HomeCrewDimensions.space4)) {
+                    Text(
+                        if (currentMember == "나") "내가 할 일" else "${currentMember}의 할 일",
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    Text(
+                        "${remaining}개 남음",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = palette.muted
+                    )
+                }
+                TextButton(
+                    onClick = onAdd,
+                    modifier = Modifier.heightIn(min = HomeCrewDimensions.touchTarget)
+                ) {
+                    Icon(
+                        Icons.Outlined.Add,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Text("집안일 추가")
+                }
+            }
         }
         if (myChores.isEmpty()) {
             item {
-                EmptyResult("담당 집안일이 없습니다", "현재 구성원에게 배정된 작업이 없습니다.")
+                Text(
+                    "선택한 구성원에게 배정된 집안일이 없습니다.",
+                    modifier = Modifier.padding(vertical = HomeCrewDimensions.space12),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = palette.muted
+                )
             }
         } else {
             items(myChores, key = { it.id }) { task ->
@@ -118,30 +151,32 @@ fun HomeCrewHomeScreen(
                 )
             }
         }
-        item {
-            SectionHeading(
-                "다른 구성원의 집안일",
-                "${others.count { !it.completed }}개 남음"
-            )
-        }
-        if (others.isEmpty()) {
-            item { EmptyResult("다른 집안일이 없습니다", "오늘은 다른 구성원의 작업이 없습니다.") }
-        } else {
-            items(others, key = { it.id }) { task ->
-                DemoChoreRow(
-                    task = task,
-                    today = today,
-                    onToggle = { onToggle(task.id) },
-                    onDetails = { onDetails(task) }
+        if (members.size > 1) {
+            item {
+                SectionHeading(
+                    "다른 구성원의 집안일",
+                    "${others.count { !it.completed }}개 남음"
                 )
             }
-        }
-        item {
-            HomeCrewPrimaryButton(
-                text = "+ 집안일 추가",
-                onClick = onAdd,
-                modifier = Modifier.fillMaxWidth()
-            )
+            if (others.isEmpty()) {
+                item {
+                    Text(
+                        "오늘은 다른 구성원의 집안일이 없습니다.",
+                        modifier = Modifier.padding(vertical = HomeCrewDimensions.space12),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = palette.muted
+                    )
+                }
+            } else {
+                items(others, key = { it.id }) { task ->
+                    DemoChoreRow(
+                        task = task,
+                        today = today,
+                        onToggle = { onToggle(task.id) },
+                        onDetails = { onDetails(task) }
+                    )
+                }
+            }
         }
     }
 }
