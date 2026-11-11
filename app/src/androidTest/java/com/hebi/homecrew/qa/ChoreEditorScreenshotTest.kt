@@ -130,7 +130,7 @@ class ChoreEditorScreenshotTest {
         press("반복 방식: 매주")
         screenshot("09-chore-repeat-after-select-weekly")
         var weeklyPreview = device.wait(
-            Until.findObject(By.text("다가오는 일정 · 최대 3회")), 1_000
+            Until.findObject(By.descContains("반복 일정 미리보기: 매주, 예정 3건")), 1_000
         )
         repeat(5) {
             if (weeklyPreview == null) {
@@ -143,7 +143,7 @@ class ChoreEditorScreenshotTest {
                 )
                 device.waitForIdle()
                 weeklyPreview = device.wait(
-                    Until.findObject(By.text("다가오는 일정 · 최대 3회")), 1_000
+                    Until.findObject(By.descContains("반복 일정 미리보기: 매주, 예정 3건")), 1_000
                 )
             }
         }
