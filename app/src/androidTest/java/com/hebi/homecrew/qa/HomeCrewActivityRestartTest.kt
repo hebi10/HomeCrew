@@ -107,12 +107,15 @@ class HomeCrewActivityRestartTest {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val store = LocalHouseholdStore(context)
         val original = store.load()
-        val base = original ?: HouseholdSetup(
+        val seeded = original ?: HouseholdSetup(
             homeName = "우리 집",
             members = listOf("나", "지민"),
             defaultMember = "나",
             selectedTemplateIds = suggestedTemplateIds
         )
+        val base = if (seeded.members.size == 1) {
+            seeded.copy(members = seeded.members + "QA보조")
+        } else seeded
         assertTrue(store.save(base))
         val unique = System.currentTimeMillis().toString().takeLast(7)
         val homeName = "QA집" + unique
