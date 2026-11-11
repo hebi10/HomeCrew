@@ -308,6 +308,7 @@ fun HomeCrewRepeatScreen(
                         onClick = { selectRepeatMode(option) },
                         role = Role.RadioButton
                     )
+                    .semantics { contentDescription = "반복 방식: ${option.label}" }
                     .border(1.dp, palette.border, RoundedCornerShape(4.dp))
                     .padding(8.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -427,6 +428,7 @@ fun HomeCrewAssignmentScreen(
                         onClick = { selectAssignmentMode(option) },
                         role = Role.RadioButton
                     )
+                    .semantics { contentDescription = "담당 방식: ${option.label}" }
                     .border(1.dp, palette.border, RoundedCornerShape(4.dp))
                     .padding(8.dp),
                 verticalAlignment = Alignment.CenterVertically,
