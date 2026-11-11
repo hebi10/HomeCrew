@@ -367,7 +367,7 @@ fun HomeCrewRepeatScreen(
                     preview.forEach { Text(it.toString(), style = MaterialTheme.typography.bodyMedium) }
                 }
                 Text(
-                    "기존 시작일을 기준으로 계산한 오늘 이후의 예정 날짜입니다.",
+                    "선택한 시작일을 기준으로 계산한 오늘 이후의 예정 날짜입니다.",
                     color = palette.muted,
                     style = MaterialTheme.typography.bodySmall
                 )
