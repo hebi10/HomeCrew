@@ -58,6 +58,38 @@ class HomeCrewActivityRestartTest {
         }
     }
 
+    private fun tapFresh(label: String) {
+        repeat(5) {
+            try {
+                val button = device.wait(Until.findObject(By.text(label)), 3_000)
+                if (button != null) {
+                    button.click()
+                    device.waitForIdle()
+                    return
+                }
+            } catch (_: androidx.test.uiautomator.StaleObjectException) {
+                device.waitForIdle()
+            }
+        }
+        throw AssertionError("동작 버튼을 찾거나 누르지 못했습니다: $label")
+    }
+
+    private fun enterFreshText(index: Int, value: String) {
+        repeat(5) {
+            try {
+                val fields = device.findObjects(By.clazz("android.widget.EditText"))
+                if (index < fields.size) {
+                    fields[index].text = value
+                    device.waitForIdle()
+                    return
+                }
+            } catch (_: androidx.test.uiautomator.StaleObjectException) {
+                device.waitForIdle()
+            }
+        }
+        throw AssertionError("입력 필드에 텍스트를 입력하지 못했습니다: $index")
+    }
+
     @Test
     fun householdSettingsPersistAfterActivityRestart() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
@@ -83,20 +115,13 @@ class HomeCrewActivityRestartTest {
             assertNotNull("설정 진입 버튼이 없습니다.", settings)
             requireNotNull(settings).click()
             assertNotNull("설정 화면 진입 실패", device.wait(Until.findObject(By.text("설정")), 8_000))
-            val fields = device.findObjects(By.clazz("android.widget.EditText"))
-            assertTrue("집 이름 입력칸 없음", fields.isNotEmpty())
-            fields[0].text = homeName
-            requireNotNull(device.wait(Until.findObject(By.text("집 이름 저장")), 5_000)).click()
+            enterFreshText(0, homeName)
+            tapFresh("집 이름 저장")
             assertTrue("집 이름이 저장되지 않았습니다.", store.load()?.homeName == homeName)
-            val newMemberField = device.wait(Until.findObject(By.text("새 구성원 이름")), 5_000)
-                ?: device.findObjects(By.clazz("android.widget.EditText")).lastOrNull()
-            assertNotNull("구성원 입력칸 없음", newMemberField)
-            requireNotNull(newMemberField).text = member
-            requireNotNull(device.wait(Until.findObject(By.text("구성원 추가")), 5_000)).click()
+            enterFreshText(1, member)
+            tapFresh("구성원 추가")
             assertTrue("구성원 추가가 저장되지 않았습니다.", member in (store.load()?.members ?: emptyList()))
-            val defaultChoice = device.wait(Until.findObject(By.text("기본으로 설정")), 5_000)
-            assertNotNull("기본 구성원 설정 버튼 없음", defaultChoice)
-            requireNotNull(defaultChoice).click()
+            tapFresh("기본으로 설정")
             assertTrue("기본 구성원 변경이 저장되지 않았습니다.", store.load()?.defaultMember != base.defaultMember)
             device.pressBack()
             assertNotNull(
