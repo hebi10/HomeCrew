@@ -176,7 +176,7 @@ fun HomeCrewTextField(
 }
 
 fun homeProgressLabel(completed: Int, total: Int): String = when {
-    total <= 0 -> "등록된 집안일 없음"
+    total <= 0 -> "오늘 예정된 집안일 없음"
     completed >= total -> "모두 완료"
     else -> "${completionPercent(completed, total)}% 완료"
 }
