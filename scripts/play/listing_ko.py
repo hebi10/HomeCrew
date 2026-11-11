@@ -95,7 +95,9 @@ def run(mode, path=DEFAULT, token=None):
             raise ReleaseError("Other language listing modified")
         if canonical(before_tracks) != canonical(publisher.inventory(edit)):
             raise ReleaseError("Play tracks or binary inventory modified")
+        print("Play listing stage: validating text-only edit", flush=True)
         transport("POST", edit + ":validate", {})
+        print("Play listing stage: committing text-only edit with review hold", flush=True)
         transport("POST", edit + ":commit?changesNotSentForReview=true&changesInReviewBehavior=ERROR_IF_IN_REVIEW", {})
         committed = True
     try:
