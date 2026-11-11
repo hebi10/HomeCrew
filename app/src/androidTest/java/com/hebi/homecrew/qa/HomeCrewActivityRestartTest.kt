@@ -118,7 +118,17 @@ class HomeCrewActivityRestartTest {
             enterFreshText(0, homeName)
             tapFresh("집 이름 저장")
             assertTrue("집 이름이 저장되지 않았습니다.", store.load()?.homeName == homeName)
-            enterFreshText(1, member)
+            repeat(8) {
+                val visible = device.findObject(By.text("새 구성원 이름"))
+                if (visible == null) {
+                    device.swipe(
+                        device.displayWidth / 2, device.displayHeight * 3 / 4,
+                        device.displayWidth / 2, device.displayHeight / 3, 18
+                    )
+                    device.waitForIdle()
+                }
+            }
+            enterFreshText(device.findObjects(By.clazz("android.widget.EditText")).lastIndex, member)
             tapFresh("구성원 추가")
             assertTrue("구성원 추가가 저장되지 않았습니다.", member in (store.load()?.members ?: emptyList()))
             tapFresh("기본으로 설정")
