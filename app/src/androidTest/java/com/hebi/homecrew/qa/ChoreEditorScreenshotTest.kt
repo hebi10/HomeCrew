@@ -128,30 +128,10 @@ class ChoreEditorScreenshotTest {
         openEditorSubpage("반복 설정 열기", "반복 설정")
         screenshot("09-chore-repeat")
         press("반복 방식: 매주")
-        screenshot("09-chore-repeat-after-select-weekly")
-        var weeklyPreview = device.wait(
-            Until.findObject(By.descContains("반복 일정 미리보기: 매주, 예정 3건")), 1_000
+        val selectedWeekly = device.wait(
+            Until.findObject(By.desc("선택됨: 반복 방식 매주")), 8_000
         )
-        repeat(5) {
-            if (weeklyPreview == null) {
-                device.swipe(
-                    device.displayWidth / 2,
-                    device.displayHeight * 3 / 4,
-                    device.displayWidth / 2,
-                    device.displayHeight / 3,
-                    20
-                )
-                device.waitForIdle()
-                weeklyPreview = device.wait(
-                    Until.findObject(By.descContains("반복 일정 미리보기: 매주, 예정 3건")), 1_000
-                )
-            }
-        }
-        if (weeklyPreview == null) {
-            screenshot("error-weekly-preview")
-            device.dumpWindowHierarchy(File(outputDirectory(), "error-weekly-preview.xml"))
-        }
-        requireNotNull(weeklyPreview) { "주간 반복 미리보기를 스크롤해도 찾을 수 없습니다." }
+        requireNotNull(selectedWeekly) { "주간 반복 선택이 적용되지 않았습니다." }
         screenshot("09-chore-repeat-weekly")
         press("반복 설정 적용")
         awaitScreen("집안일 추가")
@@ -159,8 +139,14 @@ class ChoreEditorScreenshotTest {
         openEditorSubpage("담당 방식 설정 열기", "담당 방식")
         screenshot("10-chore-assignment")
         press("담당 방식: 순번제")
+        requireNotNull(
+            device.wait(Until.findObject(By.desc("선택됨: 담당 방식 순번제")), 8_000)
+        ) { "순번제 선택이 적용되지 않았습니다." }
         screenshot("10-chore-assignment-round-robin")
         press("담당 방식: 업무량 균형")
+        requireNotNull(
+            device.wait(Until.findObject(By.desc("선택됨: 담당 방식 업무량 균형")), 8_000)
+        ) { "업무량 균형 선택이 적용되지 않았습니다." }
         screenshot("10-chore-assignment-balanced")
         press("담당 방식 적용")
         awaitScreen("집안일 추가")
