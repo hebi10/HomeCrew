@@ -39,7 +39,6 @@ private enum class ChorePage { MAIN, DETAIL, FORM, REPEAT, ASSIGNMENT }
 fun HomeCrewMainScreens(
     themeMode: ThemeMode,
     onThemeModeChange: (ThemeMode) -> Unit,
-    onOpenDesignSystem: () -> Unit,
     householdSetup: HouseholdSetup? = null,
     viewModel: DemoChoreViewModel = viewModel(
         factory = DemoChoreViewModel.Factory(LocalContext.current.applicationContext)
@@ -190,7 +189,6 @@ fun HomeCrewMainScreens(
                                 onToggle = { id -> viewModel.toggleCompleted(id, currentMember) },
                                 onDetails = ::openDetails,
                                 onAdd = ::openAdd,
-                                onOpenDesignSystem = onOpenDesignSystem,
                                 onCycleTheme = {
                                     onThemeModeChange(
                                         ThemeMode.entries[(themeMode.ordinal + 1) % ThemeMode.entries.size]

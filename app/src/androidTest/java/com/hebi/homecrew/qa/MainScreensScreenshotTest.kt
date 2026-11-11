@@ -9,6 +9,7 @@ import androidx.test.uiautomator.Until
 import com.hebi.homecrew.MainActivity
 import java.io.File
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -82,6 +83,7 @@ class MainScreensScreenshotTest {
     private fun completeSetupIfShown() {
         val start = device.wait(Until.findObject(By.text("시작하기")), 3_000)
         if (start == null) return
+        assertNull("과거 시연 안내가 표시되면 안 됩니다.", device.findObject(By.textContains("현재 시연용")))
         screenshot("00-setup-intro")
         start.click()
         awaitText("우리 집 만들기")
@@ -91,6 +93,7 @@ class MainScreensScreenshotTest {
         screenshot("00-setup-members")
         tapButton("다음")
         awaitText("집안일을 선택하세요")
+        assertNull("템플릿의 오래된 시연 문구를 제거해야 합니다.", device.findObject(By.textContains("시연 데이터")))
         screenshot("00-setup-templates")
         tapButton("선택한 집안일로 시작")
         awaitScreenTitle("우리 집")
@@ -101,6 +104,8 @@ class MainScreensScreenshotTest {
         device.waitForIdle()
         completeSetupIfShown()
         awaitScreenTitle("우리 집")
+        assertNull("개발용 갤러리는 사용자 홈에 표시하면 안 됩니다.", device.findObject(By.desc("1-A 디자인 시스템 보기")))
+        assertNull("홈에 중복 저장 안내를 표시하면 안 됩니다.", device.findObject(By.textContains("다른 기기와 동기화되지 않습니다")))
         screenshot("01-home-light")
 
         tapTab("일정")

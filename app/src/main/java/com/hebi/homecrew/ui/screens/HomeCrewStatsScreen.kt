@@ -67,7 +67,6 @@ fun HomeCrewStatsScreen(
         verticalArrangement = Arrangement.spacedBy(18.dp)
     ) {
         item { ScreenHeader("통계", "집안일 완료 및 업무량") }
-        item { DemoNotice() }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 StatisticsPeriod.entries.forEach { choice ->
