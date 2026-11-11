@@ -332,7 +332,7 @@ fun HomeCrewMainScreens(
                 pageError = null
                 viewModel.dismissOperationError()
             },
-            title = { Text("저장 오류") },
+            title = { Text("작업 처리 오류") },
             text = { Text(pageError ?: operationError.orEmpty()) },
             confirmButton = {
                 TextButton(onClick = {

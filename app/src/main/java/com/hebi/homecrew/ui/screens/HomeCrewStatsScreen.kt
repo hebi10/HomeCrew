@@ -227,12 +227,14 @@ private fun WeekBarChart(
                     modifier = Modifier.height(82.dp),
                     contentAlignment = Alignment.BottomCenter
                 ) {
-                    Box(
-                        Modifier
-                            .fillMaxWidth(0.56f)
-                            .height(barHeight.coerceAtLeast(3.dp))
-                            .background(palette.ink, RoundedCornerShape(2.dp))
-                    )
+                    if (count > 0) {
+                        Box(
+                            Modifier
+                                .fillMaxWidth(0.56f)
+                                .height(barHeight)
+                                .background(palette.ink, RoundedCornerShape(2.dp))
+                        )
+                    }
                 }
                 Text(
                     weekdayLabel(date),

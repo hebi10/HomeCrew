@@ -109,7 +109,7 @@ fun HomeCrewChoreDetailScreen(
                     SectionHeading("집안일 규칙")
                     Text("반복: ${definition.repeat}", style = MaterialTheme.typography.bodyMedium)
                     Text(
-                        "담당 방식: ${definition.assignment?.mode?.label ?: "기존 데모의 고정 담당"}",
+                        "담당 방식: ${definition.assignment?.mode?.label ?: "고정 담당"}",
                         style = MaterialTheme.typography.bodyMedium
                     )
                     Text(
