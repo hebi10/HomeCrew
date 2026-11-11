@@ -51,7 +51,12 @@ class MainActivity : ComponentActivity() {
                     HomeCrewMainScreens(
                         themeMode = selectedTheme,
                         onThemeModeChange = { selectedTheme = it },
-                        householdSetup = household
+                        householdSetup = household,
+                        onHouseholdChange = { changed ->
+                            val saved = localStore.save(changed)
+                            if (saved) household = changed
+                            saved
+                        }
                     )
                 }
             }
