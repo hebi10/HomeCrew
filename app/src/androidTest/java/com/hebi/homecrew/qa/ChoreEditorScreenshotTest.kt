@@ -190,10 +190,28 @@ class ChoreEditorScreenshotTest {
         screenshot("11-chore-recent-completions")
 
         val completionDate = java.time.LocalDate.now()
-        val selectedHistory = device.wait(
-            Until.findObject(By.desc("회차 선택: 완료 · $completionDate")), 6_000
-        )
-        requireNotNull(selectedHistory) { "최근 완료 회차를 선택할 수 없습니다." }.click()
+        val historyDescription = "회차 선택: 완료 · $completionDate"
+        var selectedHistory = device.wait(Until.findObject(By.desc(historyDescription)), 1_000)
+        repeat(12) {
+            if (selectedHistory == null) {
+                device.swipe(
+                    device.displayWidth / 2,
+                    device.displayHeight * 3 / 4,
+                    device.displayWidth / 2,
+                    device.displayHeight / 3,
+                    18
+                )
+                device.waitForIdle()
+                selectedHistory = device.wait(Until.findObject(By.desc(historyDescription)), 1_000)
+            }
+        }
+        if (selectedHistory == null) {
+            screenshot("error-1d-recent-completion")
+            device.dumpWindowHierarchy(File(outputDirectory(), "error-1d-recent-completion.xml"))
+        }
+        requireNotNull(selectedHistory) {
+            "최근 완료 회차를 선택할 수 없습니다: $historyDescription"
+        }.click()
         device.waitForIdle()
         val undoForSelectedHistory = device.wait(
             Until.findObject(By.text("이 회차 완료 취소")), 8_000
