@@ -126,6 +126,12 @@ class PreviewApprovalTests(unittest.TestCase):
         self.assertIn("github.event.issue.number == 28", preview_job)
         self.assertIn("scripts/play/preview_release.py preflight", preview_job)
         self.assertIn("gh run download", preview_job)
+        self.assertIn("uses: android-actions/setup-android@v3", preview_job)
+        self.assertIn("sdkmanager --install 'platforms;android-36' 'build-tools;35.0.0'", preview_job)
+        self.assertLess(
+            preview_job.index("uses: android-actions/setup-android@v3"),
+            preview_job.index("name: Install trusted Play artifact verifier")
+        )
         self.assertIn("ref: ${{ github.sha }}", preview_job)
         self.assertIn("source_sha", preview_job)
         self.assertIn("scripts/play/publisher.py --report output/preview-release.json deploy", preview_job)

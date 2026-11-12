@@ -328,6 +328,10 @@ jobs:
           test -s "$RUNNER_TEMP/homecrew-unsigned/app-release.aab"
           test "$(find "$RUNNER_TEMP/homecrew-unsigned" -type f | wc -l)" = 1
           test ! -L "$RUNNER_TEMP/homecrew-unsigned/app-release.aab"
+      - name: Initialize Android SDK for trusted Play verification
+        uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
       - name: Install trusted Play artifact verifier
         run: |
           sdkmanager --install 'platforms;android-36' 'build-tools;35.0.0'
