@@ -119,7 +119,7 @@ class PreviewApprovalTests(unittest.TestCase):
 
     def test_preview_signing_requires_trusted_main_environment_and_owner_comment(self):
         workflow = (Path(__file__).parents[3] / ".github/workflows/play-internal.yml").read_text(encoding="utf-8")
-        self.assertIn("  issue_comment:\\n    types: [created]", workflow)
+        self.assertIn("  issue_comment:\n    types: [created]", workflow)
         preview_job = workflow.split("  firebase02a-approved-preview:", 1)[1]
         self.assertIn("environment: google-play", preview_job)
         self.assertIn("github.event.comment.user.login == 'hebi10'", preview_job)
