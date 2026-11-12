@@ -119,7 +119,7 @@ class PreviewApprovalTests(unittest.TestCase):
 
     def test_review_preview_publish_trigger_is_disabled_until_final_release(self):
         workflow = (Path(__file__).parents[3] / ".github/workflows/play-internal.yml").read_text(encoding="utf-8")
-        trigger_section = workflow.split("on:", 1)[1].split("\\npermissions:", 1)[0]
+        trigger_section = workflow.split("on:", 1)[1].split("\npermissions:", 1)[0]
         self.assertIn("workflow_dispatch:", trigger_section)
         self.assertNotIn("workflow_run:", trigger_section)
         self.assertNotIn("issue_comment:", trigger_section)
