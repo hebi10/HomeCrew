@@ -1,16 +1,18 @@
 package com.hebi.homecrew.data.auth
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertThrows
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class HomeCrewAuthSessionTest {
     @Test
     fun localModeAndRestoringNeverPretendToBeSignedIn() {
-        assertFalse(HomeCrewAuthSession.Restoring is HomeCrewAuthSession.SignedIn)
-        assertFalse(HomeCrewAuthSession.LocalOnly is HomeCrewAuthSession.SignedIn)
+        val signedIn: HomeCrewAuthSession = HomeCrewAuthSession.SignedIn(
+            HomeCrewAuthUser(uid = "firebase-test-uid", displayName = null, email = null)
+        )
+        assertNotEquals(signedIn, HomeCrewAuthSession.Restoring)
+        assertNotEquals(signedIn, HomeCrewAuthSession.LocalOnly)
     }
 
     @Test
@@ -25,7 +27,7 @@ class HomeCrewAuthSessionTest {
         assertEquals("firebase-test-uid", session.user.uid)
         assertEquals("테스트 구성원", session.user.displayName)
         assertEquals("qa@example.invalid", session.user.email)
-        assertTrue(session != HomeCrewAuthSession.LocalOnly)
+        assertNotEquals(session, HomeCrewAuthSession.LocalOnly)
     }
 
     @Test
