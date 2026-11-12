@@ -8,6 +8,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -16,6 +17,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.hebi.homecrew.data.auth.GoogleSignIn
+import com.hebi.homecrew.data.auth.HomeCrewAuthSession
 import com.hebi.homecrew.data.auth.GoogleSignInResult
 import com.hebi.homecrew.ui.theme.LocalHomeCrewColors
 import kotlinx.coroutines.launch
@@ -27,14 +29,21 @@ internal fun HomeCrewGoogleAccountSetting(signIn: GoogleSignIn) {
     val palette = LocalHomeCrewColors.current
     var isSigningIn by remember { mutableStateOf(false) }
     var result by remember { mutableStateOf<GoogleSignInResult?>(null) }
-    val signedIn = result == GoogleSignInResult.SIGNED_IN || signIn.isSignedIn(activity)
+    val context = activity.applicationContext
+    val sessionEvents = remember(signIn, context) { signIn.observeSession(context) }
+    val session by sessionEvents.collectAsState(initial = HomeCrewAuthSession.Restoring)
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("Google 계정", style = MaterialTheme.typography.titleMedium)
-        if (signedIn) {
-            Text("Google 로그인 완료", color = palette.muted)
-        } else {
-            Button(
+        when (session) {
+            HomeCrewAuthSession.Restoring -> {
+                Text("계정 상태를 확인하고 있습니다.", color = palette.muted)
+            }
+            is HomeCrewAuthSession.SignedIn -> {
+                Text("Google 로그인 완료", color = palette.muted)
+            }
+            HomeCrewAuthSession.LocalOnly -> {
+                Button(
                 onClick = {
                     if (!isSigningIn) {
                         isSigningIn = true
@@ -60,6 +69,7 @@ internal fun HomeCrewGoogleAccountSetting(signIn: GoogleSignIn) {
                 GoogleSignInResult.FAILED -> "Google 로그인에 실패했습니다. 다시 시도해 주세요."
                 else -> null
             }?.let { message -> Text(message, color = palette.error) }
+            }
         }
     }
 }
