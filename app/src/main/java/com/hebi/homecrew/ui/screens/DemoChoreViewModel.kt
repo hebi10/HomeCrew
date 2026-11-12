@@ -63,7 +63,12 @@ class DemoChoreViewModel(
     private var committedSaveId: String? = null
 
     fun configureHousehold(setup: HouseholdSetup) {
-        if (_configuredHousehold.value == setup || loadingHousehold == setup) return
+        val configured = _configuredHousehold.value
+        if (configured == setup || loadingHousehold == setup) return
+        if (configured != null && configured.selectedTemplateIds == setup.selectedTemplateIds) {
+            _configuredHousehold.value = setup
+            return
+        }
         val repository = roomRepository
         if (repository == null) {
             val initial = previewChoresForSetup(setup, today)

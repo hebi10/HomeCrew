@@ -18,6 +18,7 @@ import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.DarkMode
 import androidx.compose.material.icons.outlined.LightMode
 import androidx.compose.material.icons.outlined.SettingsBrightness
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -47,6 +48,7 @@ fun HomeCrewHomeScreen(
     onDetails: (DemoChore) -> Unit,
     onAdd: () -> Unit,
     onCycleTheme: () -> Unit,
+    onOpenSettings: () -> Unit = {},
     householdName: String = "우리 집",
     members: List<String> = listOf("나", "지민")
 ) {
@@ -83,6 +85,9 @@ fun HomeCrewHomeScreen(
                 title = householdName,
                 subtitle = "${koreanDateLabel(today)} · 오늘"
             ) {
+                IconButton(onClick = onOpenSettings) {
+                    Icon(Icons.Outlined.Settings, contentDescription = "집 및 앱 설정")
+                }
                 IconButton(onClick = onCycleTheme) {
                     val themeIcon = when (themeMode) {
                         ThemeMode.SYSTEM -> Icons.Outlined.SettingsBrightness

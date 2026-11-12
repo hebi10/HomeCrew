@@ -58,6 +58,115 @@ class HomeCrewActivityRestartTest {
         }
     }
 
+    private fun tapFresh(label: String) {
+        repeat(5) {
+            try {
+                val button = device.wait(Until.findObject(By.text(label)), 3_000)
+                if (button != null) {
+                    button.click()
+                    device.waitForIdle()
+                    return
+                }
+            } catch (_: androidx.test.uiautomator.StaleObjectException) {
+                device.waitForIdle()
+            }
+        }
+        throw AssertionError("동작 버튼을 찾거나 누르지 못했습니다: $label")
+    }
+
+    private fun enterFreshText(index: Int, value: String) {
+        repeat(5) {
+            try {
+                val fields = device.findObjects(By.clazz("android.widget.EditText"))
+                if (index >= 0 && index < fields.size) {
+                    fields[index].text = value
+                    device.waitForIdle()
+                    return
+                }
+            } catch (_: androidx.test.uiautomator.StaleObjectException) {
+                device.waitForIdle()
+            }
+        }
+        throw AssertionError("입력 필드에 텍스트를 입력하지 못했습니다: $index")
+    }
+
+    private fun scrollToAction(label: String, down: Boolean = true) {
+        val x = device.displayWidth / 2
+        val upper = device.displayHeight / 3
+        val lower = device.displayHeight * 3 / 4
+        repeat(12) {
+            if (device.wait(Until.findObject(By.text(label)), 700) != null) return
+            device.swipe(x, if (down) lower else upper, x, if (down) upper else lower, 18)
+            device.waitForIdle()
+        }
+        throw AssertionError("화면을 스크롤해도 동작을 찾지 못했습니다: $label")
+    }
+
+    @Test
+    fun householdSettingsPersistAfterActivityRestart() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val store = LocalHouseholdStore(context)
+        val original = store.load()
+        val seeded = original ?: HouseholdSetup(
+            homeName = "우리 집",
+            members = listOf("나", "지민"),
+            defaultMember = "나",
+            selectedTemplateIds = suggestedTemplateIds
+        )
+        val base = if (seeded.members.size == 1) {
+            seeded.copy(members = seeded.members + "QA보조")
+        } else seeded
+        assertTrue(store.save(base))
+        val unique = System.currentTimeMillis().toString().takeLast(7)
+        val homeName = "QA집" + unique
+        val member = "QA" + unique
+        val scenario = ActivityScenario.launch(MainActivity::class.java)
+        try {
+            assertNotNull(
+                "홈 화면 진입 실패",
+                device.wait(Until.findObject(By.desc("화면 제목: ${base.homeName}")), 20_000)
+            )
+            val settings = device.wait(Until.findObject(By.desc("집 및 앱 설정")), 10_000)
+            assertNotNull("설정 진입 버튼이 없습니다.", settings)
+            requireNotNull(settings).click()
+            assertNotNull("설정 화면 진입 실패", device.wait(Until.findObject(By.text("설정")), 8_000))
+            enterFreshText(0, homeName)
+            tapFresh("집 이름 저장")
+            assertTrue("집 이름이 저장되지 않았습니다.", store.load()?.homeName == homeName)
+            assertNotNull(
+                "집 이름 저장 후 설정 화면이 유지되지 않았습니다.",
+                device.wait(Until.findObject(By.text("설정")), 8_000)
+            )
+            scrollToAction("기본으로 설정")
+            tapFresh("기본으로 설정")
+            assertTrue("기본 구성원 변경이 저장되지 않았습니다.", store.load()?.defaultMember != base.defaultMember)
+            scrollToAction("구성원 추가")
+            val visibleFields = device.findObjects(By.clazz("android.widget.EditText"))
+            assertTrue("구성원 추가 입력 필드가 보이지 않습니다.", visibleFields.isNotEmpty())
+            enterFreshText(visibleFields.lastIndex, member)
+            tapFresh("구성원 추가")
+            assertTrue("구성원 추가가 저장되지 않았습니다.", member in (store.load()?.members ?: emptyList()))
+            device.pressBack()
+            if (device.wait(Until.findObject(By.desc("화면 제목: $homeName")), 2_000) == null) {
+                scrollToAction("뒤로", down = false)
+                tapFresh("뒤로")
+            }
+            assertNotNull(
+                "설정 종료 후 홈 화면 복귀 실패",
+                device.wait(Until.findObject(By.desc("화면 제목: $homeName")), 10_000)
+            )
+            scenario.recreate()
+            assertNotNull(
+                "재시작 후 집 이름이 반영되지 않았습니다.",
+                device.wait(Until.findObject(By.desc("화면 제목: $homeName")), 20_000)
+            )
+            assertTrue("재시작 후 구성원이 유지되지 않았습니다.", member in store.load()!!.members)
+        } finally {
+            scenario.close()
+            if (original != null) store.save(original) else store.save(base)
+        }
+    }
+
     @Test
     fun taskAndCompletionRemainAfterNewActivityAndViewModel() = runBlocking {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
