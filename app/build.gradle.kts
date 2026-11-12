@@ -26,6 +26,12 @@ android {
     namespace = "com.hebi.homecrew"
     compileSdk = 36
 
+    if (hasFirebaseConfig) {
+        sourceSets.named("androidTest") {
+            java.srcDir("src/firebaseAndroidTest/java")
+        }
+    }
+
     defaultConfig {
         applicationId = "com.hebi.homecrew"
         minSdk = 26

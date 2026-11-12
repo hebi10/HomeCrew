@@ -75,6 +75,8 @@ Windows PowerShell:
 ./gradlew :app:processDebugGoogleServices :app:assembleDebug
 ```
 
+GitHub Actions는 저장소 시크릿 `HOMECREW_GOOGLE_SERVICES_JSON_BASE64`에서 설정 파일을 복원합니다. `main` 검증과 Play용 빌드는 HomeCrew 설정이 있어야 진행됩니다. Firebase 설정이 있는 에뮬레이터 검증에서는 기본 앱이 HomeCrew 프로젝트로 초기화되는지 확인합니다.
+
 ## 변경 관리
 
 - 코드·테스트·CI·디자인 참고 이미지는 GitHub PR로 관리합니다.
