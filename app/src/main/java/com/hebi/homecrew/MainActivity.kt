@@ -26,7 +26,16 @@ class MainActivity : ComponentActivity() {
         setContent {
             val localStore = remember { LocalHouseholdStore(applicationContext) }
             var household by remember { mutableStateOf(localStore.load()) }
-            var selectedTheme by rememberSaveable { mutableStateOf(ThemeMode.SYSTEM) }
+            val themePreferences = remember {
+                applicationContext.getSharedPreferences("homecrew_ui_settings", MODE_PRIVATE)
+            }
+            var selectedTheme by rememberSaveable {
+                mutableStateOf(
+                    ThemeMode.entries.firstOrNull {
+                        it.name == themePreferences.getString("theme_mode", ThemeMode.SYSTEM.name)
+                    } ?: ThemeMode.SYSTEM
+                )
+            }
             val darkTheme = when (selectedTheme) {
                 ThemeMode.SYSTEM -> isSystemInDarkTheme()
                 ThemeMode.LIGHT -> false
@@ -50,8 +59,16 @@ class MainActivity : ComponentActivity() {
                 } else {
                     HomeCrewMainScreens(
                         themeMode = selectedTheme,
-                        onThemeModeChange = { selectedTheme = it },
-                        householdSetup = household
+                        onThemeModeChange = { mode ->
+                            selectedTheme = mode
+                            themePreferences.edit().putString("theme_mode", mode.name).apply()
+                        },
+                        householdSetup = household,
+                        onHouseholdChange = { changed ->
+                            val saved = localStore.save(changed)
+                            if (saved) household = changed
+                            saved
+                        }
                     )
                 }
             }
