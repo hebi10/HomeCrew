@@ -116,12 +116,16 @@ class SourceWaitTests(unittest.TestCase):
         self.assertEqual(len(sleeps), 1)
         self.assertEqual(output, '')
 
-    def test_only_one_automatic_workflow_trigger_can_submit_a_release(self):
+    def test_play_upload_requires_manual_dispatch_and_final_release_approval(self):
         workflow = (Path(__file__).parents[3] / '.github/workflows/play-internal.yml').read_text()
-        automatic = workflow.split('  workflow_run:', 1)[1].split('  workflow_dispatch:', 1)[0]
-        self.assertEqual(automatic.count('workflows:'), 1)
-        self.assertIn('workflows: ["Android CI"]', automatic)
-        self.assertNotIn('HomeCrew screen QA', automatic)
+        triggers = workflow.split('on:', 1)[1].split('\npermissions:', 1)[0]
+        self.assertIn('  workflow_dispatch:', triggers)
+        self.assertNotIn('  workflow_run:', triggers)
+        self.assertNotIn('  issue_comment:', triggers)
+        self.assertNotIn('  push:', triggers)
+        self.assertIn('final_release_approval:', triggers)
+        self.assertIn('HOMECREW_FINAL_RELEASE_APPROVED', workflow)
+        self.assertIn('Require full-project release authorization before any Play mutation', workflow)
 
     def test_preupload_recheck_blocks_latest_pending_failed_or_skipped_ci_rerun(self):
         for state in ('pending', 'failure', 'skipped', 'cancelled'):
