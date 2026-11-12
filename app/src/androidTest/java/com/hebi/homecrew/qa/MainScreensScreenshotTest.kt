@@ -182,18 +182,58 @@ class MainScreensScreenshotTest {
 
         tapTab("홈")
         awaitScreenTitle("우리 집")
-        repeat(2) {
-            val theme = device.wait(Until.findObject(By.descContains("테마 전환")), 10_000)
-            if (theme == null) dumpFailedUi("테마 전환")
-            requireNotNull(theme) { "테마 버튼을 찾을 수 없음" }.click()
-            device.waitForIdle()
+        var dark = device.wait(Until.findObject(By.desc("테마 전환 · 현재 다크")), 1_000)
+        repeat(3) {
+            if (dark == null) {
+                val theme = device.wait(Until.findObject(By.descContains("테마 전환")), 10_000)
+                if (theme == null) dumpFailedUi("테마 전환")
+                requireNotNull(theme) { "테마 버튼을 찾을 수 없음" }.click()
+                device.waitForIdle()
+                dark = device.wait(Until.findObject(By.desc("테마 전환 · 현재 다크")), 2_000)
+            }
         }
-        val dark = device.wait(
-            Until.findObject(By.desc("테마 전환 · 현재 다크")),
-            10_000
-        )
         if (dark == null) dumpFailedUi("다크 모드")
         requireNotNull(dark) { "다크 모드 적용을 확인하지 못했습니다." }
+        Thread.sleep(900)
         screenshot("07-home-dark")
+
+        val settings = device.wait(Until.findObject(By.desc("집 및 앱 설정")), 10_000)
+        if (settings == null) dumpFailedUi("집 및 앱 설정")
+        requireNotNull(settings) { "설정 진입 버튼을 찾을 수 없습니다." }.click()
+        awaitText("설정")
+        Thread.sleep(900)
+        screenshot("13-settings-dark")
+
+        var lightOption = device.wait(Until.findObject(By.text("라이트")), 800)
+        repeat(12) {
+            if (lightOption == null) {
+                device.swipe(
+                    device.displayWidth / 2, device.displayHeight * 3 / 4,
+                    device.displayWidth / 2, device.displayHeight / 3, 18
+                )
+                device.waitForIdle()
+                lightOption = device.wait(Until.findObject(By.text("라이트")), 800)
+            }
+        }
+        if (lightOption == null) dumpFailedUi("설정 라이트 테마")
+        requireNotNull(lightOption) { "설정 화면에서 라이트 테마를 찾을 수 없습니다." }.click()
+        device.waitForIdle()
+        Thread.sleep(900)
+        screenshot("13-settings-light-theme")
+
+        var settingsTitle = device.wait(Until.findObject(By.text("설정")), 700)
+        repeat(12) {
+            if (settingsTitle == null) {
+                device.swipe(
+                    device.displayWidth / 2, device.displayHeight / 3,
+                    device.displayWidth / 2, device.displayHeight * 3 / 4, 18
+                )
+                device.waitForIdle()
+                settingsTitle = device.wait(Until.findObject(By.text("설정")), 700)
+            }
+        }
+        if (settingsTitle == null) dumpFailedUi("설정 라이트 상단")
+        requireNotNull(settingsTitle) { "설정 화면 상단으로 복귀하지 못했습니다." }
+        screenshot("13-settings-light")
     }
 }
