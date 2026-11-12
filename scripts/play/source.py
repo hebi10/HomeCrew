@@ -55,6 +55,8 @@ def release_mode(env, event, commit_subject):
             raise SourceError('Unsupported Play release mode')
         return mode
     subject = commit_subject.splitlines()[0] if commit_subject else ''
+    if re.search(r'(?<!\S)\[skip-play\](?!\S)', subject):
+        return 'skip'
     return 'initialize' if re.search(r'(?<!\S)\[initialize-play\](?!\S)', subject) else 'deploy'
 
 
