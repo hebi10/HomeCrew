@@ -16,6 +16,7 @@ import com.hebi.homecrew.ui.screens.ChoreRepeatMode
 import com.hebi.homecrew.ui.setup.HouseholdSetup
 import com.hebi.homecrew.ui.setup.LocalHouseholdStore
 import com.hebi.homecrew.ui.setup.suggestedTemplateIds
+import java.io.File
 import java.time.LocalDate
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertNotNull
@@ -102,6 +103,21 @@ class HomeCrewActivityRestartTest {
         throw AssertionError("화면을 스크롤해도 동작을 찾지 못했습니다: $label")
     }
 
+    private fun captureSettingsDiagnostic(name: String) {
+        try {
+            val context = InstrumentationRegistry.getInstrumentation().targetContext
+            val base = InstrumentationRegistry.getArguments()
+                .getString("additionalTestOutputDir")
+                ?.takeIf { it.isNotBlank() }
+                ?.let(::File)
+                ?: requireNotNull(context.externalMediaDirs.firstOrNull())
+            val output = File(base, "screen-qa").apply { mkdirs() }
+            device.takeScreenshot(File(output, "$name.png"))
+            device.dumpWindowHierarchy(File(output, "$name.xml"))
+        } catch (_: Exception) {
+        }
+    }
+
     @Test
     fun householdSettingsPersistAfterActivityRestart() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
@@ -145,12 +161,11 @@ class HomeCrewActivityRestartTest {
                 Until.findObject(By.desc("새 구성원 이름 입력")), 8_000
             )
             assertNotNull("새 구성원 이름 입력 필드를 찾을 수 없습니다.", memberField)
-            requireNotNull(memberField).text = member
+            requireNotNull(memberField).click()
             device.waitForIdle()
-            assertNotNull(
-                "구성원 추가 전 입력값이 반영되지 않았습니다.",
-                device.wait(Until.findObject(By.text(member)), 5_000)
-            )
+            device.executeShellCommand("input text $member")
+            device.waitForIdle()
+            captureSettingsDiagnostic("13-settings-new-member-input")
             scrollToAction("구성원 추가")
             tapFresh("구성원 추가")
             var memberSaved = member in (store.load()?.members ?: emptyList())
@@ -159,6 +174,9 @@ class HomeCrewActivityRestartTest {
                     Thread.sleep(200)
                     memberSaved = member in (store.load()?.members ?: emptyList())
                 }
+            }
+            if (!memberSaved) {
+                captureSettingsDiagnostic("error-settings-member-not-saved")
             }
             assertTrue("구성원 추가가 저장되지 않았습니다.", memberSaved)
             device.pressBack()
