@@ -117,26 +117,15 @@ class PreviewApprovalTests(unittest.TestCase):
                     preview.inspect_bundle(path, tool)
 
 
-    def test_preview_signing_requires_trusted_main_environment_and_owner_comment(self):
+    def test_review_preview_publish_trigger_is_disabled_until_final_release(self):
         workflow = (Path(__file__).parents[3] / ".github/workflows/play-internal.yml").read_text(encoding="utf-8")
-        self.assertIn("  issue_comment:\n    types: [created]", workflow)
-        preview_job = workflow.split("  firebase02a-approved-preview:", 1)[1]
-        self.assertIn("environment: google-play", preview_job)
-        self.assertIn("github.event.comment.user.login == 'hebi10'", preview_job)
-        self.assertIn("github.event.issue.number == 28", preview_job)
-        self.assertIn("scripts/play/preview_release.py preflight", preview_job)
-        self.assertIn("gh run download", preview_job)
-        self.assertIn("uses: android-actions/setup-android@v3", preview_job)
-        self.assertIn("sdkmanager --install 'platforms;android-36' 'build-tools;35.0.0'", preview_job)
-        self.assertLess(
-            preview_job.index("uses: android-actions/setup-android@v3"),
-            preview_job.index("name: Install trusted Play artifact verifier")
-        )
-        self.assertIn("ref: ${{ github.sha }}", preview_job)
-        self.assertIn("source_sha", preview_job)
-        self.assertIn("scripts/play/publisher.py --report output/preview-release.json deploy", preview_job)
-        self.assertNotIn("./gradlew", preview_job)
-        self.assertNotIn("ref: ${{ github.event.pull_request.head.sha }}", preview_job)
+        trigger_section = workflow.split("on:", 1)[1].split("\\npermissions:", 1)[0]
+        self.assertIn("workflow_dispatch:", trigger_section)
+        self.assertNotIn("workflow_run:", trigger_section)
+        self.assertNotIn("issue_comment:", trigger_section)
+        self.assertNotIn("firebase02a-approved-preview:", workflow)
+        self.assertIn("final_release_approval:", workflow)
+        self.assertIn("Require full-project release authorization before any Play mutation", workflow)
 
 
 if __name__ == "__main__":
