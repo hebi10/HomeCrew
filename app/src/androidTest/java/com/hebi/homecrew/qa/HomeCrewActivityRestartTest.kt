@@ -141,11 +141,26 @@ class HomeCrewActivityRestartTest {
             tapFresh("기본으로 설정")
             assertTrue("기본 구성원 변경이 저장되지 않았습니다.", store.load()?.defaultMember != base.defaultMember)
             scrollToAction("구성원 추가")
-            val visibleFields = device.findObjects(By.clazz("android.widget.EditText"))
-            assertTrue("구성원 추가 입력 필드가 보이지 않습니다.", visibleFields.isNotEmpty())
-            enterFreshText(visibleFields.lastIndex, member)
+            val memberField = device.wait(
+                Until.findObject(By.desc("새 구성원 이름 입력")), 8_000
+            )
+            assertNotNull("새 구성원 이름 입력 필드를 찾을 수 없습니다.", memberField)
+            requireNotNull(memberField).text = member
+            device.waitForIdle()
+            assertNotNull(
+                "구성원 추가 전 입력값이 반영되지 않았습니다.",
+                device.wait(Until.findObject(By.text(member)), 5_000)
+            )
+            scrollToAction("구성원 추가")
             tapFresh("구성원 추가")
-            assertTrue("구성원 추가가 저장되지 않았습니다.", member in (store.load()?.members ?: emptyList()))
+            var memberSaved = member in (store.load()?.members ?: emptyList())
+            repeat(15) {
+                if (!memberSaved) {
+                    Thread.sleep(200)
+                    memberSaved = member in (store.load()?.members ?: emptyList())
+                }
+            }
+            assertTrue("구성원 추가가 저장되지 않았습니다.", memberSaved)
             device.pressBack()
             if (device.wait(Until.findObject(By.desc("화면 제목: $homeName")), 2_000) == null) {
                 scrollToAction("뒤로", down = false)
