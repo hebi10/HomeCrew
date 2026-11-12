@@ -27,6 +27,9 @@ on:
         type: boolean
         default: false
 
+  issue_comment:
+    types: [created]
+
 permissions:
   contents: read
 
@@ -276,3 +279,144 @@ jobs:
           path: output/play-preflight.json
           if-no-files-found: ignore
           retention-days: 30
+
+  firebase02a-approved-preview:
+    if: >-
+      github.event_name == 'issue_comment' &&
+      github.repository == 'hebi10/HomeCrew' &&
+      github.event.issue.number == 28 &&
+      github.event.issue.pull_request != null &&
+      github.event.comment.user.login == 'hebi10' &&
+      startsWith(github.event.comment.body, '/publish-homecrew-firebase02a-v14 ')
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    environment: google-play
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+    env:
+      ANDROID_RELEASE_CERT_SHA256: ${{ secrets.ANDROID_RELEASE_CERT_SHA256 }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify exact PR28 owner approval, successful QA and unsigned bundle provenance
+        id: approved
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/play/preview_release.py preflight
+      - name: Download the approved unsigned bundle only
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ steps.approved.outputs.source_sha }}
+          SOURCE_RUN_ID: ${{ steps.approved.outputs.run_id }}
+          ARTIFACT_NAME: ${{ steps.approved.outputs.artifact_name }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/homecrew-unsigned"
+          gh run download "$SOURCE_RUN_ID" \
+            --repo "hebi10/HomeCrew" --name "$ARTIFACT_NAME" \
+            --dir "$RUNNER_TEMP/homecrew-unsigned"
+          test -s "$RUNNER_TEMP/homecrew-unsigned/app-release.aab"
+          test "$(find "$RUNNER_TEMP/homecrew-unsigned" -type f | wc -l)" = 1
+          test ! -L "$RUNNER_TEMP/homecrew-unsigned/app-release.aab"
+      - name: Install trusted Play artifact verifier
+        run: |
+          sdkmanager --install 'platforms;android-36' 'build-tools;35.0.0'
+          python3 scripts/play/prepare_bundletool.py "$RUNNER_TEMP/bundletool.jar"
+      - name: Verify unsigned HomeCrew bundle identity
+        run: |
+          python3 scripts/play/preview_release.py inspect-bundle \
+            --bundle "$RUNNER_TEMP/homecrew-unsigned/app-release.aab" \
+            --bundletool "$RUNNER_TEMP/bundletool.jar"
+      - name: Check existing upload certificate without replacing or regenerating
+        env:
+          ANDROID_RELEASE_KEYSTORE_BASE64: ${{ secrets.ANDROID_RELEASE_KEYSTORE_BASE64 }}
+          ANDROID_RELEASE_STORE_PASSWORD: ${{ secrets.ANDROID_RELEASE_STORE_PASSWORD }}
+          ANDROID_RELEASE_KEY_ALIAS: ${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}
+          ANDROID_RELEASE_KEY_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEY_PASSWORD }}
+        run: |
+          python3 scripts/release_signing.py prepare --keystore "$RUNNER_TEMP/homecrew-pr28-upload.jks"
+          echo "ANDROID_RELEASE_KEYSTORE_PATH=$RUNNER_TEMP/homecrew-pr28-upload.jks" >> "$GITHUB_ENV"
+      - name: Authenticate only the trusted main Play publisher
+        id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.PLAY_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.PLAY_SERVICE_ACCOUNT }}
+          token_format: access_token
+          access_token_scopes: https://www.googleapis.com/auth/androidpublisher
+          create_credentials_file: false
+          export_environment_variables: false
+      - name: Require existing registered Play binary
+        id: readiness
+        env:
+          PLAY_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+        run: python3 scripts/play/publisher.py --report output/preview-readiness.json inspect --require-binary
+      - name: Require versionCode 14 is the next unused Play version
+        env:
+          PLAY_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+          PLAY_CONSOLE_INITIALIZED: ${{ steps.readiness.outputs.initialized }}
+        run: |
+          python3 scripts/play/publisher.py --report output/preview-allocation.json allocate
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          report = json.loads(Path("output/preview-allocation.json").read_text())
+          if report.get("versionCode") != 14:
+              raise SystemExit("Preview version 14 is no longer the next available code; do not reuse or downgrade")
+          print("Confirmed HomeCrew preview versionCode 14 is unused")
+          PY
+      - name: Sign reviewed AAB using only the protected main upload signer
+        env:
+          ANDROID_RELEASE_STORE_PASSWORD: ${{ secrets.ANDROID_RELEASE_STORE_PASSWORD }}
+          ANDROID_RELEASE_KEY_ALIAS: ${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}
+          ANDROID_RELEASE_KEY_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEY_PASSWORD }}
+        run: |
+          jarsigner -keystore "$ANDROID_RELEASE_KEYSTORE_PATH" \
+            -storepass:env ANDROID_RELEASE_STORE_PASSWORD \
+            -keypass:env ANDROID_RELEASE_KEY_PASSWORD \
+            -signedjar "$RUNNER_TEMP/homecrew-pr28-signed.aab" \
+            "$RUNNER_TEMP/homecrew-unsigned/app-release.aab" \
+            "$ANDROID_RELEASE_KEY_ALIAS" > "$RUNNER_TEMP/homecrew-jarsigner.log" 2>&1
+          python3 scripts/play/preflight.py verify-bundle \
+            --bundle "$RUNNER_TEMP/homecrew-pr28-signed.aab"
+          python3 scripts/play/preview_release.py inspect-bundle \
+            --bundle "$RUNNER_TEMP/homecrew-pr28-signed.aab" \
+            --bundletool "$RUNNER_TEMP/bundletool.jar"
+      - name: Revalidate PR28 immutable approval immediately before Play upload
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/play/preview_release.py preflight
+      - name: Publish only approved PR28 code to internal test and verify fresh Play readback
+        env:
+          PLAY_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+          PLAY_CONSOLE_INITIALIZED: ${{ steps.readiness.outputs.initialized }}
+        run: |
+          python3 scripts/play/publisher.py --report output/preview-release.json deploy \
+            --bundle "$RUNNER_TEMP/homecrew-pr28-signed.aab" \
+            --version-code 14 --status completed
+          echo "Play API committed and read back internal version 14; this does not confirm Console review or tester installation." >> "$GITHUB_STEP_SUMMARY"
+          echo "Test Google Sign-In and Firebase UID on a Play-installed device before merging PR28." >> "$GITHUB_STEP_SUMMARY"
+      - name: Preserve non-secret internal preview report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: homecrew-firebase02a-play-report-${{ github.run_id }}
+          path: output/preview-*.json
+          if-no-files-found: ignore
+          retention-days: 30
+      - name: Erase temporary upload signer and signed bundle
+        if: always()
+        run: |
+          rm -f -- "$RUNNER_TEMP/homecrew-pr28-upload.jks" \
+            "$RUNNER_TEMP/homecrew-pr28-signed.aab" \
+            "$RUNNER_TEMP/homecrew-jarsigner.log"
