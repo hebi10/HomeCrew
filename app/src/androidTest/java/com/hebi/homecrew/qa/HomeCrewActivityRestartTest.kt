@@ -174,8 +174,8 @@ class HomeCrewActivityRestartTest {
             }
             device.waitForIdle()
             assertNotNull(
-                "IME 종료 후 설정 화면이 유지되지 않았습니다.",
-                device.wait(Until.findObject(By.text("설정")), 5_000)
+                "IME 종료 후 새 구성원 입력 필드가 유지되지 않았습니다.",
+                device.wait(Until.findObject(By.desc("새 구성원 이름 입력")), 5_000)
             )
             captureSettingsDiagnostic("13-settings-member-keyboard-dismissed")
             scrollToAction("구성원 추가")
