@@ -59,7 +59,8 @@ fun HomeCrewMainScreens(
     LaunchedEffect(householdSetup) {
         householdSetup?.let(viewModel::configureHousehold)
     }
-    if (householdSetup != null && configuredHousehold != householdSetup) {
+    if (householdSetup != null && (configuredHousehold == null ||
+            configuredHousehold.selectedTemplateIds != householdSetup.selectedTemplateIds)) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             if (loadError == null) {
                 CircularProgressIndicator()
