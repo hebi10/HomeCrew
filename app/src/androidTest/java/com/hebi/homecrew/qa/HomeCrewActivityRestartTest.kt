@@ -1,5 +1,7 @@
 package com.hebi.homecrew.qa
 
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -166,10 +168,13 @@ class HomeCrewActivityRestartTest {
             device.executeShellCommand("input text $member")
             device.waitForIdle()
             captureSettingsDiagnostic("13-settings-new-member-input")
-            device.pressBack()
+            scenario.onActivity { activity ->
+                WindowCompat.getInsetsController(activity.window, activity.window.decorView)
+                    .hide(WindowInsetsCompat.Type.ime())
+            }
             device.waitForIdle()
             assertNotNull(
-                "키보드 종료 후 설정 화면이 유지되지 않았습니다.",
+                "IME 종료 후 설정 화면이 유지되지 않았습니다.",
                 device.wait(Until.findObject(By.text("설정")), 5_000)
             )
             captureSettingsDiagnostic("13-settings-member-keyboard-dismissed")
