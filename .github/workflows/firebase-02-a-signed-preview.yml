@@ -1,4 +1,4 @@
-name: FIREBASE-02-A signed preview AAB (no publish)
+name: FIREBASE-02-A unsigned preview AAB (no publish)
 
 on:
   pull_request:
@@ -6,116 +6,69 @@ on:
     paths:
       - '.github/workflows/firebase-02-a-signed-preview.yml'
       - 'app/**'
-      - 'scripts/release_signing.py'
       - 'scripts/configure_firebase.py'
-      - 'scripts/play/**'
 
 permissions:
   contents: read
 
 concurrency:
-  group: homecrew-firebase-02-a-preview-${{ github.event.pull_request.number }}
+  group: homecrew-firebase-02-a-unsigned-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:
-  signed-preview:
+  unsigned-preview:
     if: >-
       github.repository == 'hebi10/HomeCrew' &&
       github.event.pull_request.number == 28 &&
       github.event.pull_request.base.ref == 'main' &&
       github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
-    environment: google-play
-    timeout-minutes: 45
+    timeout-minutes: 40
     env:
       ANDROID_VERSION_CODE: '14'
-      ANDROID_RELEASE_CERT_SHA256: ${{ secrets.ANDROID_RELEASE_CERT_SHA256 }}
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
-      - name: Require the exact HomeCrew PR source
+      - name: Require the exact PR head
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
-        run: |
-          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
-          test "$(git remote get-url origin | sed 's#https://github.com/##;s#\.git$##')" = "hebi10/HomeCrew"
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.13'
           cache-disabled: true
-      - name: Restore verified HomeCrew Firebase OAuth configuration
-        env:
-          HOMECREW_GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.HOMECREW_GOOGLE_SERVICES_JSON_BASE64 }}
-        run: python3 scripts/configure_firebase.py --required
-      - name: Provision existing Play upload signer
-        env:
-          ANDROID_RELEASE_KEYSTORE_BASE64: ${{ secrets.ANDROID_RELEASE_KEYSTORE_BASE64 }}
-          ANDROID_RELEASE_STORE_PASSWORD: ${{ secrets.ANDROID_RELEASE_STORE_PASSWORD }}
-          ANDROID_RELEASE_KEY_ALIAS: ${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}
-          ANDROID_RELEASE_KEY_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEY_PASSWORD }}
-        run: |
-          python3 scripts/release_signing.py prepare --keystore "$RUNNER_TEMP/homecrew-preview.jks"
-          echo "ANDROID_RELEASE_KEYSTORE_PATH=$RUNNER_TEMP/homecrew-preview.jks" >> "$GITHUB_ENV"
       - uses: android-actions/setup-android@v3
         with:
           packages: platform-tools
-      - name: Install pinned build verification tools
-        run: |
-          sdkmanager --install 'platforms;android-36' 'build-tools;35.0.0'
-          python3 scripts/play/prepare_bundletool.py "$RUNNER_TEMP/bundletool.jar"
-      - name: Build signed AAB and APK from the unmerged PR
+      - name: Install HomeCrew OAuth config (never expose upload key)
         env:
-          ANDROID_RELEASE_STORE_PASSWORD: ${{ secrets.ANDROID_RELEASE_STORE_PASSWORD }}
-          ANDROID_RELEASE_KEY_ALIAS: ${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}
-          ANDROID_RELEASE_KEY_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEY_PASSWORD }}
+          HOMECREW_GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.HOMECREW_GOOGLE_SERVICES_JSON_BASE64 }}
+        run: python3 scripts/configure_firebase.py --required
+      - name: Install release build SDK
+        run: sdkmanager --install 'platforms;android-36' 'build-tools;35.0.0'
+      - name: Build untrusted PR source without signing credentials
         run: |
           chmod +x gradlew
-          ./gradlew --no-daemon --no-build-cache --no-configuration-cache lintRelease bundleRelease assembleRelease
-      - name: Verify release identity, signing and native compatibility
+          ./gradlew --no-daemon --no-build-cache --no-configuration-cache lintRelease bundleRelease
+      - name: Preserve unsigned bundle for trusted main signing
         run: |
-          python3 scripts/play/artifacts.py \
-            --bundle app/build/outputs/bundle/release/app-release.aab \
-            --apk app/build/outputs/apk/release/app-release.apk \
-            --bundletool "$RUNNER_TEMP/bundletool.jar" \
-            --aapt2 "${ANDROID_HOME}/build-tools/35.0.0/aapt2" \
-            --version-code "$ANDROID_VERSION_CODE"
-          python3 scripts/play/preflight.py verify-bundle --bundle app/build/outputs/bundle/release/app-release.aab
-          python3 scripts/release_signing.py verify-apk \
-            --apk app/build/outputs/apk/release/app-release.apk \
-            --apksigner "${ANDROID_HOME}/build-tools/35.0.0/apksigner"
-          python3 scripts/play/verify_native.py \
-            --bundle app/build/outputs/bundle/release/app-release.aab \
-            --apk app/build/outputs/apk/release/app-release.apk \
-            --bundletool "$RUNNER_TEMP/bundletool.jar" \
-            --zipalign "${ANDROID_HOME}/build-tools/35.0.0/zipalign" \
-            --report output/play-native.json --allow-no-native
-      - name: Upload preview AAB for manual Play internal test only
+          test -s app/build/outputs/bundle/release/app-release.aab
+          unzip -t app/build/outputs/bundle/release/app-release.aab >/dev/null
+          echo "Unsigned review AAB created. No upload certificate was present in this job." >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload unsigned AAB (not usable for Play until signed)
         uses: actions/upload-artifact@v4
         with:
-          name: homecrew-firebase02a-preview-v14-${{ github.event.pull_request.head.sha }}
-          path: |
-            app/build/outputs/bundle/release/app-release.aab
-            output/play-native.json
+          name: homecrew-firebase02a-unsigned-v14-${{ github.event.pull_request.head.sha }}
+          path: app/build/outputs/bundle/release/app-release.aab
           if-no-files-found: error
           retention-days: 14
-      - name: Explain Play app signing requirement
+      - name: Record trusted promotion boundary
         run: |
-          {
-            echo '### Firebase-02-A pre-merge test artifact'
-            echo 'The AAB was signed with the existing **upload certificate** and checked, but NOT uploaded to Google Play.'
-            echo 'For Play **app-signing** verification, download the signed AAB artifact, confirm versionCode 14 is unused, and upload it in the existing internal-testing track.'
-            echo 'Install through the Play internal-testing link; a locally installed upload-key APK is not equivalent.'
-            echo 'This workflow does not change main, Play releases, Firebase Auth accounts or Room data.'
-          } >> "$GITHUB_STEP_SUMMARY"
-      - name: Erase the temporary upload signer
-        if: always()
-        run: rm -f -- "$RUNNER_TEMP/homecrew-preview.jks"
+          echo "This PR workflow cannot access the google-play environment or release signing keys." >> "$GITHUB_STEP_SUMMARY"
+          echo "No bundle was uploaded to Google Play. A separately approved main-branch job must sign and publish this exact artifact." >> "$GITHUB_STEP_SUMMARY"
