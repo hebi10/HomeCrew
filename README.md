@@ -75,7 +75,23 @@ Windows PowerShell:
 ./gradlew :app:processDebugGoogleServices :app:assembleDebug
 ```
 
-GitHub Actions는 저장소 시크릿 `HOMECREW_GOOGLE_SERVICES_JSON_BASE64`에서 설정 파일을 복원합니다. `main` 검증과 Play용 빌드는 HomeCrew 설정이 있어야 진행됩니다. Firebase 설정이 있는 에뮬레이터 검증에서는 기본 앱이 HomeCrew 프로젝트로 초기화되는지 확인합니다.
+GitHub Actions는 저장소 시크릿 `HOMECREW_GOOGLE_SERVICES_JSON_BASE64`에서 설정 파일을 복원합니다. 저장소 내부 PR, `main`, 내부 테스트 릴리스는 HomeCrew 설정이 누락되면 실패 처리합니다. 외부 포크 PR은 시크릿을 받지 않으므로 로컬 전용 빌드만 수행합니다. Android 5환경 계측 및 API35 화면 QA는 설정이 제공되면 `FirebaseBootstrapTest`의 실제 기본 앱 초기화 성공까지 확인합니다.
+
+**GitHub Actions 시크릿 1회 등록 (저장소 관리자 수행)**
+
+1. 로컬에서 HomeCrew 프로젝트에 등록된 `google-services.json`을 준비합니다.
+2. Windows PowerShell에서 아래 명령어로 파일 내용을 Base64로 인코딩하고 클립보드에 복사합니다.
+
+```powershell
+$firebaseConfig = "C:\\path\\to\\google-services.json"
+[Convert]::ToBase64String([System.IO.File]::ReadAllBytes($firebaseConfig)) | Set-Clipboard
+```
+
+3. [HomeCrew Actions secrets](https://github.com/hebi10/HomeCrew/settings/secrets/actions) → **New repository secret**를 선택합니다.
+4. 이름은 `HOMECREW_GOOGLE_SERVICES_JSON_BASE64`, 값에는 클립보드 내용을 붙여 넣습니다.
+5. PR #27의 Android CI / 화면 QA / API29·35·36 매트릭스 검증을 다시 실행합니다. 실제 설정으로 Firebase 초기화 테스트가 통과한 후에만 병합합니다.
+
+**금지:** 설정 JSON 원문이나 Base64를 PR, 이슈 댓글, 워크플로 입력값, 저장소 파일 또는 로그에 기록하지 않습니다. Firebase 초기 연결에서는 로그인·Firestore·다중 기기 공유를 활성화하지 않으며, 현재 Room 데이터를 그대로 유지합니다.
 
 ## 변경 관리
 
