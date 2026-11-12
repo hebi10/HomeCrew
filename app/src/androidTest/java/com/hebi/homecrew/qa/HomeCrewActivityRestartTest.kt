@@ -133,6 +133,10 @@ class HomeCrewActivityRestartTest {
             enterFreshText(0, homeName)
             tapFresh("집 이름 저장")
             assertTrue("집 이름이 저장되지 않았습니다.", store.load()?.homeName == homeName)
+            assertNotNull(
+                "집 이름 저장 후 설정 화면이 유지되지 않았습니다.",
+                device.wait(Until.findObject(By.text("설정")), 8_000)
+            )
             scrollToAction("기본으로 설정")
             tapFresh("기본으로 설정")
             assertTrue("기본 구성원 변경이 저장되지 않았습니다.", store.load()?.defaultMember != base.defaultMember)
