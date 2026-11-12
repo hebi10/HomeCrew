@@ -11,7 +11,7 @@ import androidx.credentials.exceptions.GetCredentialCancellationException
 import androidx.credentials.exceptions.GetCredentialProviderConfigurationException
 import androidx.credentials.exceptions.GetCredentialUnsupportedException
 import androidx.credentials.exceptions.NoCredentialException
-import com.google.android.libraries.identity.googleid.GetGoogleIdOption
+import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.google.android.libraries.identity.googleid.GoogleIdTokenParsingException
 import com.google.firebase.FirebaseApp
@@ -42,11 +42,7 @@ private object FirebaseGoogleSignIn : GoogleSignIn {
 
             val webClientId = findWebClientId(activity) ?: return GoogleSignInResult.CONFIGURATION_ERROR
             val manager = CredentialManager.create(activity)
-            val credential = try {
-                manager.getCredential(activity, googleRequest(webClientId, authorizedOnly = true)).credential
-            } catch (_: NoCredentialException) {
-                manager.getCredential(activity, googleRequest(webClientId, authorizedOnly = false)).credential
-            }
+            val credential = manager.getCredential(activity, googleRequest(webClientId)).credential
             val token = googleIdToken(credential) ?: return GoogleSignInResult.INVALID_CREDENTIAL
 
             // The Firebase task can finish after the settings screen is closed.
@@ -89,11 +85,8 @@ private object FirebaseGoogleSignIn : GoogleSignIn {
         return if (id == 0) null else context.getString(id).takeIf { it.endsWith(".apps.googleusercontent.com") }
     }
 
-    private fun googleRequest(webClientId: String, authorizedOnly: Boolean): GetCredentialRequest {
-        val googleId = GetGoogleIdOption.Builder()
-            .setServerClientId(webClientId)
-            .setFilterByAuthorizedAccounts(authorizedOnly)
-            .build()
+    private fun googleRequest(webClientId: String): GetCredentialRequest {
+        val googleId = GetSignInWithGoogleOption.Builder(webClientId).build()
         return GetCredentialRequest.Builder().addCredentialOption(googleId).build()
     }
 
