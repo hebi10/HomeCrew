@@ -83,7 +83,7 @@ GitHub Actions는 저장소 시크릿 `HOMECREW_GOOGLE_SERVICES_JSON_BASE64`에�
 2. Windows PowerShell에서 아래 명령어로 파일 내용을 Base64로 인코딩하고 클립보드에 복사합니다.
 
 ```powershell
-$firebaseConfig = "C:\\path\\to\\google-services.json"
+$firebaseConfig = "C:\path\to\google-services.json"
 [Convert]::ToBase64String([System.IO.File]::ReadAllBytes($firebaseConfig)) | Set-Clipboard
 ```
 
