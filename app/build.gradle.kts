@@ -5,6 +5,11 @@ plugins {
     id("com.google.devtools.ksp")
 }
 
+val hasFirebaseConfig = layout.projectDirectory.file("google-services.json").asFile.isFile
+if (hasFirebaseConfig) {
+    apply(plugin = "com.google.gms.google-services")
+}
+
 val releaseSigningNames = listOf(
     "ANDROID_RELEASE_KEYSTORE_PATH", "ANDROID_RELEASE_STORE_PASSWORD",
     "ANDROID_RELEASE_KEY_ALIAS", "ANDROID_RELEASE_KEY_PASSWORD", "ANDROID_RELEASE_CERT_SHA256"
@@ -76,6 +81,10 @@ tasks.configureEach {
 }
 
 dependencies {
+    if (hasFirebaseConfig) {
+        implementation(platform("com.google.firebase:firebase-bom:35.2.0"))
+        implementation("com.google.firebase:firebase-common")
+    }
     implementation(platform("androidx.compose:compose-bom:2025.10.01"))
     implementation("androidx.core:core-ktx:1.17.0")
     implementation("androidx.activity:activity-compose:1.11.0")

@@ -67,6 +67,14 @@ Windows PowerShell:
 
 빌드 산출물: `app/build/outputs/apk/debug/app-debug.apk`. GitHub Actions `Android CI`도 PR 및 `main`에서 해당 검증을 실행하며 디버그 APK/리포트를 아티팩트로 업로드합니다.
 
+### Firebase 초기 연결
+
+[HomeCrew Firebase 프로젝트](https://console.firebase.google.com/project/homecrew-1b14b/overview)의 Android 앱 `com.hebi.homecrew`용 `google-services.json`을 `app/google-services.json`에 둡니다. 설정 파일이 있는 빌드에서는 Firebase 기본 앱이 자동으로 초기화됩니다. 설정 파일이 없는 빌드는 로컬 모드로 실행됩니다. 집과 집안일 데이터는 기기에서 관리합니다.
+
+```bash
+./gradlew :app:processDebugGoogleServices :app:assembleDebug
+```
+
 ## 변경 관리
 
 - 코드·테스트·CI·디자인 참고 이미지는 GitHub PR로 관리합니다.
