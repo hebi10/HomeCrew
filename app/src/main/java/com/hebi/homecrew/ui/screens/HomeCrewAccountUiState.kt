@@ -27,8 +27,8 @@ internal fun homeCrewAccountUiState(
     is HomeCrewAuthSession.SignedIn -> HomeCrewAccountUiState(
         status = "Google 계정 연결됨",
         description = "Google 계정 인증이 완료되었습니다.",
-        accountName = session.user.displayName?.trim()?.takeIf(String::isNotEmpty) ?: "이름 정보 없음",
-        accountEmail = session.user.email?.trim()?.takeIf(String::isNotEmpty) ?: "이메일 정보 없음"
+        accountName = session.user.displayName?.trim()?.takeIf { it.isNotEmpty() } ?: "이름 정보 없음",
+        accountEmail = session.user.email?.trim()?.takeIf { it.isNotEmpty() } ?: "이메일 정보 없음"
     )
     HomeCrewAuthSession.LocalOnly -> {
         val feedback = when (result) {
