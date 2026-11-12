@@ -56,6 +56,34 @@ class ChoreEditorScreenshotTest {
         device.waitForIdle()
     }
 
+    private fun selectBalancedAssignment() {
+        val selected = By.desc("선택됨: 담당 방식 업무량 균형")
+        val explanation = By.textContains("기준 업무량:")
+        val available = By.desc("담당 방식: 업무량 균형")
+
+        repeat(4) {
+            if (device.wait(Until.findObject(selected), 1_000) != null ||
+                device.wait(Until.findObject(explanation), 1_000) != null
+            ) return
+
+            val option = device.wait(Until.findObject(available), 2_000)
+                ?: device.wait(Until.findObject(By.text("업무량 균형")), 1_000)
+            if (option != null) {
+                try {
+                    val bounds = option.visibleBounds
+                    device.click(bounds.centerX(), bounds.centerY())
+                    device.waitForIdle()
+                } catch (_: androidx.test.uiautomator.StaleObjectException) {
+                    device.waitForIdle()
+                }
+            }
+        }
+
+        screenshot("error-1d-assignment-balance")
+        device.dumpWindowHierarchy(File(outputDirectory(), "error-1d-assignment-balance.xml"))
+        throw AssertionError("업무량 균형 선택 상태가 반영되지 않았습니다.")
+    }
+
     private fun awaitScreen(title: String) {
         var node = device.wait(Until.findObject(By.desc("화면 제목: $title")), 12_000)
         if (node == null && device.dismissEmulatorLauncherAnrIfShown()) {
@@ -147,10 +175,7 @@ class ChoreEditorScreenshotTest {
             device.wait(Until.findObject(By.desc("선택됨: 담당 방식 순번제")), 8_000)
         ) { "순번제 선택이 적용되지 않았습니다." }
         screenshot("10-chore-assignment-round-robin")
-        press("담당 방식: 업무량 균형")
-        requireNotNull(
-            device.wait(Until.findObject(By.desc("선택됨: 담당 방식 업무량 균형")), 8_000)
-        ) { "업무량 균형 선택이 적용되지 않았습니다." }
+        selectBalancedAssignment()
         screenshot("10-chore-assignment-balanced")
         press("담당 방식 적용")
         awaitScreen("집안일 추가")
