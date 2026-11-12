@@ -182,16 +182,33 @@ class MainScreensScreenshotTest {
 
         tapTab("홈")
         awaitScreenTitle("우리 집")
-        var dark = device.wait(Until.findObject(By.desc("테마 전환 · 현재 다크")), 1_000)
-        repeat(3) {
-            if (dark == null) {
-                val theme = device.wait(Until.findObject(By.descContains("테마 전환")), 10_000)
-                if (theme == null) dumpFailedUi("테마 전환")
-                requireNotNull(theme) { "테마 버튼을 찾을 수 없음" }.click()
+        val themeOrder = listOf("시스템", "라이트", "다크")
+        repeat(themeOrder.size) {
+            if (device.wait(Until.findObject(By.desc("테마 전환 · 현재 다크")), 700) == null) {
+                val currentMode = themeOrder.firstOrNull { mode ->
+                    device.findObject(By.desc("테마 전환 · 현재 $mode")) != null
+                }
+                if (currentMode == null) dumpFailedUi("테마 현재 상태")
+                requireNotNull(currentMode) { "현재 테마를 확인하지 못했습니다." }
+
+                val nextMode = themeOrder[(themeOrder.indexOf(currentMode) + 1) % themeOrder.size]
+                val button = device.wait(
+                    Until.findObject(By.desc("테마 전환 · 현재 $currentMode")), 5_000
+                )
+                if (button == null) dumpFailedUi("테마 전환 버튼")
+                requireNotNull(button) { "테마 전환 버튼을 찾을 수 없습니다." }.click()
+
+                val updated = device.wait(
+                    Until.findObject(By.desc("테마 전환 · 현재 $nextMode")), 10_000
+                )
+                if (updated == null) dumpFailedUi("테마 전환 상태")
+                requireNotNull(updated) { "테마가 $nextMode 상태로 전환되지 않았습니다." }
                 device.waitForIdle()
-                dark = device.wait(Until.findObject(By.desc("테마 전환 · 현재 다크")), 2_000)
             }
         }
+        val dark = device.wait(
+            Until.findObject(By.desc("테마 전환 · 현재 다크")), 5_000
+        )
         if (dark == null) dumpFailedUi("다크 모드")
         requireNotNull(dark) { "다크 모드 적용을 확인하지 못했습니다." }
         Thread.sleep(900)
