@@ -55,7 +55,8 @@ jobs:
       - name: Build untrusted PR source without signing credentials
         run: |
           chmod +x gradlew
-          ./gradlew --no-daemon --no-build-cache --no-configuration-cache lintRelease bundleRelease
+          # This is intentionally unsigned; trusted main verifies the signer later.
+          ./gradlew --no-daemon --no-build-cache --no-configuration-cache lintRelease bundleRelease -x verifyReleaseSigning
       - name: Preserve unsigned bundle for trusted main signing
         run: |
           test -s app/build/outputs/bundle/release/app-release.aab
