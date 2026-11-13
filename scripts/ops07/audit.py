@@ -465,7 +465,8 @@ def findings():
                 problems.append("CLOSED: separate approved same-version promotion missing")
             if any(k in source for k in ("bundleRelease", "assembleRelease", "uploadType")):
                 problems.append("CLOSED: no binary upload/build permitted")
-            normalized_closed = re.sub(r"\\\s*\n\s*", " ", source)
+            normalized_closed = _folded_run_commands(source)
+            normalized_closed = re.sub(r"\\\s*\n\s*", " ", normalized_closed)
             commands = re.sub(r"\s*(?:&&|\|\||;)\s*", "\n", normalized_closed)
             if re.search(r"(?mi)^[ \t]*(?:-[ \t]+)?(?:run:[ \t]*)?python(?:3(?:\.\d+)?)?\s+(?:(?:-[uBIESOqv]+|--unbuffered)\s+)*[^\s;|]*publish-mobile-play\.py\b", commands) or re.search(
                     r"(?mi)^[ \t]*(?:-[ \t]+)?(?:run:[ \t]*)?python(?:3(?:\.\d+)?)?\s+(?:(?:-[uBIESOqv]+|--unbuffered)\s+)*[^\s;|]*publisher\.py\b[^\n]*\b(?:deploy|upload|initialize)\b", commands):
