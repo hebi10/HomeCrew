@@ -232,5 +232,26 @@ class SharedHardeningRegressionTests(unittest.TestCase):
         self.assertTrue(audit.automatic_mutations("custom.yml", workflow))
 
 
+
+class ClosedPublisherRegressionTests(unittest.TestCase):
+    def test_closed_promotion_rejects_new_binary_upload_entrypoints(self):
+        base = ("on:\n  workflow_dispatch:\njobs:\n"
+                "  promote:\n    runs-on: ubuntu-latest\n    steps:\n"
+                "      - run: python3 scripts/ops05/promotion.py promote\n")
+        def problems_for(command):
+            workflow = base + "      - run: " + command + "\n"
+            with patch.object(audit, "read", side_effect=lambda path:
+                              workflow if path == ".github/workflows/play-closed-release.yml"
+                              else None):
+                return audit.findings()
+        for command in (
+            "python3 scripts/play/publisher.py --report verify.json deploy --bundle release.aab",
+            "python3 scripts/publish-mobile-play.py --aab release.aab --track internal",
+        ):
+            with self.subTest(command=command):
+                issues = problems_for(command)
+                self.assertTrue(any("CLOSED_BINARY" in item for item in issues), issues)
+
+
 if __name__ == "__main__":
     unittest.main()
