@@ -440,8 +440,8 @@ def findings():
                 problems.append("CLOSED: no binary upload/build permitted")
             normalized_closed = re.sub(r"\\\s*\n\s*", " ", source)
             commands = re.sub(r"\s*(?:&&|\|\||;)\s*", "\n", normalized_closed)
-            if re.search(r"(?mi)^[ \t]*(?:-[ \t]+)?(?:run:[ \t]*)?python(?:3(?:\.\d+)?)?\s+[^\s;|]*publish-mobile-play\.py\b", commands) or re.search(
-                    r"(?mi)^[ \t]*(?:-[ \t]+)?(?:run:[ \t]*)?python(?:3(?:\.\d+)?)?\s+[^\s;|]*publisher\.py\b[^\n]*\b(?:deploy|upload|initialize)\b", commands):
+            if re.search(r"(?mi)^[ \t]*(?:-[ \t]+)?(?:run:[ \t]*)?python(?:3(?:\.\d+)?)?\s+(?:(?:-[uBIESOqv]+|--unbuffered)\s+)*[^\s;|]*publish-mobile-play\.py\b", commands) or re.search(
+                    r"(?mi)^[ \t]*(?:-[ \t]+)?(?:run:[ \t]*)?python(?:3(?:\.\d+)?)?\s+(?:(?:-[uBIESOqv]+|--unbuffered)\s+)*[^\s;|]*publisher\.py\b[^\n]*\b(?:deploy|upload|initialize)\b", commands):
                 problems.append("CLOSED_BINARY: closed promotion must not invoke a binary publisher")
     manual = read("AGENTS.md")
     if manual is not None and not all(k in manual for k in ("Release Batch", "Play")):
