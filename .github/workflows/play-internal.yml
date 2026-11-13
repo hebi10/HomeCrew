@@ -3,6 +3,11 @@ name: Play internal release
 on:
   workflow_dispatch:
     inputs:
+      ops01_release_approved:
+        description: 'Final QA complete; manual Play upload approved'
+        type: boolean
+        required: true
+        default: false
       mode:
         description: 'check = validation/access; build = signed AAB; initialize = first internal draft; deploy = internal update'
         required: true
@@ -46,6 +51,13 @@ jobs:
       sha: ${{ steps.source.outputs.sha }}
       mode: ${{ steps.source.outputs.release_mode }}
     steps:
+      - name: OPS-01 explicit approval for internal Play changes
+        if: inputs.mode == 'deploy' || inputs.mode == 'initialize'
+        env:
+          OPS01_RELEASE_APPROVED: ${{ inputs.ops01_release_approved }}
+        run: |
+          test "$GITHUB_EVENT_NAME" = workflow_dispatch
+          test "$OPS01_RELEASE_APPROVED" = true
       - uses: actions/checkout@v4
         with:
           ref: main

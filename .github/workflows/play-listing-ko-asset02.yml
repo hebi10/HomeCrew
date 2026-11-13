@@ -1,8 +1,7 @@
 name: HomeCrew ko-KR store listing ASSET-02
 
 on:
-  issue_comment:
-    types: [created]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -14,12 +13,15 @@ concurrency:
 jobs:
   listing:
     if: >-
+      false &&
+      (
       github.repository == 'hebi10/HomeCrew' &&
       github.event.issue.pull_request != null &&
       github.event.issue.title == 'ASSET-02 — 한국어 스토어 설명 최신화' &&
       github.event.comment.user.login == 'hebi10' &&
       (github.event.comment.body == '/homecrew-listing-check-20261111' ||
        github.event.comment.body == '/homecrew-listing-apply-20261111')
+      )
     runs-on: ubuntu-latest
     timeout-minutes: 12
     environment: google-play
