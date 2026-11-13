@@ -234,6 +234,18 @@ class SharedHardeningRegressionTests(unittest.TestCase):
 
 
 class ClosedPublisherRegressionTests(unittest.TestCase):
+    def test_closed_promotion_detects_folded_binary_upload(self):
+        source = ("on:\n  workflow_dispatch:\njobs:\n"
+                  "  publish:\n    runs-on: ubuntu-latest\n    steps:\n"
+                  "      - run: >-\n"
+                  "          python3 scripts/play/publisher.py\n"
+                  "          deploy --bundle release.aab --version-code 9\n")
+        with patch.object(audit, "read", side_effect=lambda path:
+                          source if path == ".github/workflows/play-closed-release.yml"
+                          else None):
+            issues = audit.findings()
+        self.assertTrue(any("CLOSED_BINARY" in issue for issue in issues), issues)
+
     def test_closed_promotion_rejects_new_binary_upload_entrypoints(self):
         base = ("on:\n  workflow_dispatch:\njobs:\n"
                 "  promote:\n    runs-on: ubuntu-latest\n    steps:\n"
