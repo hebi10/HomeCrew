@@ -16,6 +16,43 @@ class FinalPolicyTests(unittest.TestCase):
     def test_checked_out_git_source_has_complete_sha(self):
         self.assertRegex(audit.verified_head(), r"^[0-9a-f]{40}$")
 
+    def test_policy_edits_cannot_be_attributed_to_unmodified_head(self):
+        from types import SimpleNamespace
+        expected = "a" * 40
+        for status_text in (
+            " M scripts/ops04/internal.py\n",
+            "M  .github/workflows/play-internal-release.yml\n",
+            "?? scripts/ops08/new_policy.py\n",
+        ):
+            with self.subTest(status=status_text):
+                calls = []
+                def fake_run(args, **kwargs):
+                    calls.append(args)
+                    if args[:3] == ["git", "rev-parse", "HEAD"]:
+                        return SimpleNamespace(returncode=0, stdout=expected + "\n")
+                    if args[:3] == ["git", "status", "--porcelain=v1"]:
+                        return SimpleNamespace(returncode=0, stdout=status_text)
+                    raise AssertionError("Unexpected Git invocation: " + str(args))
+                with patch.object(audit.subprocess, "run", side_effect=fake_run), \
+                     patch.dict(os.environ, {"GITHUB_SHA": expected}):
+                    with self.assertRaisesRegex(RuntimeError, "do not match"):
+                        audit.verified_head()
+                self.assertEqual(len(calls), 2)
+                self.assertIn("--untracked-files=all", calls[1])
+
+    def test_clean_policy_checkout_retains_verified_head(self):
+        from types import SimpleNamespace
+        expected = "b" * 40
+        def fake_run(args, **kwargs):
+            if args[:3] == ["git", "rev-parse", "HEAD"]:
+                return SimpleNamespace(returncode=0, stdout=expected + "\n")
+            if args[:3] == ["git", "status", "--porcelain=v1"]:
+                return SimpleNamespace(returncode=0, stdout="")
+            raise AssertionError("Unexpected Git invocation")
+        with patch.object(audit.subprocess, "run", side_effect=fake_run), \
+             patch.dict(os.environ, {"GITHUB_SHA": expected}):
+            self.assertEqual(audit.verified_head(), expected)
+
     def test_main_validation_is_not_claimed_for_pull_requests(self):
         with patch.dict(os.environ, {"GITHUB_REF": "refs/pull/123/merge"}):
             result = audit.audit()
