@@ -246,6 +246,7 @@ class ClosedPublisherRegressionTests(unittest.TestCase):
                 return audit.findings()
         for command in (
             "python3 scripts/play/publisher.py --report verify.json deploy --bundle release.aab",
+            "python3 -u scripts/play/publisher.py --report verify.json deploy --bundle release.aab",
             "python3 scripts/publish-mobile-play.py --aab release.aab --track internal",
         ):
             with self.subTest(command=command):
