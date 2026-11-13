@@ -202,9 +202,35 @@ def is_manual_only(condition):
     return any(re.fullmatch(r"github\.event_name\s*==\s*'workflow_dispatch'", atom) for atom in atoms)
 
 
+def _folded_run_commands(body):
+    """Fold YAML > run bodies before scanning shell commands; preserve other steps."""
+    lines = body.splitlines()
+    output = []
+    index = 0
+    while index < len(lines):
+        line = lines[index]
+        match = re.match(r"^([ \t]*)(?:-[ \t]+)?run:[ \t]*>[+-]?[ \t]*(?:#.*)?$", line)
+        if not match:
+            output.append(line)
+            index += 1
+            continue
+        depth = len(match.group(1))
+        body_lines = []
+        index += 1
+        while index < len(lines):
+            part = lines[index]
+            if part.strip() and len(part) - len(part.lstrip()) <= depth:
+                break
+            body_lines.append(part.strip() if part.strip() else "\n")
+            index += 1
+        output.append("run: " + " ".join(body_lines))
+    return "\n".join(output)
+
+
 def _publishing_command(body):
     commands = "\n".join(line for line in body.splitlines()
                          if not line.lstrip().startswith(("- name:", "name:", "#")))
+    commands = _folded_run_commands(commands)
     commands = re.sub(r"\\\s*\n\s*", " ", commands)
     commands = re.sub(r"\s*(?:&&|\|\||;|\|)\s*", "\n", commands)
     if re.search(r"(?i)\bgh\s+release\s+create\b|softprops/action-gh-release|upload-google-play@", commands):
@@ -273,7 +299,8 @@ def automatic_mutations(filename, source):
 
 
 def _store_mutating_command(body):
-    normalized = re.sub(r"\\\s*\n\s*", " ", body)
+    normalized = _folded_run_commands(body)
+    normalized = re.sub(r"\\\s*\n\s*", " ", normalized)
     normalized = re.sub(r"\s*(?:&&|\|\||;)\s*", "\n", normalized)
     for line in normalized.splitlines():
         if line.lstrip().startswith(("- name:", "name:", "#")):
@@ -312,7 +339,7 @@ def _workflow_steps(body):
 
 
 def _step_condition(body):
-    match = re.search(r"(?m)^([ \t]+)(-[ \t]+)?if:[ \t]*([^\n]+)", body)
+    match = re.search(r"(?m)^([ \t]+)(-[ \t]+)?(?:if|['\"]if['\"]):[ \t]*([^\n]+)", body)
     if not match:
         return ""
     condition = match.group(3).strip().split(" #", 1)[0].strip()
@@ -330,7 +357,7 @@ def _step_condition(body):
 
 
 def _safe_store_step(guard_step, mutation_steps, body, filename):
-    if re.search(r"(?m)^[ \t]+(?:-[ \t]+)?continue-on-error[ \t]*:[ \t]*(?!false[ \t]*(?:#.*)?$)[^\n]+", guard_step):
+    if re.search(r"""(?m)^[ \t]+(?:-[ \t]+)?(?:continue-on-error|["']continue-on-error["']):[ \t]*(?!false[ \t]*(?:#.*)?$)[^\n]+""", guard_step):
         return False
     guard_command = r"(?m)^[ \t]*(?:-[ \t]+)?(?:run:[ \t]*)?python(?:3)?\s+scripts/ops06/store_gate\.py\s+apply"
     if not re.search(guard_command + r"(?:\s|$)", guard_step):
@@ -498,7 +525,7 @@ def findings():
                 problems.append("PROVENANCE: OPS-04 " + stage + " requires an executable signed-source guard")
                 continue
             index, guard = guards[0]
-            if (_step_condition(guard) or re.search(r"(?m)^[ \t]+(?:-[ \t]+)?continue-on-error[ \t]*:", guard)
+            if (_step_condition(guard) or re.search(r"""(?m)^[ \t]+(?:-[ \t]+)?(?:continue-on-error|["']continue-on-error["']):[ \t]*""", guard)
                     or re.search(guard_command + r"[^\n]*(?:\|\||;[ \t]*true\b|\|(?!\|))", guard)
                     or re.search(r"(?m)^[ \t]*(?:run:[ \t]*)?set[ \t]+\+e\b", guard)):
                 problems.append("PROVENANCE: OPS-04 " + stage + " guard must run and stop on failure")
