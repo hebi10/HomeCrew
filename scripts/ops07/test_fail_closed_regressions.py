@@ -308,5 +308,57 @@ class InterpreterOptionsRegressionTests(unittest.TestCase):
         self.assertTrue(any("STORE_GUARD" in item for item in issues), issues)
 
 
+class HomeCrewYamlParsingRegressionTests(unittest.TestCase):
+    def test_quoted_false_condition_cannot_skip_store_guard(self):
+        source = store_workflow().replace(
+            "      - name: Verify immutable approved batch\n",
+            '      - "if": false\n        name: Verify immutable approved batch\n')
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            folder = root / ".github/workflows"
+            folder.mkdir(parents=True)
+            (folder / "play-listing-images.yml").write_text(source, encoding="utf-8")
+            with patch.object(audit, "ROOT", root):
+                issues = audit.store_guard_findings()
+        self.assertTrue(any("STORE_OPTIONAL" in item for item in issues), issues)
+
+    def test_quoted_false_condition_cannot_skip_provenance(self):
+        workflow = ("on:\n  workflow_dispatch:\njobs:\n"
+                    "  verify:\n    steps:\n"
+                    '      - "if": false\n'
+                    "        run: python3 scripts/ops04/internal.py guard\n"
+                    "  publish:\n    steps:\n"
+                    "      - run: python3 scripts/ops04/internal.py guard\n")
+        with patch.object(audit, "read", side_effect=lambda path:
+                          workflow if path == ".github/workflows/play-internal-release.yml"
+                          else None):
+            issues = audit.findings()
+        self.assertTrue(any("PROVENANCE:" in item for item in issues), issues)
+
+    def test_folded_shell_publisher_is_automatic_mutation(self):
+        source = ("on:\n  push:\njobs:\n  update:\n"
+                  "    runs-on: ubuntu-latest\n"
+                  "    steps:\n"
+                  "      - run: >-\n"
+                  "          python3 scripts/play/listing_ko.py\n"
+                  "          --mode apply\n")
+        self.assertTrue(audit.automatic_mutations("custom.yml", source))
+
+    def test_folded_store_publisher_requires_approval(self):
+        source = store_workflow(guard=False).replace(
+            "      - run: python3 scripts/play/listing_images.py --mode upload\n",
+            "      - run: >-\n"
+            "          python3 scripts/play/listing_images.py\n"
+            "          --mode upload\n")
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            folder = root / ".github/workflows"
+            folder.mkdir(parents=True)
+            (folder / "play-listing-images.yml").write_text(source, encoding="utf-8")
+            with patch.object(audit, "ROOT", root):
+                issues = audit.store_guard_findings()
+        self.assertTrue(any("STORE_GUARD" in item for item in issues), issues)
+
+
 if __name__ == "__main__":
     unittest.main()
