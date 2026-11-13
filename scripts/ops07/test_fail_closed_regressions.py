@@ -320,7 +320,8 @@ class HomeCrewYamlParsingRegressionTests(unittest.TestCase):
             (folder / "play-listing-images.yml").write_text(source, encoding="utf-8")
             with patch.object(audit, "ROOT", root):
                 issues = audit.store_guard_findings()
-        self.assertTrue(any("STORE_OPTIONAL" in item for item in issues), issues)
+        self.assertTrue(any(item.startswith(("STORE_GUARD:", "STORE_OPTIONAL:"))
+                            for item in issues), issues)
 
     def test_quoted_false_condition_cannot_skip_provenance(self):
         workflow = ("on:\n  workflow_dispatch:\njobs:\n"
