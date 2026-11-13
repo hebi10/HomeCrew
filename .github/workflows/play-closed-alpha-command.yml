@@ -1,7 +1,6 @@
 name: HomeCrew approved existing-binary closed alpha
 on:
-  issue_comment:
-    types: [created]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -13,11 +12,14 @@ concurrency:
 jobs:
   promote:
     if: >-
+      false &&
+      (
       github.repository == 'hebi10/HomeCrew' &&
       github.event.issue.number == 12 &&
       github.event.issue.pull_request != null &&
       github.event.comment.user.login == 'hebi10' &&
       github.event.comment.body == '/deploy-homecrew-closed-20261111'
+      )
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment: google-play
