@@ -16,7 +16,7 @@ SHA = 'a' * 40
 
 
 class SourceWaitTests(unittest.TestCase):
-    def run_source(self, states, manual=False, stale_after_wait=False, assert_current=False, android_state='success'):
+    def run_source(self, states, manual=False, stale_after_wait=False, assert_current=False, android_state='success', commit_subject='ordinary'):
         clock = [0]
         sleeps = []
         qa_reads = [0]
@@ -66,10 +66,18 @@ class SourceWaitTests(unittest.TestCase):
                  mock.patch.object(source, 'CI_WAIT_TIMEOUT', 60, create=True), \
                  mock.patch('time.monotonic', side_effect=lambda: clock[0]), mock.patch('time.sleep', side_effect=sleep), \
                  mock.patch('sys.argv', ['source.py'] + (['--assert-current', SHA] if assert_current else [])), \
-                 mock.patch.object(source.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0, stdout='ordinary')), \
+                 mock.patch.object(source.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0, stdout=commit_subject)), \
                  contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(errors):
                 result = source.main()
             return result, errors.getvalue(), sleeps, output.read_text() if output.exists() else ''
+
+    def test_trusted_ci_only_marker_skips_release_without_screenshot_qa_wait(self):
+        result, error, sleeps, output = self.run_source(
+            ['missing'], commit_subject='Trusted preview release workflow [skip-play] (#29)')
+        self.assertEqual(result, 0, error)
+        self.assertEqual(sleeps, [])
+        self.assertIn('release_mode=skip', output)
+        self.assertNotIn('verify_run_id', output)
 
     def test_automatic_pending_or_missing_qa_can_finish_before_deploy(self):
         for first in ('pending', 'missing'):
@@ -108,12 +116,16 @@ class SourceWaitTests(unittest.TestCase):
         self.assertEqual(len(sleeps), 1)
         self.assertEqual(output, '')
 
-    def test_only_one_automatic_workflow_trigger_can_submit_a_release(self):
+    def test_play_upload_requires_manual_dispatch_and_final_release_approval(self):
         workflow = (Path(__file__).parents[3] / '.github/workflows/play-internal.yml').read_text()
-        automatic = workflow.split('  workflow_run:', 1)[1].split('  workflow_dispatch:', 1)[0]
-        self.assertEqual(automatic.count('workflows:'), 1)
-        self.assertIn('workflows: ["Android CI"]', automatic)
-        self.assertNotIn('HomeCrew screen QA', automatic)
+        triggers = workflow.split('on:', 1)[1].split('\npermissions:', 1)[0]
+        self.assertIn('  workflow_dispatch:', triggers)
+        self.assertNotIn('  workflow_run:', triggers)
+        self.assertNotIn('  issue_comment:', triggers)
+        self.assertNotIn('  push:', triggers)
+        self.assertIn('final_release_approval:', triggers)
+        self.assertIn('HOMECREW_FINAL_RELEASE_APPROVED', workflow)
+        self.assertIn('Require full-project release authorization before any Play mutation', workflow)
 
     def test_preupload_recheck_blocks_latest_pending_failed_or_skipped_ci_rerun(self):
         for state in ('pending', 'failure', 'skipped', 'cancelled'):
