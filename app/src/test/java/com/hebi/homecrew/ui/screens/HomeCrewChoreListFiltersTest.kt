@@ -162,4 +162,35 @@ class HomeCrewChoreListFiltersTest {
         assertTrue(ChoreListSelection(sort = ChoreListSort.TIME).hasFilters)
         assertFalse(isRecurringChore(dish, today))
     }
+    @Test
+    fun skippedOccurrencesAreNotCountedAsPlannedOrOverdue() {
+        val task = definition("skip", "건너뛰기 테스트", repeat = ChoreRepeat(ChoreRepeatMode.DAILY))
+        val instances = listOf(
+            DemoChore("past-skip", task, today.minusDays(1), skippedAtEpochMillis = 100L),
+            DemoChore("today-skip", task, today, skippedAtEpochMillis = 200L)
+        )
+        val entry = choreListEntries(listOf(task), instances, today).single()
+        assertEquals(ChoreStatus.SKIPPED, entry.todayStatus)
+        assertEquals(0, entry.overdueCount)
+        assertEquals(
+            listOf("skip"),
+            filterChoreList(
+                listOf(task), instances, today,
+                ChoreListSelection(status = ChoreStatus.SKIPPED.label)
+            ).map { it.definition.id }
+        )
+        assertTrue(
+            filterChoreList(
+                listOf(task), instances, today,
+                ChoreListSelection(status = ChoreStatus.PLANNED.label)
+            ).isEmpty()
+        )
+        assertTrue(
+            filterChoreList(
+                listOf(task), instances, today,
+                ChoreListSelection(status = ChoreStatus.OVERDUE.label)
+            ).isEmpty()
+        )
+    }
+
 }

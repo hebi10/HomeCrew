@@ -17,6 +17,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -54,7 +55,8 @@ fun HomeCrewChoreDetailScreen(
     onEdit: () -> Unit,
     onToggle: (String) -> Unit,
     onSelectOccurrence: (String) -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onSkip: (String, String?) -> Unit = { _, _ -> }
 ) {
     BackHandler(onBack = onBack)
     val palette = LocalHomeCrewColors.current
@@ -66,6 +68,8 @@ fun HomeCrewChoreDetailScreen(
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     var showingDelete by rememberSaveable { mutableStateOf(false) }
+    var showingSkip by rememberSaveable { mutableStateOf(false) }
+    var skipReason by rememberSaveable { mutableStateOf("") }
 
     fun selectOccurrence(id: String) {
         onSelectOccurrence(id)
@@ -160,6 +164,26 @@ fun HomeCrewChoreDetailScreen(
                                     style = MaterialTheme.typography.bodySmall,
                                     color = palette.muted
                                 )
+                            }
+                            if (!selected.completed) {
+                                HomeCrewSecondaryButton(
+                                    text = if (selected.skipped) "건너뛰기 취소" else "이 회차 건너뛰기",
+                                    onClick = {
+                                        if (selected.skipped) onSkip(selected.id, null)
+                                        else {
+                                            skipReason = ""
+                                            showingSkip = true
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                if (selected.skipped && !selected.skipReason.isNullOrBlank()) {
+                                    Text(
+                                        "건너뛰기 사유: ${selected.skipReason}",
+                                        color = palette.muted,
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
+                                }
                             }
                         }
                     }
@@ -281,6 +305,33 @@ fun HomeCrewChoreDetailScreen(
                 )
             }
         }
+    }
+
+    if (showingSkip && selected != null) {
+        AlertDialog(
+            onDismissRequest = { showingSkip = false },
+            title = { Text("이 회차를 건너뛸까요?") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(HomeCrewDimensions.space8)) {
+                    Text("완료 실적에 포함되지 않으며 기록은 이 기기에 남습니다.")
+                    OutlinedTextField(
+                        value = skipReason,
+                        onValueChange = { if (it.length <= 120) skipReason = it },
+                        label = { Text("사유 (선택)") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showingSkip = false
+                    onSkip(selected.id, skipReason)
+                }) { Text("건너뛰기") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showingSkip = false }) { Text("취소") }
+            }
+        )
     }
 
     if (showingDelete) {

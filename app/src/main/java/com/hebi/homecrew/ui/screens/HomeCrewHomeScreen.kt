@@ -59,13 +59,13 @@ fun HomeCrewHomeScreen(
         .sortedBy { it.completed }
     val others = todayChores.filter { it.definition.owner != currentMember }
         .sortedBy { it.completed }
-    val remaining = myChores.count { !it.completed }
+    val remaining = myChores.count { !it.completed && !it.skipped }
     val myStatus = when {
         myChores.isEmpty() -> "오늘 배정 없음"
         remaining == 0 -> "모두 완료"
         else -> "${remaining}개 남음"
     }
-    val otherRemaining = others.count { !it.completed }
+    val otherRemaining = others.count { !it.completed && !it.skipped }
     val otherStatus = when {
         others.isEmpty() -> "오늘 배정 없음"
         otherRemaining == 0 -> "모두 완료"

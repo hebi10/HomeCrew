@@ -114,6 +114,43 @@ fun nextChoreDates(
         }.toList()
 }
 
+
+/**
+ * Zero-based occurrence index without walking the history from startDate.
+ * Used to continue round-robin assignments after a long time or restored backup.
+ */
+fun recurrenceOrdinal(startDate: LocalDate, rule: ChoreRepeat, date: LocalDate): Long {
+    require(!date.isBefore(startDate))
+    val days = ChronoUnit.DAYS.between(startDate, date)
+    return when (rule.mode) {
+        ChoreRepeatMode.NONE -> 0L
+        ChoreRepeatMode.DAILY -> days
+        ChoreRepeatMode.CUSTOM -> days / rule.intervalDays.coerceIn(1, 30)
+        ChoreRepeatMode.MONTHLY ->
+            ChronoUnit.MONTHS.between(YearMonth.from(startDate), YearMonth.from(date))
+        ChoreRepeatMode.WEEKLY -> {
+            val fullWeeks = days / 7
+            val remaining = (days % 7).toInt()
+            fullWeeks * rule.weekdays.size + (0 until remaining).count { index ->
+                startDate.plusDays(index.toLong()).dayOfWeek in rule.weekdays
+            }
+        }
+        ChoreRepeatMode.BIWEEKLY -> {
+            val anchor = weekStart(startDate)
+            fun before(bound: LocalDate): Long {
+                val offset = ChronoUnit.DAYS.between(anchor, bound)
+                val fullCycles = offset / 14
+                val remaining = (offset % 14).toInt()
+                return fullCycles * rule.weekdays.size +
+                    (0 until remaining).count { index ->
+                        index < 7 && anchor.plusDays(index.toLong()).dayOfWeek in rule.weekdays
+                    }
+            }
+            before(date) - before(startDate)
+        }
+    }
+}
+
 fun orderedParticipants(selected: List<String>, displayedMembers: List<String>): List<String> =
     displayedMembers.distinct().filter { it in selected }
 

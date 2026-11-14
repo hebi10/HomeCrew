@@ -70,7 +70,12 @@ android {
     }
     kotlinOptions { jvmTarget = "17" }
     testOptions { unitTests.isReturnDefaultValues = true }
+    sourceSets.getByName("androidTest").assets.srcDirs(files("$projectDir/schemas"))
     packaging { resources.excludes += "/META-INF/{AL2.0,LGPL2.1}" }
+}
+
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
 }
 
 val verifyReleaseSigning by tasks.registering(Exec::class) {
