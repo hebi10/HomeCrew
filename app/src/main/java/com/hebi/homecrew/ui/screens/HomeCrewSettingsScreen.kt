@@ -24,6 +24,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -46,6 +47,8 @@ fun HomeCrewSettingsScreen(
     onBack: () -> Unit
 ) {
     val palette = LocalHomeCrewColors.current
+    val context = LocalContext.current
+    var privacyLinkError by remember { mutableStateOf(false) }
     var homeName by remember(household.homeName) { mutableStateOf(household.homeName) }
     var newMember by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
@@ -164,6 +167,16 @@ fun HomeCrewSettingsScreen(
                 style = MaterialTheme.typography.bodyMedium,
                 color = palette.muted
             )
+            TextButton(onClick = {
+                privacyLinkError = !openHomeCrewWebPage(context, HOMECREW_PRIVACY_POLICY_URL)
+            }) { Text("개인정보처리방침") }
+            if (privacyLinkError) {
+                Text(
+                    "브라우저에서 개인정보처리방침을 열 수 없습니다.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = palette.error
+                )
+            }
         }
         if (error != null) {
             item { Text(error.orEmpty(), color = palette.error) }

@@ -1,6 +1,7 @@
 package com.hebi.homecrew.ui.screens
 
 import com.hebi.homecrew.data.auth.GoogleSignInResult
+import com.hebi.homecrew.data.auth.HomeCrewAccountActionResult
 import com.hebi.homecrew.data.auth.HomeCrewAuthSession
 import com.hebi.homecrew.data.auth.HomeCrewAuthUser
 import org.junit.Assert.assertEquals
@@ -106,4 +107,84 @@ class HomeCrewAccountUiStateTest {
         assertEquals("Google 계정 상태를 확인하고 있습니다.", state.feedback)
         assertNull(state.accountEmail)
     }
+    @Test
+    fun signedInUsersSeeAccountControlsAndProgressDisablesBoth() {
+        val session = HomeCrewAuthSession.SignedIn(
+            HomeCrewAuthUser(uid = "private-uid", displayName = "테스트", email = null)
+        )
+        val ready = homeCrewAccountUiState(session, false, null)
+        assertTrue(ready.showSignOut)
+        assertTrue(ready.showDeleteAccount)
+        assertTrue(ready.accountActionsEnabled)
+
+        val deleting = homeCrewAccountUiState(
+            session, false, null, accountAction = HomeCrewAccountAction.DELETE_ACCOUNT
+        )
+        assertEquals("계정 삭제 처리 중", deleting.status)
+        assertFalse(deleting.accountActionsEnabled)
+        assertFalse(deleting.toString().contains("private-uid"))
+
+        val signingOut = homeCrewAccountUiState(
+            session, false, null, accountAction = HomeCrewAccountAction.SIGN_OUT
+        )
+        assertEquals("로그아웃 처리 중", signingOut.status)
+        assertFalse(signingOut.accountActionsEnabled)
+    }
+
+    @Test
+    fun accountDeletionMessagesDistinguishRemoteResultFromLocalData() {
+        val local = homeCrewAccountUiState(
+            HomeCrewAuthSession.LocalOnly,
+            signingIn = false,
+            result = null,
+            accountResult = HomeCrewAccountActionResult.DELETED
+        )
+        assertEquals("로그인 없이 사용 중", local.status)
+        assertTrue(local.feedback?.contains("기기") == true)
+        assertFalse(local.feedbackIsError)
+        assertTrue(local.showSignIn)
+
+        val warn = homeCrewAccountUiState(
+            HomeCrewAuthSession.LocalOnly,
+            signingIn = false,
+            result = null,
+            accountResult = HomeCrewAccountActionResult.DELETED_CREDENTIAL_WARNING
+        )
+        assertTrue(warn.feedback?.contains("삭제됐지만") == true)
+        assertTrue(warn.feedbackIsError)
+    }
+
+    @Test
+    fun failedReauthenticationDoesNotClaimAccountDeletion() {
+        val signedIn = HomeCrewAuthSession.SignedIn(
+            HomeCrewAuthUser(uid = "not-visible", displayName = null, email = null)
+        )
+        val failed = homeCrewAccountUiState(
+            signedIn, signingIn = false, result = null,
+            accountResult = HomeCrewAccountActionResult.RECENT_LOGIN_REQUIRED
+        )
+        assertTrue(failed.feedback?.contains("재인증") == true)
+        assertTrue(failed.feedbackIsError)
+        assertTrue(failed.accountActionsEnabled)
+
+        val cancelled = homeCrewAccountUiState(
+            signedIn, false, null, accountResult = HomeCrewAccountActionResult.CANCELLED
+        )
+        assertFalse(cancelled.feedbackIsError)
+        assertTrue(cancelled.feedback?.contains("삭제되지 않았습니다") == true)
+        assertFalse(cancelled.toString().contains("not-visible"))
+    }
+
+    @Test
+    fun signOutDoesNotAlterLocalOnlyEligibility() {
+        val state = homeCrewAccountUiState(
+            HomeCrewAuthSession.LocalOnly, false, null,
+            accountResult = HomeCrewAccountActionResult.SIGNED_OUT
+        )
+        assertTrue(state.showSignIn)
+        assertTrue(state.signInEnabled)
+        assertTrue(state.feedback?.contains("집안일") == true)
+        assertFalse(state.feedbackIsError)
+    }
+
 }

@@ -5,6 +5,7 @@ import android.app.Activity
 import android.content.Context
 import androidx.credentials.Credential
 import androidx.credentials.CredentialManager
+import androidx.credentials.ClearCredentialStateRequest
 import androidx.credentials.CustomCredential
 import androidx.credentials.GetCredentialRequest
 import androidx.credentials.exceptions.GetCredentialCancellationException
@@ -19,6 +20,7 @@ import com.google.firebase.FirebaseNetworkException
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuthException
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
+import com.google.firebase.auth.FirebaseAuthRecentLoginRequiredException
 import com.google.firebase.auth.GoogleAuthProvider
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.awaitClose
@@ -33,7 +35,7 @@ import kotlinx.coroutines.withContext
 internal val homeCrewGoogleSignIn: GoogleSignIn? = FirebaseGoogleSignIn
 
 private object FirebaseGoogleSignIn : GoogleSignIn {
-    private val signInLock = Mutex()
+    private val operationLock = Mutex()
 
     override fun observeSession(context: Context): Flow<HomeCrewAuthSession> = callbackFlow {
         val auth = firebaseAuth(context)
@@ -60,7 +62,7 @@ private object FirebaseGoogleSignIn : GoogleSignIn {
     }.distinctUntilChanged()
 
     override suspend fun signIn(activity: Activity): GoogleSignInResult {
-        if (!signInLock.tryLock()) return GoogleSignInResult.IN_PROGRESS
+        if (!operationLock.tryLock()) return GoogleSignInResult.IN_PROGRESS
 
         try {
             val auth = firebaseAuth(activity) ?: return GoogleSignInResult.CONFIGURATION_ERROR
@@ -95,8 +97,98 @@ private object FirebaseGoogleSignIn : GoogleSignIn {
                 else -> GoogleSignInResult.FAILED
             }
         } finally {
-            signInLock.unlock()
+            operationLock.unlock()
         }
+    }
+
+
+    override suspend fun signOut(context: Context): HomeCrewAccountActionResult {
+        if (!operationLock.tryLock()) return HomeCrewAccountActionResult.IN_PROGRESS
+        try {
+            val auth = firebaseAuth(context) ?: return HomeCrewAccountActionResult.CONFIGURATION_ERROR
+            if (auth.currentUser == null) return HomeCrewAccountActionResult.NOT_SIGNED_IN
+            auth.signOut()
+            return if (clearCredentialState(context)) {
+                HomeCrewAccountActionResult.SIGNED_OUT
+            } else {
+                HomeCrewAccountActionResult.SIGNED_OUT_CREDENTIAL_WARNING
+            }
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            return accountError(error)
+        } finally {
+            operationLock.unlock()
+        }
+    }
+
+    override suspend fun deleteAccount(activity: Activity): HomeCrewAccountActionResult {
+        if (!operationLock.tryLock()) return HomeCrewAccountActionResult.IN_PROGRESS
+        try {
+            val auth = firebaseAuth(activity) ?: return HomeCrewAccountActionResult.CONFIGURATION_ERROR
+            val user = auth.currentUser ?: return HomeCrewAccountActionResult.NOT_SIGNED_IN
+            val originalUid = user.uid
+            deleteWithRecentLoginFallback(
+                sameAccount = { auth.currentUser?.uid == originalUid },
+                delete = {
+                    // Completion of Firebase deletion must not be reported while a remote task is in flight.
+                    withContext(NonCancellable) { user.delete().await() }
+                },
+                requiresRecentLogin = { error -> error is FirebaseAuthRecentLoginRequiredException },
+                reauthenticate = {
+                    val webClientId = findWebClientId(activity)
+                        ?: throw IllegalStateException("Google authentication is not configured")
+                    val credential = CredentialManager.create(activity)
+                        .getCredential(activity, googleRequest(webClientId)).credential
+                    val token = googleIdToken(credential)
+                        ?: throw IllegalArgumentException("Invalid Google credential")
+                    if (auth.currentUser?.uid != originalUid) {
+                        throw IllegalStateException("Firebase user changed")
+                    }
+                    withContext(NonCancellable) {
+                        user.reauthenticate(GoogleAuthProvider.getCredential(token, null)).await()
+                    }
+                }
+            )
+            return if (clearCredentialState(activity)) {
+                HomeCrewAccountActionResult.DELETED
+            } else {
+                HomeCrewAccountActionResult.DELETED_CREDENTIAL_WARNING
+            }
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            return accountError(error)
+        } finally {
+            operationLock.unlock()
+        }
+    }
+
+    private suspend fun clearCredentialState(context: Context): Boolean = try {
+        withContext(NonCancellable) {
+            CredentialManager.create(context).clearCredentialState(ClearCredentialStateRequest())
+        }
+        true
+    } catch (_: Exception) {
+        false
+    }
+
+    private fun accountError(error: Exception): HomeCrewAccountActionResult = when (error) {
+        is GetCredentialCancellationException -> HomeCrewAccountActionResult.CANCELLED
+        is NoCredentialException -> HomeCrewAccountActionResult.INVALID_CREDENTIAL
+        is FirebaseNetworkException -> HomeCrewAccountActionResult.NETWORK_ERROR
+        is GetCredentialProviderConfigurationException,
+        is GetCredentialUnsupportedException -> HomeCrewAccountActionResult.CONFIGURATION_ERROR
+        is FirebaseAuthInvalidCredentialsException,
+        is GoogleIdTokenParsingException,
+        is IllegalArgumentException -> HomeCrewAccountActionResult.INVALID_CREDENTIAL
+        is FirebaseAuthRecentLoginRequiredException -> HomeCrewAccountActionResult.RECENT_LOGIN_REQUIRED
+        is FirebaseAuthException -> when (error.errorCode) {
+            "ERROR_APP_NOT_AUTHORIZED", "ERROR_INVALID_API_KEY", "ERROR_OPERATION_NOT_ALLOWED" ->
+                HomeCrewAccountActionResult.CONFIGURATION_ERROR
+            else -> HomeCrewAccountActionResult.FAILED
+        }
+        else -> HomeCrewAccountActionResult.FAILED
     }
 
     private fun firebaseAuth(context: Context): FirebaseAuth? =
