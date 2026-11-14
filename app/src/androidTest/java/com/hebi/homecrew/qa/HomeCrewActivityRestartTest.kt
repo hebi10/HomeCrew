@@ -150,7 +150,15 @@ class HomeCrewActivityRestartTest {
             assertNotNull("설정 화면 진입 실패", device.wait(Until.findObject(By.text("설정")), 8_000))
             enterFreshText(0, homeName)
             tapFresh("집 이름 저장")
-            assertTrue("집 이름이 저장되지 않았습니다.", store.load()?.homeName == homeName)
+            var homeNameSaved = store.load()?.homeName == homeName
+            repeat(15) {
+                if (!homeNameSaved) {
+                    Thread.sleep(200)
+                    homeNameSaved = store.load()?.homeName == homeName
+                }
+            }
+            if (!homeNameSaved) captureSettingsDiagnostic("error-settings-home-name-not-saved")
+            assertTrue("집 이름이 저장되지 않았습니다.", homeNameSaved)
             assertNotNull(
                 "집 이름 저장 후 설정 화면이 유지되지 않았습니다.",
                 device.wait(Until.findObject(By.text("설정")), 8_000)

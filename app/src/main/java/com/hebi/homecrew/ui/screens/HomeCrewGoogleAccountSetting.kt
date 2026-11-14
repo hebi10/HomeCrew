@@ -3,9 +3,11 @@ package com.hebi.homecrew.ui.screens
 import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -15,10 +17,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.tooling.preview.Preview
 import com.hebi.homecrew.data.auth.GoogleSignIn
 import com.hebi.homecrew.data.auth.GoogleSignInResult
 import com.hebi.homecrew.data.auth.HomeCrewAuthSession
+import com.hebi.homecrew.data.auth.HomeCrewAuthUser
+import com.hebi.homecrew.ui.theme.HomeCrewDimensions
+import com.hebi.homecrew.ui.theme.HomeCrewTheme
 import com.hebi.homecrew.ui.theme.LocalHomeCrewColors
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
@@ -27,58 +35,116 @@ import kotlinx.coroutines.launch
 internal fun HomeCrewGoogleAccountSetting(signIn: GoogleSignIn) {
     val activity = LocalActivity.current ?: return
     val scope = rememberCoroutineScope()
-    val palette = LocalHomeCrewColors.current
-    var isSigningIn by remember { mutableStateOf(false) }
-    var result by remember { mutableStateOf<GoogleSignInResult?>(null) }
+    var signingIn by remember { mutableStateOf(false) }
+    var lastResult by remember { mutableStateOf<GoogleSignInResult?>(null) }
 
     val context = activity.applicationContext
     val sessionEvents = remember(signIn, context) { signIn.observeSession(context) }
     val session by sessionEvents.collectAsState(initial = HomeCrewAuthSession.Restoring)
+    val uiState = homeCrewAccountUiState(session, signingIn, lastResult)
 
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("Google 계정", style = MaterialTheme.typography.titleMedium)
-        when (session) {
-            HomeCrewAuthSession.Restoring -> {
-                Text("계정 상태를 확인하고 있습니다.", color = palette.muted)
-            }
-            is HomeCrewAuthSession.SignedIn -> {
-                Text("Google 로그인 완료", color = palette.muted)
-            }
-            HomeCrewAuthSession.LocalOnly -> {
-                Button(
-                    onClick = {
-                        if (!isSigningIn) {
-                            isSigningIn = true
-                            result = null
-                            scope.launch {
-                                try {
-                                    result = signIn.signIn(activity)
-                                } catch (error: CancellationException) {
-                                    throw error
-                                } catch (_: Exception) {
-                                    result = GoogleSignInResult.FAILED
-                                } finally {
-                                    isSigningIn = false
-                                }
-                            }
-                        }
-                    },
-                    enabled = !isSigningIn,
-                    modifier = Modifier.heightIn(min = 48.dp)
-                ) {
-                    Text(if (isSigningIn) "로그인 중…" else "Google 로그인")
+    HomeCrewAccountContent(uiState = uiState, onSignIn = {
+        if (!signingIn && session == HomeCrewAuthSession.LocalOnly) {
+            signingIn = true
+            lastResult = null
+            scope.launch {
+                try {
+                    lastResult = signIn.signIn(activity)
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (_: Exception) {
+                    lastResult = GoogleSignInResult.FAILED
+                } finally {
+                    signingIn = false
                 }
-                val message = when (result) {
-                    GoogleSignInResult.NO_ACCOUNT -> "기기에 Google 계정을 추가한 뒤 다시 시도해 주세요."
-                    GoogleSignInResult.NETWORK_ERROR -> "인터넷 연결을 확인하고 다시 시도해 주세요."
-                    GoogleSignInResult.CONFIGURATION_ERROR -> "이 빌드의 Google 로그인 설정을 확인해 주세요."
-                    GoogleSignInResult.INVALID_CREDENTIAL -> "Google 계정을 확인하지 못했습니다. 다시 선택해 주세요."
-                    GoogleSignInResult.IN_PROGRESS -> "이미 로그인이 진행 중입니다."
-                    GoogleSignInResult.FAILED -> "Google 로그인에 실패했습니다. 다시 시도해 주세요."
-                    else -> null
-                }
-                message?.let { Text(it, color = palette.error) }
             }
+        }
+    })
+}
+
+@Composable
+internal fun HomeCrewAccountContent(
+    uiState: HomeCrewAccountUiState,
+    onSignIn: () -> Unit
+) {
+    val palette = LocalHomeCrewColors.current
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(HomeCrewDimensions.space8)
+    ) {
+        Text("계정", style = MaterialTheme.typography.titleMedium)
+        Text(uiState.status, style = MaterialTheme.typography.bodyLarge, color = palette.ink)
+        Text(uiState.description, style = MaterialTheme.typography.bodySmall, color = palette.muted)
+
+        if (uiState.accountName != null) {
+            Text("이름", style = MaterialTheme.typography.labelMedium, color = palette.muted)
+            Text(uiState.accountName, style = MaterialTheme.typography.bodyMedium)
+        }
+        if (uiState.accountEmail != null) {
+            Text("이메일", style = MaterialTheme.typography.labelMedium, color = palette.muted)
+            Text(uiState.accountEmail, style = MaterialTheme.typography.bodyMedium)
+        }
+
+        if (uiState.showSignIn) {
+            Button(
+                onClick = onSignIn,
+                enabled = uiState.signInEnabled,
+                modifier = Modifier.fillMaxWidth().heightIn(min = HomeCrewDimensions.touchTarget)
+            ) {
+                Text(uiState.signInLabel)
+            }
+        }
+
+        uiState.feedback?.let { feedback ->
+            Text(
+                feedback,
+                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                style = MaterialTheme.typography.bodySmall,
+                color = if (uiState.feedbackIsError) palette.error else palette.muted
+            )
+        }
+
+        Text(
+            "Google 로그인은 계정 인증만 연결합니다. 집안일·구성원·완료 기록은 아직 다른 기기로 공유되지 않습니다.",
+            style = MaterialTheme.typography.bodySmall,
+            color = palette.muted
+        )
+    }
+}
+
+@Preview(showBackground = true, widthDp = 393)
+@Composable
+private fun PreviewAccountLocalLight() {
+    HomeCrewTheme(darkTheme = false) {
+        Surface {
+            HomeCrewAccountContent(
+                uiState = homeCrewAccountUiState(HomeCrewAuthSession.LocalOnly, false, null),
+                onSignIn = {}
+            )
+        }
+    }
+}
+
+@Preview(showBackground = true, widthDp = 393)
+@Composable
+private fun PreviewAccountSignedInDark() {
+    HomeCrewTheme(darkTheme = true) {
+        Surface {
+            HomeCrewAccountContent(
+                uiState = homeCrewAccountUiState(
+                    HomeCrewAuthSession.SignedIn(
+                        HomeCrewAuthUser(
+                            uid = "example-firebase-uid",
+                            displayName = "예시 사용자",
+                            email = "user@example.invalid"
+                        )
+                    ),
+                    false,
+                    null
+                ),
+                onSignIn = {}
+            )
         }
     }
 }

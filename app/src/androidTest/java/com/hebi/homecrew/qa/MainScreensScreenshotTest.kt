@@ -252,5 +252,34 @@ class MainScreensScreenshotTest {
         if (settingsTitle == null) dumpFailedUi("설정 라이트 상단")
         requireNotNull(settingsTitle) { "설정 화면 상단으로 복귀하지 못했습니다." }
         screenshot("13-settings-light")
+
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val oauthResource = context.resources.getIdentifier(
+            "default_web_client_id", "string", context.packageName
+        )
+        if (oauthResource != 0) {
+            var accountHeader = device.wait(Until.findObject(By.text("계정")), 800)
+            repeat(16) {
+                if (accountHeader == null) {
+                    device.swipe(
+                        device.displayWidth / 2, device.displayHeight * 3 / 4,
+                        device.displayWidth / 2, device.displayHeight / 3, 18
+                    )
+                    device.waitForIdle()
+                    accountHeader = device.wait(Until.findObject(By.text("계정")), 800)
+                }
+            }
+            if (accountHeader == null) dumpFailedUi("계정 상태")
+            requireNotNull(accountHeader) { "Google 계정 영역을 찾지 못했습니다." }
+
+            val local = device.wait(Until.findObject(By.text("로그인 없이 사용 중")), 4_000)
+            val signedIn = device.wait(Until.findObject(By.text("Google 계정 연결됨")), 1_000)
+            if (local == null && signedIn == null) dumpFailedUi("계정 인증 상태")
+            assertTrue(
+                "계정의 비로그인 또는 로그인 완료 상태가 표시되어야 합니다.",
+                local != null || signedIn != null
+            )
+            screenshot("14-account-section-light")
+        }
     }
 }

@@ -154,6 +154,9 @@ fun HomeCrewSettingsScreen(
                 }
             }
         }
+        homeCrewGoogleSignIn?.let { signIn ->
+            item { HomeCrewGoogleAccountSetting(signIn) }
+        }
         item {
             Text("데이터 보관", style = MaterialTheme.typography.titleMedium)
             Text(
@@ -161,9 +164,6 @@ fun HomeCrewSettingsScreen(
                 style = MaterialTheme.typography.bodyMedium,
                 color = palette.muted
             )
-        }
-        homeCrewGoogleSignIn?.let { signIn ->
-            item { HomeCrewGoogleAccountSetting(signIn) }
         }
         if (error != null) {
             item { Text(error.orEmpty(), color = palette.error) }
