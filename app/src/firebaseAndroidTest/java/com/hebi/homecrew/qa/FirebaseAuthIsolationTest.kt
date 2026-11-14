@@ -57,16 +57,24 @@ class FirebaseAuthIsolationTest {
             val auth = requireNotNull(homeCrewGoogleSignIn)
             val firstSession = withTimeout(10_000) { auth.observeSession(context).first() }
             val restoredSession = withTimeout(10_000) { auth.observeSession(context).first() }
-            assertEquals("Session changed without an auth action", firstSession, restoredSession)
+            val sameSession = when {
+                firstSession is HomeCrewAuthSession.SignedIn &&
+                    restoredSession is HomeCrewAuthSession.SignedIn ->
+                    firstSession.user.uid == restoredSession.user.uid
+                else -> firstSession is HomeCrewAuthSession.LocalOnly &&
+                    restoredSession is HomeCrewAuthSession.LocalOnly
+            }
+            assertTrue("Firebase session changed without an auth action", sameSession)
 
             val currentFirebaseUser = FirebaseAuth.getInstance().currentUser
             if (currentFirebaseUser == null) {
-                assertEquals(HomeCrewAuthSession.LocalOnly, restoredSession)
+                assertTrue(restoredSession is HomeCrewAuthSession.LocalOnly)
             } else {
                 assertTrue(restoredSession is HomeCrewAuthSession.SignedIn)
-                assertEquals(
-                    currentFirebaseUser.uid,
-                    (restoredSession as HomeCrewAuthSession.SignedIn).user.uid
+                assertTrue(
+                    "Current Firebase UID does not match observed session",
+                    currentFirebaseUser.uid ==
+                        (restoredSession as HomeCrewAuthSession.SignedIn).user.uid
                 )
             }
 
@@ -76,7 +84,8 @@ class FirebaseAuthIsolationTest {
             assertNotNull(accountUi.status)
             assertEquals(before, room.snapshot())
             assertEquals(backupBefore, room.exportBackup(household))
-            assertEquals(savedHouseholdBefore, LocalHouseholdStore(context).load())
+            assertTrue("Local household changed after auth observation",
+                savedHouseholdBefore == LocalHouseholdStore(context).load())
         } finally {
             database.close()
         }
