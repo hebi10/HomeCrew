@@ -1,0 +1,287 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 2,
+    "identityHash": "199a543b05f45abf229608b4c4f3eaa5",
+    "entities": [
+      {
+        "tableName": "chore_definitions",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `name` TEXT NOT NULL, `category` TEXT NOT NULL, `defaultOwner` TEXT NOT NULL, `repeatLabel` TEXT NOT NULL, `points` INTEGER NOT NULL, `scheduledTime` TEXT NOT NULL, `description` TEXT NOT NULL, `startEpochDay` INTEGER, `repeatMode` TEXT NOT NULL, `weekdayMask` INTEGER NOT NULL, `repeatIntervalDays` INTEGER NOT NULL, `assignmentMode` TEXT NOT NULL, `createdAtEpochMillis` INTEGER NOT NULL, `updatedAtEpochMillis` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "category",
+            "columnName": "category",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "defaultOwner",
+            "columnName": "defaultOwner",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "repeatLabel",
+            "columnName": "repeatLabel",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "points",
+            "columnName": "points",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "scheduledTime",
+            "columnName": "scheduledTime",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "description",
+            "columnName": "description",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startEpochDay",
+            "columnName": "startEpochDay",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "repeatMode",
+            "columnName": "repeatMode",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "weekdayMask",
+            "columnName": "weekdayMask",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "repeatIntervalDays",
+            "columnName": "repeatIntervalDays",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "assignmentMode",
+            "columnName": "assignmentMode",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAtEpochMillis",
+            "columnName": "createdAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAtEpochMillis",
+            "columnName": "updatedAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "chore_assignment_members",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`definitionId` TEXT NOT NULL, `position` INTEGER NOT NULL, `memberName` TEXT NOT NULL, PRIMARY KEY(`definitionId`, `position`), FOREIGN KEY(`definitionId`) REFERENCES `chore_definitions`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "definitionId",
+            "columnName": "definitionId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "position",
+            "columnName": "position",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "memberName",
+            "columnName": "memberName",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "definitionId",
+            "position"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_chore_assignment_members_definitionId",
+            "unique": false,
+            "columnNames": [
+              "definitionId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_chore_assignment_members_definitionId` ON `${TABLE_NAME}` (`definitionId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "chore_definitions",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "definitionId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "chore_occurrences",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `definitionId` TEXT NOT NULL, `scheduledEpochDay` INTEGER NOT NULL, `assignedMember` TEXT NOT NULL, `workloadPoints` INTEGER NOT NULL DEFAULT 0, `completed` INTEGER NOT NULL, `completedAtEpochMillis` INTEGER, `completedBy` TEXT, `skippedAtEpochMillis` INTEGER, `skipReason` TEXT, PRIMARY KEY(`id`), FOREIGN KEY(`definitionId`) REFERENCES `chore_definitions`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "definitionId",
+            "columnName": "definitionId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "scheduledEpochDay",
+            "columnName": "scheduledEpochDay",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "assignedMember",
+            "columnName": "assignedMember",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "workloadPoints",
+            "columnName": "workloadPoints",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "completed",
+            "columnName": "completed",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "completedAtEpochMillis",
+            "columnName": "completedAtEpochMillis",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "completedBy",
+            "columnName": "completedBy",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "skippedAtEpochMillis",
+            "columnName": "skippedAtEpochMillis",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "skipReason",
+            "columnName": "skipReason",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_chore_occurrences_definitionId_scheduledEpochDay",
+            "unique": true,
+            "columnNames": [
+              "definitionId",
+              "scheduledEpochDay"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_chore_occurrences_definitionId_scheduledEpochDay` ON `${TABLE_NAME}` (`definitionId`, `scheduledEpochDay`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "chore_definitions",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "definitionId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "app_state",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`key` TEXT NOT NULL, `value` TEXT NOT NULL, PRIMARY KEY(`key`))",
+        "fields": [
+          {
+            "fieldPath": "key",
+            "columnName": "key",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value",
+            "columnName": "value",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "key"
+          ]
+        }
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '199a543b05f45abf229608b4c4f3eaa5')"
+    ]
+  }
+}

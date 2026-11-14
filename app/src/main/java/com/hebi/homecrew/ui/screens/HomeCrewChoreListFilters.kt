@@ -44,7 +44,11 @@ internal data class ChoreListEntry(
 
     val todayStatus: ChoreStatus?
         get() = todayOccurrence?.let {
-            if (it.completed) ChoreStatus.COMPLETED else ChoreStatus.PLANNED
+            when {
+                it.completed -> ChoreStatus.COMPLETED
+                it.skipped -> ChoreStatus.SKIPPED
+                else -> ChoreStatus.PLANNED
+            }
         }
 
     fun statusForDisplay(filter: String): ChoreStatus? =
@@ -73,11 +77,11 @@ internal fun choreListEntries(
     val occurrencesByDefinition = instances.groupBy { it.definition.id }
     return definitions.distinctBy { it.id }.map { definition ->
         val records = occurrencesByDefinition[definition.id].orEmpty()
-        val overdue = records.filter { !it.completed && it.date.isBefore(today) }
+        val overdue = records.filter { !it.completed && !it.skipped && it.date.isBefore(today) }
         ChoreListEntry(
             definition = definition,
             todayOccurrence = records.firstOrNull { it.date == today },
-            nextOccurrence = records.filter { !it.date.isBefore(today) }
+            nextOccurrence = records.filter { !it.date.isBefore(today) && !it.skipped }
                 .minWithOrNull(compareBy({ it.date }, { it.definition.time }, { it.id })),
             overdueOccurrence = overdue.maxWithOrNull(
                 compareBy({ it.date }, { it.definition.time }, { it.id })
@@ -111,6 +115,7 @@ internal fun filterChoreList(
             CHORE_LIST_ALL -> true
             ChoreStatus.PLANNED.label -> entry.todayStatus == ChoreStatus.PLANNED
             ChoreStatus.COMPLETED.label -> entry.todayStatus == ChoreStatus.COMPLETED
+            ChoreStatus.SKIPPED.label -> entry.todayStatus == ChoreStatus.SKIPPED
             ChoreStatus.OVERDUE.label -> entry.overdueCount > 0
             else -> false
         }
