@@ -2,6 +2,12 @@ package com.hebi.homecrew.qa
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.firebase.FirebaseApp
+import com.google.firebase.auth.FirebaseAuth
+import com.hebi.homecrew.data.auth.HomeCrewAuthSession
+import com.hebi.homecrew.data.auth.homeCrewGoogleSignIn
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -15,6 +21,21 @@ class FirebaseBootstrapTest {
 
         assertEquals("com.hebi.homecrew", firebase.applicationContext.packageName)
         assertEquals("homecrew-1b14b", firebase.options.projectId)
+    }
+
+    @Test
+    fun authSessionListenerRestoresCurrentFirebaseSession() = runBlocking {
+        val context = FirebaseApp.getInstance().applicationContext
+        val signIn = requireNotNull(homeCrewGoogleSignIn)
+        val actual = withTimeout(8_000) { signIn.observeSession(context).first() }
+        val firebaseUser = FirebaseAuth.getInstance().currentUser
+
+        if (firebaseUser == null) {
+            assertEquals(HomeCrewAuthSession.LocalOnly, actual)
+        } else {
+            assertTrue("Firebase user should map to signed-in session", actual is HomeCrewAuthSession.SignedIn)
+            assertEquals(firebaseUser.uid, (actual as HomeCrewAuthSession.SignedIn).user.uid)
+        }
     }
 
     @Test

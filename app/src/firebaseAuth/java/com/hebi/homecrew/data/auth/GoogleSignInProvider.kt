@@ -21,6 +21,10 @@ import com.google.firebase.auth.FirebaseAuthException
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
 import com.google.firebase.auth.GoogleAuthProvider
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.tasks.await
@@ -31,7 +35,29 @@ internal val homeCrewGoogleSignIn: GoogleSignIn? = FirebaseGoogleSignIn
 private object FirebaseGoogleSignIn : GoogleSignIn {
     private val signInLock = Mutex()
 
-    override fun isSignedIn(context: Context): Boolean = firebaseAuth(context)?.currentUser != null
+    override fun observeSession(context: Context): Flow<HomeCrewAuthSession> = callbackFlow {
+        val auth = firebaseAuth(context)
+        if (auth == null) {
+            trySend(HomeCrewAuthSession.LocalOnly)
+            close()
+            return@callbackFlow
+        }
+
+        val listener = FirebaseAuth.AuthStateListener { current ->
+            val session = current.currentUser?.let { user ->
+                HomeCrewAuthSession.SignedIn(
+                    HomeCrewAuthUser(
+                        uid = user.uid,
+                        displayName = user.displayName,
+                        email = user.email
+                    )
+                )
+            } ?: HomeCrewAuthSession.LocalOnly
+            trySend(session)
+        }
+        auth.addAuthStateListener(listener)
+        awaitClose { auth.removeAuthStateListener(listener) }
+    }.distinctUntilChanged()
 
     override suspend fun signIn(activity: Activity): GoogleSignInResult {
         if (!signInLock.tryLock()) return GoogleSignInResult.IN_PROGRESS
