@@ -25,6 +25,8 @@ data class DemoChore(
     val definition: ChoreDefinition,
     val date: LocalDate,
     val completed: Boolean = false,
+    val completedAtEpochMillis: Long? = null,
+    val completedBy: String? = null,
     val skippedAtEpochMillis: Long? = null,
     val skipReason: String? = null
 ) {
@@ -34,9 +36,9 @@ data class DemoChore(
 data class ChoreSummary(
     val total: Int,
     val completed: Int,
-    val skipped: Int,
     val assignedPoints: Int,
-    val completedPoints: Int
+    val completedPoints: Int,
+    val skipped: Int = 0
 ) {
     val percent: Int get() = completionPercent(completed, total)
 }

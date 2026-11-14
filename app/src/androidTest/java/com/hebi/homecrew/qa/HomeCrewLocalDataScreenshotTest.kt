@@ -23,6 +23,8 @@ class HomeCrewLocalDataScreenshotTest {
 
     @Test
     fun localBackupScreenCanBeOpenedWithoutChangingData() {
+        device.dismissEmulatorLauncherAnrIfShown()
+        device.waitForIdle()
         if (device.wait(Until.findObject(By.text("시작하기")), 2_000) != null) {
             listOf("시작하기", "다음", "다음", "선택한 집안일로 시작").forEach { text ->
                 requireNotNull(device.wait(Until.findObject(By.text(text)), 8_000)).click()
@@ -32,7 +34,7 @@ class HomeCrewLocalDataScreenshotTest {
         requireNotNull(device.wait(Until.findObject(By.desc("집안일 탭")), 12_000)).click()
         requireNotNull(device.wait(Until.findObject(By.desc("화면 제목: 집안일")), 12_000))
         var button = device.wait(Until.findObject(By.text("데이터 백업·복원")), 2_000)
-        repeat(5) {
+        repeat(10) {
             if (button == null) {
                 device.swipe(device.displayWidth / 2, device.displayHeight * 4 / 5,
                     device.displayWidth / 2, device.displayHeight / 3, 20)

@@ -288,6 +288,8 @@ class HomeCrewRoomRepository(
                 ),
                 date = LocalDate.ofEpochDay(row.scheduledEpochDay),
                 completed = row.completed,
+                completedAtEpochMillis = row.completedAtEpochMillis,
+                completedBy = row.completedBy,
                 skippedAtEpochMillis = row.skippedAtEpochMillis,
                 skipReason = row.skipReason
             )

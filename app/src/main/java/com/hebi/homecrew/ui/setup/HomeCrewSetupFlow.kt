@@ -189,7 +189,7 @@ fun HomeCrewSetupFlow(
                         }
                     }
                     Text(
-                        "로그인이나 초대 없이 시작합니다. 초기 설정은 이 기기에 저장되며, 집안일 실행 내역은 현재 시연용입니다.",
+                        "로그인이나 초대 없이 시작합니다. 집·구성원·집안일과 완료 기록은 이 기기에 저장되며, 다른 기기와 동기화되지 않습니다.",
                         style = MaterialTheme.typography.bodySmall,
                         color = palette.muted
                     )
@@ -316,7 +316,7 @@ fun HomeCrewSetupFlow(
                         subtitle = "필요한 항목만 고를 수 있고, 선택하지 않고 시작해도 됩니다."
                     )
                     Text(
-                        "${selectedIds.size}개 선택 · 담당자는 임시로 순서대로 배정됩니다.",
+                        "${selectedIds.size}개 선택 · 담당자는 구성원 순서대로 지정되며 나중에 변경할 수 있습니다.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = palette.muted
                     )
@@ -360,7 +360,7 @@ fun HomeCrewSetupFlow(
                         }
                     }
                     Text(
-                        "선택한 작업은 시연 데이터로 표시됩니다. 실제 반복 일정·완료 이력 저장은 후속 단계에서 구현합니다.",
+                        "선택한 집안일과 반복 일정·완료 기록은 이 기기에 저장되며 앱을 다시 열어도 유지됩니다.",
                         style = MaterialTheme.typography.bodySmall,
                         color = palette.muted
                     )

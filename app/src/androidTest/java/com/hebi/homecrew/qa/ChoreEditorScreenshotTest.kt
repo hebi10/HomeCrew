@@ -57,7 +57,10 @@ class ChoreEditorScreenshotTest {
     }
 
     private fun awaitScreen(title: String) {
-        val node = device.wait(Until.findObject(By.desc("화면 제목: $title")), 12_000)
+        var node = device.wait(Until.findObject(By.desc("화면 제목: $title")), 12_000)
+        if (node == null && device.dismissEmulatorLauncherAnrIfShown()) {
+            node = device.wait(Until.findObject(By.desc("화면 제목: $title")), 8_000)
+        }
         if (node == null) {
             screenshot("error-1d-screen")
             device.dumpWindowHierarchy(File(outputDirectory(), "error-1d-hierarchy.xml"))
@@ -99,6 +102,7 @@ class ChoreEditorScreenshotTest {
     }
 
     private fun completeSetupIfNeeded() {
+        device.dismissEmulatorLauncherAnrIfShown()
         if (device.wait(Until.findObject(By.text("시작하기")), 2_000) != null) {
             press("시작하기")
             press("다음")
@@ -127,15 +131,36 @@ class ChoreEditorScreenshotTest {
 
         openEditorSubpage("반복 설정 열기", "반복 설정")
         screenshot("09-chore-repeat")
+        press("반복 방식: 매주")
+        val selectedWeekly = device.wait(
+            Until.findObject(By.desc("선택됨: 반복 방식 매주")), 8_000
+        )
+        requireNotNull(selectedWeekly) { "주간 반복 선택이 적용되지 않았습니다." }
+        screenshot("09-chore-repeat-weekly")
         press("반복 설정 적용")
         awaitScreen("집안일 추가")
 
         openEditorSubpage("담당 방식 설정 열기", "담당 방식")
         screenshot("10-chore-assignment")
+        press("담당 방식: 순번제")
+        requireNotNull(
+            device.wait(Until.findObject(By.desc("선택됨: 담당 방식 순번제")), 8_000)
+        ) { "순번제 선택이 적용되지 않았습니다." }
+        screenshot("10-chore-assignment-round-robin")
+        press("담당 방식: 업무량 균형")
+        requireNotNull(
+            device.wait(Until.findObject(By.desc("선택됨: 담당 방식 업무량 균형")), 8_000)
+        ) { "업무량 균형 선택이 적용되지 않았습니다." }
+        screenshot("10-chore-assignment-balanced")
         press("담당 방식 적용")
         awaitScreen("집안일 추가")
 
         press("이전")
+        val discard = device.wait(Until.findObject(By.text("변경사항 버리기")), 2_000)
+        if (discard != null) {
+            discard.click()
+            device.waitForIdle()
+        }
         awaitScreen("집안일")
         press("설거지")
         awaitScreen("설거지")
@@ -149,11 +174,58 @@ class ChoreEditorScreenshotTest {
         val undo = device.wait(Until.findObject(By.text("이 회차 완료 취소")), 8_000)
         requireNotNull(undo) { "선택한 회차 완료 상태가 반영되지 않습니다." }
         screenshot("11-chore-detail-completed")
+
+        var history = device.wait(Until.findObject(By.text("최근 완료 기록")), 1_000)
+        repeat(6) {
+            if (history == null) {
+                device.swipe(
+                    device.displayWidth / 2, device.displayHeight * 3 / 4,
+                    device.displayWidth / 2, device.displayHeight / 3, 18
+                )
+                device.waitForIdle()
+                history = device.wait(Until.findObject(By.text("최근 완료 기록")), 1_000)
+            }
+        }
+        requireNotNull(history) { "최근 완료 기록 목록이 표시되지 않습니다." }
+        screenshot("11-chore-recent-completions")
+
+        val completionDate = java.time.LocalDate.now()
+        val historyDescription = "회차 선택: 완료 · $completionDate"
+        var selectedHistory = device.wait(Until.findObject(By.desc(historyDescription)), 1_000)
+        repeat(12) {
+            if (selectedHistory == null) {
+                device.swipe(
+                    device.displayWidth / 2,
+                    device.displayHeight * 3 / 4,
+                    device.displayWidth / 2,
+                    device.displayHeight / 3,
+                    18
+                )
+                device.waitForIdle()
+                selectedHistory = device.wait(Until.findObject(By.desc(historyDescription)), 1_000)
+            }
+        }
+        if (selectedHistory == null) {
+            screenshot("error-1d-recent-completion")
+            device.dumpWindowHierarchy(File(outputDirectory(), "error-1d-recent-completion.xml"))
+        }
+        requireNotNull(selectedHistory) {
+            "최근 완료 회차를 선택할 수 없습니다: $historyDescription"
+        }.click()
+        device.waitForIdle()
+        val undoForSelectedHistory = device.wait(
+            Until.findObject(By.text("이 회차 완료 취소")), 8_000
+        )
+        requireNotNull(undoForSelectedHistory) {
+            "선택한 완료 회차로 이동하지 못했습니다."
+        }
+        screenshot("11-chore-selected-completion")
         press("이 회차 완료 취소")
         press("이 회차 건너뛰기")
         press("건너뛰기")
-        val skipped = device.wait(Until.findObject(By.text("건너뜀")), 8_000)
-        requireNotNull(skipped) { "건너뛰기 상태가 표시되지 않습니다." }
+        requireNotNull(device.wait(Until.findObject(By.text("건너뜀")), 8_000)) {
+            "선택한 회차의 건너뛰기 상태가 반영되지 않습니다."
+        }
         screenshot("11-chore-detail-skipped")
         press("건너뛰기 취소")
         if (originallyCompleted) press("이 회차 완료 처리")

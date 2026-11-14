@@ -1,7 +1,9 @@
 package com.hebi.homecrew.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,8 +15,10 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.ChevronLeft
 import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material3.Icon
@@ -31,6 +35,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
@@ -47,18 +52,64 @@ enum class CalendarMode(val title: String) {
     DAY("일")
 }
 
+internal const val ALL_SCHEDULE_MEMBERS = "전체"
+private const val SCHEDULE_DAYS_AHEAD = 62L
+
+internal data class ScheduleDaySummary(val total: Int, val completed: Int) {
+    val statusLabel: String
+        get() = when {
+            total == 0 -> "–"
+            completed == total -> "완료"
+            completed == 0 -> "${total}건"
+            else -> "${completed}/${total}"
+        }
+}
+
+internal fun scheduleChoresForMember(
+    chores: List<DemoChore>,
+    member: String
+): List<DemoChore> =
+    if (member == ALL_SCHEDULE_MEMBERS) chores
+    else chores.filter { it.definition.owner == member }
+
+internal fun scheduleDaySummaries(chores: List<DemoChore>): Map<LocalDate, ScheduleDaySummary> =
+    chores.groupBy { it.date }.mapValues { (_, tasks) ->
+        ScheduleDaySummary(tasks.size, tasks.count { it.completed })
+    }
+
+internal fun movedScheduleDate(
+    date: LocalDate,
+    mode: CalendarMode,
+    offset: Long
+): LocalDate = when (mode) {
+    CalendarMode.MONTH -> date.plusMonths(offset)
+    CalendarMode.WEEK -> date.plusWeeks(offset)
+    CalendarMode.DAY -> date.plusDays(offset)
+}
+
+internal fun canCreateScheduleChore(date: LocalDate, today: LocalDate): Boolean =
+    !date.isBefore(today) && !date.isAfter(today.plusDays(SCHEDULE_DAYS_AHEAD))
+
 @Composable
 fun HomeCrewScheduleScreen(
     today: LocalDate,
     chores: List<DemoChore>,
+    members: List<String>,
     onToggle: (String) -> Unit,
-    onDetails: (DemoChore) -> Unit
+    onDetails: (DemoChore) -> Unit,
+    onAddForDate: (LocalDate, String?) -> Unit
 ) {
     val palette = LocalHomeCrewColors.current
     var selectedEpoch by rememberSaveable { mutableLongStateOf(today.toEpochDay()) }
     var mode by rememberSaveable { mutableStateOf(CalendarMode.WEEK) }
+    var requestedMember by rememberSaveable { mutableStateOf(ALL_SCHEDULE_MEMBERS) }
+    val selectedMember = requestedMember.takeIf { it in members } ?: ALL_SCHEDULE_MEMBERS
     val selected = LocalDate.ofEpochDay(selectedEpoch)
-    val selectedChores = tasksForDay(chores, selected)
+    val visibleChores = scheduleChoresForMember(chores, selectedMember)
+    val summaries = scheduleDaySummaries(visibleChores)
+    val selectedChores = tasksForDay(visibleChores, selected)
+    val currentSummary = summaries[selected] ?: ScheduleDaySummary(0, 0)
+    val canAdd = canCreateScheduleChore(selected, today)
     val dateRange = when (mode) {
         CalendarMode.MONTH -> koreanMonthLabel(selected)
         CalendarMode.WEEK -> {
@@ -72,20 +123,40 @@ fun HomeCrewScheduleScreen(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
             horizontal = HomeCrewDimensions.screenPadding,
-            vertical = HomeCrewDimensions.space24
+            vertical = HomeCrewDimensions.space16
         ),
-        verticalArrangement = Arrangement.spacedBy(18.dp)
+        verticalArrangement = Arrangement.spacedBy(HomeCrewDimensions.space12)
     ) {
         item { ScreenHeader(title = "일정", subtitle = "날짜별 집안일 관리") }
-        item { DemoNotice() }
         item {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth()
+                    .border(1.dp, palette.border, RoundedCornerShape(4.dp))
+                    .padding(2.dp),
+                horizontalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
                 CalendarMode.entries.forEach { option ->
-                    HomeCrewFilterChip(
-                        label = option.title,
-                        selected = mode == option,
-                        onClick = { mode = option }
-                    )
+                    val active = mode == option
+                    Box(
+                        modifier = Modifier.weight(1f)
+                            .heightIn(min = HomeCrewDimensions.touchTarget)
+                            .background(
+                                if (active) palette.ink else palette.surface,
+                                RoundedCornerShape(2.dp)
+                            )
+                            .clickable { mode = option }
+                            .semantics {
+                                contentDescription = "${option.title} 보기"
+                                this.selected = active
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            option.title,
+                            style = MaterialTheme.typography.labelLarge,
+                            color = if (active) palette.surface else palette.ink
+                        )
+                    }
                 }
             }
         }
@@ -95,46 +166,79 @@ fun HomeCrewScheduleScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                IconButton(onClick = {
-                    val result = when (mode) {
-                        CalendarMode.MONTH -> selected.minusMonths(1)
-                        CalendarMode.WEEK -> selected.minusWeeks(1)
-                        CalendarMode.DAY -> selected.minusDays(1)
+                IconButton(
+                    onClick = {
+                        selectedEpoch = movedScheduleDate(selected, mode, -1).toEpochDay()
                     }
-                    selectedEpoch = result.toEpochDay()
-                }) {
+                ) {
                     Icon(Icons.Outlined.ChevronLeft, contentDescription = "이전 기간")
                 }
-                Text(
-                    text = dateRange,
-                    style = MaterialTheme.typography.titleMedium
-                )
-                IconButton(onClick = {
-                    val result = when (mode) {
-                        CalendarMode.MONTH -> selected.plusMonths(1)
-                        CalendarMode.WEEK -> selected.plusWeeks(1)
-                        CalendarMode.DAY -> selected.plusDays(1)
+                Text(dateRange, style = MaterialTheme.typography.titleMedium)
+                IconButton(
+                    onClick = {
+                        selectedEpoch = movedScheduleDate(selected, mode, 1).toEpochDay()
                     }
-                    selectedEpoch = result.toEpochDay()
-                }) {
+                ) {
                     Icon(Icons.Outlined.ChevronRight, contentDescription = "다음 기간")
                 }
             }
         }
         item {
-            when (mode) {
-                CalendarMode.MONTH -> CalendarMonthGrid(
-                    selected, today, chores, onSelect = { selectedEpoch = it.toEpochDay() }
+            Column(verticalArrangement = Arrangement.spacedBy(HomeCrewDimensions.space4)) {
+                Text(
+                    "구성원별 일정",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = palette.muted
                 )
-                CalendarMode.WEEK -> CalendarWeekStrip(
-                    selected, today, chores, onSelect = { selectedEpoch = it.toEpochDay() }
+                Row(
+                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(HomeCrewDimensions.space8)
+                ) {
+                    (listOf(ALL_SCHEDULE_MEMBERS) + members.distinct()).forEach { name ->
+                        HomeCrewFilterChip(
+                            label = name,
+                            selected = selectedMember == name,
+                            onClick = { requestedMember = name }
+                        )
+                    }
+                }
+            }
+        }
+        when (mode) {
+            CalendarMode.MONTH -> item {
+                CalendarMonthGrid(
+                    selected = selected,
+                    today = today,
+                    summaries = summaries,
+                    onSelect = { selectedEpoch = it.toEpochDay() }
                 )
-                CalendarMode.DAY -> {
-                    Text(
-                        text = "선택한 날짜의 예정·완료 작업을 확인하세요.",
-                        color = palette.muted,
-                        style = MaterialTheme.typography.bodyMedium
-                    )
+            }
+            CalendarMode.WEEK -> item {
+                CalendarWeekStrip(
+                    selected = selected,
+                    today = today,
+                    summaries = summaries,
+                    onSelect = { selectedEpoch = it.toEpochDay() }
+                )
+            }
+            CalendarMode.DAY -> Unit
+        }
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(koreanDateLabel(selected), style = MaterialTheme.typography.titleMedium)
+                TextButton(
+                    onClick = { onAddForDate(selected, selectedMember.takeUnless { it == ALL_SCHEDULE_MEMBERS }) },
+                    enabled = canAdd,
+                    modifier = Modifier.heightIn(min = HomeCrewDimensions.touchTarget).semantics {
+                        contentDescription = "선택 날짜에 집안일 추가"
+                    }
+                ) {
+                    Icon(Icons.Outlined.Add, contentDescription = null)
+                    Text("추가")
                 }
             }
         }
@@ -145,26 +249,32 @@ fun HomeCrewScheduleScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    koreanDateLabel(selected),
-                    style = MaterialTheme.typography.titleMedium
+                    "집안일 ${currentSummary.total}개 · 완료 ${currentSummary.completed}개",
+                    color = palette.muted,
+                    style = MaterialTheme.typography.bodySmall
                 )
-                TextButton(onClick = { selectedEpoch = today.toEpochDay() }) {
-                    Text("오늘")
-                }
+                TextButton(
+                    onClick = { selectedEpoch = today.toEpochDay() },
+                    modifier = Modifier.heightIn(min = HomeCrewDimensions.touchTarget)
+                ) { Text("오늘") }
             }
         }
-        item {
-            Text(
-                "집안일 ${selectedChores.size}개 · 완료 ${selectedChores.count { it.completed }}개",
-                color = palette.muted,
-                style = MaterialTheme.typography.bodySmall
-            )
+        if (!canAdd) {
+            item {
+                Text(
+                    if (selected.isBefore(today)) "지난 날짜에는 새 집안일을 추가할 수 없습니다."
+                    else "집안일 추가는 오늘부터 62일 이내 날짜를 선택해 주세요.",
+                    color = palette.muted,
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
         }
         if (selectedChores.isEmpty()) {
             item {
                 EmptyResult(
                     "선택한 날짜의 집안일이 없습니다",
-                    "다른 날짜를 선택해보세요."
+                    if (canAdd) "위의 추가 버튼으로 이 날짜에 집안일을 등록할 수 있습니다."
+                    else "다른 날짜를 선택해 주세요."
                 )
             }
         } else {
@@ -184,7 +294,7 @@ fun HomeCrewScheduleScreen(
 private fun CalendarWeekStrip(
     selected: LocalDate,
     today: LocalDate,
-    chores: List<DemoChore>,
+    summaries: Map<LocalDate, ScheduleDaySummary>,
     onSelect: (LocalDate) -> Unit
 ) {
     val palette = LocalHomeCrewColors.current
@@ -196,11 +306,10 @@ private fun CalendarWeekStrip(
         repeat(7) { index ->
             val day = start.plusDays(index.toLong())
             val highlighted = selected == day
-            val count = chores.count { it.date == day }
+            val summary = summaries[day] ?: ScheduleDaySummary(0, 0)
             val foreground = if (highlighted) palette.surface else palette.ink
             Column(
-                modifier = Modifier
-                    .weight(1f)
+                modifier = Modifier.weight(1f)
                     .heightIn(min = 74.dp)
                     .background(
                         if (highlighted) palette.ink else palette.subtle,
@@ -209,11 +318,12 @@ private fun CalendarWeekStrip(
                     .clickable { onSelect(day) }
                     .semantics {
                         contentDescription =
-                            "${koreanDateLabel(day)}, 집안일 ${count}개${if (day == today) ", 오늘" else ""}"
+                            "${koreanDateLabel(day)}, 집안일 ${summary.total}개, 완료 ${summary.completed}개${if (day == today) ", 오늘" else ""}"
+                        this.selected = highlighted
                     }
-                    .padding(vertical = 10.dp),
+                    .padding(vertical = 8.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(5.dp)
+                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Text(
                     weekdayLabel(day),
@@ -227,9 +337,9 @@ private fun CalendarWeekStrip(
                     color = foreground
                 )
                 Text(
-                    if (count > 0) "${count}건" else "–",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (highlighted) palette.surface else palette.muted
+                    summary.statusLabel,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (highlighted) foreground else palette.muted
                 )
             }
         }
@@ -240,7 +350,7 @@ private fun CalendarWeekStrip(
 private fun CalendarMonthGrid(
     selected: LocalDate,
     today: LocalDate,
-    chores: List<DemoChore>,
+    summaries: Map<LocalDate, ScheduleDaySummary>,
     onSelect: (LocalDate) -> Unit
 ) {
     val palette = LocalHomeCrewColors.current
@@ -261,7 +371,6 @@ private fun CalendarMonthGrid(
                 }
             }
         }
-
         repeat(cells / 7) { row ->
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -273,12 +382,11 @@ private fun CalendarMonthGrid(
                         Box(Modifier.weight(1f).heightIn(min = 56.dp))
                     } else {
                         val day = first.withDayOfMonth(dayNumber)
-                        val count = chores.count { it.date == day }
+                        val summary = summaries[day] ?: ScheduleDaySummary(0, 0)
                         val highlighted = day == selected
                         val foreground = if (highlighted) palette.surface else palette.ink
                         Column(
-                            modifier = Modifier
-                                .weight(1f)
+                            modifier = Modifier.weight(1f)
                                 .heightIn(min = 56.dp)
                                 .background(
                                     if (highlighted) palette.ink else palette.subtle,
@@ -287,9 +395,10 @@ private fun CalendarMonthGrid(
                                 .clickable { onSelect(day) }
                                 .semantics {
                                     contentDescription =
-                                        "${koreanDateLabel(day)}, 집안일 ${count}개${if (day == today) ", 오늘" else ""}"
+                                        "${koreanDateLabel(day)}, 집안일 ${summary.total}개, 완료 ${summary.completed}개${if (day == today) ", 오늘" else ""}"
+                                    this.selected = highlighted
                                 }
-                                .padding(vertical = 6.dp),
+                                .padding(vertical = 5.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(3.dp)
                         ) {
@@ -300,8 +409,8 @@ private fun CalendarMonthGrid(
                                 color = foreground
                             )
                             Text(
-                                if (count > 0) "${count}건" else "–",
-                                style = MaterialTheme.typography.bodySmall,
+                                summary.statusLabel,
+                                style = MaterialTheme.typography.labelSmall,
                                 color = if (highlighted) foreground else palette.muted
                             )
                         }
@@ -317,7 +426,7 @@ private fun CalendarMonthGrid(
 private fun PreviewScheduleLight() {
     val today = LocalDate.of(2026, 11, 10)
     HomeCrewTheme(darkTheme = false) {
-        HomeCrewScheduleScreen(today, sampleChores(today), {}, {})
+        HomeCrewScheduleScreen(today, sampleChores(today), listOf("나", "지민"), {}, {}, { _, _ -> })
     }
 }
 
@@ -326,6 +435,6 @@ private fun PreviewScheduleLight() {
 private fun PreviewScheduleDark() {
     val today = LocalDate.of(2026, 11, 10)
     HomeCrewTheme(darkTheme = true) {
-        HomeCrewScheduleScreen(today, sampleChores(today), {}, {})
+        HomeCrewScheduleScreen(today, sampleChores(today), listOf("나", "지민"), {}, {}, { _, _ -> })
     }
 }

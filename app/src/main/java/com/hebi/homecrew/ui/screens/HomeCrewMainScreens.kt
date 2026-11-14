@@ -41,14 +41,14 @@ import com.hebi.homecrew.ui.theme.ThemeMode
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
-private enum class ChorePage { MAIN, DETAIL, FORM, REPEAT, ASSIGNMENT, DATA }
+private enum class ChorePage { MAIN, DETAIL, FORM, REPEAT, ASSIGNMENT, SETTINGS, DATA }
 
 @Composable
 fun HomeCrewMainScreens(
     themeMode: ThemeMode,
     onThemeModeChange: (ThemeMode) -> Unit,
-    onOpenDesignSystem: () -> Unit,
     householdSetup: HouseholdSetup? = null,
+    onHouseholdChange: (HouseholdSetup) -> Boolean = { false },
     viewModel: DemoChoreViewModel = viewModel(
         factory = DemoChoreViewModel.Factory(LocalContext.current.applicationContext)
     )
@@ -84,7 +84,9 @@ fun HomeCrewMainScreens(
     LaunchedEffect(householdSetup) {
         householdSetup?.let(viewModel::configureHousehold)
     }
-    if (householdSetup != null && configuredHousehold != householdSetup) {
+    if (householdSetup != null &&
+        configuredHousehold?.selectedTemplateIds != householdSetup.selectedTemplateIds
+    ) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             if (loadError == null) {
                 CircularProgressIndicator()
@@ -159,8 +161,11 @@ fun HomeCrewMainScreens(
         else finishEditor()
     }
 
-    fun openAdd() {
-        viewModel.openEditor(null, listOf(currentMember) + memberNames.filter { it != currentMember })
+    fun openAdd(startDate: java.time.LocalDate? = null, preferredMember: String? = null) {
+        val member = preferredMember?.takeIf { it in memberNames } ?: currentMember
+        viewModel.openEditor(
+            null, listOf(member) + memberNames.filter { it != member }, startDate
+        )
         initialEditor = viewModel.editor.value
         editorOrigin = ChorePage.MAIN
         formError = null
@@ -187,7 +192,7 @@ fun HomeCrewMainScreens(
         when (page) {
             ChorePage.REPEAT, ChorePage.ASSIGNMENT -> page = ChorePage.FORM
             ChorePage.FORM -> requestFormBack()
-            ChorePage.DETAIL, ChorePage.DATA -> page = ChorePage.MAIN
+            ChorePage.DETAIL, ChorePage.SETTINGS, ChorePage.DATA -> page = ChorePage.MAIN
             ChorePage.MAIN -> Unit
         }
     }
@@ -214,32 +219,35 @@ fun HomeCrewMainScreens(
                                 onMemberSelected = { currentMember = it },
                                 onToggle = { id -> viewModel.toggleCompleted(id, currentMember) },
                                 onDetails = ::openDetails,
-                                onAdd = ::openAdd,
-                                onOpenDesignSystem = onOpenDesignSystem,
+                                onAdd = { openAdd() },
                                 onCycleTheme = {
                                     onThemeModeChange(
                                         ThemeMode.entries[(themeMode.ordinal + 1) % ThemeMode.entries.size]
                                     )
                                 },
                                 householdName = householdSetup?.homeName ?: "우리 집",
-                                members = memberNames
+                                members = memberNames,
+                                onOpenSettings = { page = ChorePage.SETTINGS }
                             )
                             HomeTab.SCHEDULE -> HomeCrewScheduleScreen(
                                 today = currentDate,
                                 chores = chores,
+                                members = memberNames,
                                 onToggle = { id -> viewModel.toggleCompleted(id, currentMember) },
-                                onDetails = ::openDetails
+                                onDetails = ::openDetails,
+                                onAddForDate = { date, member -> openAdd(date, member) }
                             )
                             HomeTab.CHORES -> HomeCrewChoresScreen(
                                 today = currentDate,
                                 chores = chores,
-                                onDetails = { definition ->
+                                onDetails = { definition, occurrenceId ->
                                     detailId = definition.id
-                                    selectedOccurrenceId = null
+                                    selectedOccurrenceId = occurrenceId
                                     page = ChorePage.DETAIL
                                 },
-                                onAdd = ::openAdd,
+                                onAdd = { openAdd() },
                                 definitions = definitions,
+                                members = memberNames,
                                 onDataManagement = { page = ChorePage.DATA }
                             )
                             HomeTab.STATS -> HomeCrewStatsScreen(
@@ -250,6 +258,24 @@ fun HomeCrewMainScreens(
                 }
             }
         }
+        ChorePage.SETTINGS -> {
+            if (householdSetup != null) {
+                HomeCrewSettingsScreen(
+                    household = householdSetup,
+                    assignedMembers = definitions.map { it.owner }.toSet(),
+                    themeMode = themeMode,
+                    onThemeModeChange = onThemeModeChange,
+                    onSave = { updated ->
+                        val saved = onHouseholdChange(updated)
+                        if (saved && updated.defaultMember != householdSetup.defaultMember) {
+                            currentMember = updated.defaultMember
+                        }
+                        saved
+                    },
+                    onBack = { page = ChorePage.MAIN }
+                )
+            }
+        }
         ChorePage.DETAIL -> {
             val definition = definitions.firstOrNull { it.id == detailId }
             if (definition != null) {
@@ -258,10 +284,12 @@ fun HomeCrewMainScreens(
                     chores = chores,
                     today = currentDate,
                     selectedOccurrenceId = selectedOccurrenceId,
+                    actingMember = currentMember,
                     onBack = { page = ChorePage.MAIN },
                     onEdit = ::openEdit,
                     onToggle = { id -> viewModel.toggleCompleted(id, currentMember) },
                     onSkip = { id, reason -> viewModel.toggleSkipped(id, reason) },
+                    onSelectOccurrence = { selectedOccurrenceId = it },
                     onDelete = {
                         scope.launch {
                             try {
@@ -284,6 +312,12 @@ fun HomeCrewMainScreens(
                     Text("집안일을 찾을 수 없습니다. 목록으로 돌아가기")
                 }
             }
+        }
+        ChorePage.DATA -> {
+            HomeCrewLocalDataScreen(
+                viewModel = viewModel,
+                onBack = { page = ChorePage.MAIN }
+            )
         }
         ChorePage.FORM -> {
             val draft = editor
@@ -321,6 +355,7 @@ fun HomeCrewMainScreens(
                 HomeCrewRepeatScreen(
                     initial = draft.repeat,
                     startDate = draft.startDate,
+                    today = currentDate,
                     onApply = { repeat ->
                         viewModel.editDraft { it.copy(repeat = repeat) }
                         formError = null
@@ -330,20 +365,14 @@ fun HomeCrewMainScreens(
                 )
             }
         }
-        ChorePage.DATA -> {
-            HomeCrewLocalDataScreen(
-                viewModel = viewModel,
-                onBack = { page = ChorePage.MAIN }
-            )
-        }
         ChorePage.ASSIGNMENT -> {
             val draft = editor
             if (draft != null) {
                 val baseline = workloadBaseline(chores, draft, currentDate)
                 HomeCrewAssignmentScreen(
-                    initial = draft.assignment,
+                    draft = draft,
+                    today = currentDate,
                     members = memberNames,
-                    points = draft.points,
                     baseline = baseline,
                     onApply = { assignment ->
                         viewModel.editDraft { it.copy(assignment = assignment) }
@@ -362,7 +391,7 @@ fun HomeCrewMainScreens(
                 pageError = null
                 viewModel.dismissOperationError()
             },
-            title = { Text("저장 오류") },
+            title = { Text("작업 처리 오류") },
             text = { Text(pageError ?: operationError.orEmpty()) },
             confirmButton = {
                 TextButton(onClick = {

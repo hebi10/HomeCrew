@@ -5,12 +5,14 @@ import android.app.TimePickerDialog
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -32,6 +34,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.LocalContext
@@ -83,7 +86,7 @@ internal fun ChoreSubpageLayout(
             modifier = Modifier.fillMaxSize().padding(insets)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = HomeCrewDimensions.screenPadding, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp)
+            verticalArrangement = Arrangement.spacedBy(HomeCrewDimensions.space16)
         ) {
             TextButton(onClick = onBack) { Text("이전") }
             ScreenHeader(title = title, subtitle = subtitle)
@@ -107,7 +110,7 @@ fun HomeCrewChoreFormScreen(
 ) {
     val context = LocalContext.current
     val palette = LocalHomeCrewColors.current
-    val preview = previewDraftInstances(draft, today, baseline, daysAhead = 370).take(3)
+    val preview = upcomingEditorOccurrences(draft, today, baseline)
     ChoreSubpageLayout(
         title = if (draft.editingId == null) "집안일 추가" else "집안일 수정",
         subtitle = "내용을 입력하고 반복·담당 방식을 설정하세요.",
@@ -124,7 +127,7 @@ fun HomeCrewChoreFormScreen(
             isError = error?.contains("이름") == true
         )
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("카테고리", style = MaterialTheme.typography.labelLarge)
+            Text("카테고리 · 좌우로 밀어 선택", style = MaterialTheme.typography.labelLarge)
             Row(
                 modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -150,7 +153,10 @@ fun HomeCrewChoreFormScreen(
         )
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("예상 업무량", style = MaterialTheme.typography.labelLarge)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 (1..5).forEach { point ->
                     HomeCrewFilterChip(
                         label = "$point",
@@ -166,19 +172,6 @@ fun HomeCrewChoreFormScreen(
         }
         BorderedSection {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("반복", style = MaterialTheme.typography.titleMedium)
-                Text(repeatDescription(draft.repeat), style = MaterialTheme.typography.bodyMedium)
-                HomeCrewSecondaryButton(
-                    text = "반복 설정",
-                    onClick = onRepeat,
-                    modifier = Modifier.fillMaxWidth().semantics {
-                        contentDescription = "반복 설정 열기"
-                    }
-                )
-            }
-        }
-        BorderedSection {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("담당 방식", style = MaterialTheme.typography.titleMedium)
                 Text(
                     "${draft.assignment.mode.label} · ${draft.assignment.members.joinToString(" · ")}",
@@ -189,6 +182,19 @@ fun HomeCrewChoreFormScreen(
                     onClick = onAssignment,
                     modifier = Modifier.fillMaxWidth().semantics {
                         contentDescription = "담당 방식 설정 열기"
+                    }
+                )
+            }
+        }
+        BorderedSection {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("반복", style = MaterialTheme.typography.titleMedium)
+                Text(repeatDescription(draft.repeat), style = MaterialTheme.typography.bodyMedium)
+                HomeCrewSecondaryButton(
+                    text = "반복 설정",
+                    onClick = onRepeat,
+                    modifier = Modifier.fillMaxWidth().semantics {
+                        contentDescription = "반복 설정 열기"
                     }
                 )
             }
@@ -228,23 +234,28 @@ fun HomeCrewChoreFormScreen(
         }
         BorderedSection {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("다가오는 일정 미리보기", style = MaterialTheme.typography.titleMedium)
+                Text(editorPreviewHeading(draft.repeat), style = MaterialTheme.typography.titleMedium)
                 if (preview.isEmpty()) {
-                    Text("미리보기 기간에 예정된 집안일이 없습니다.")
+                    Text(
+                        "오늘부터 62일 이내에 예정된 회차가 없습니다.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = palette.muted
+                    )
                 } else {
                     preview.forEach { occurrence ->
                         Text(
-                            "${occurrence.date} · ${occurrence.definition.time} · ${occurrence.definition.owner}",
+                            "${occurrence.date} · ${occurrence.time} · ${occurrence.owner}",
                             style = MaterialTheme.typography.bodyMedium
                         )
                     }
                 }
+                Text(
+                    "미리보기는 현재 기기의 향후 62일 회차 생성 범위를 기준으로 합니다.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = palette.muted
+                )
             }
         }
-        Text(
-            "등록·수정한 집안일과 반복 일정은 이 기기에 저장됩니다. 기기 간 공유는 지원하지 않습니다.",
-            style = MaterialTheme.typography.bodySmall, color = palette.muted
-        )
     }
 }
 
@@ -252,6 +263,7 @@ fun HomeCrewChoreFormScreen(
 fun HomeCrewRepeatScreen(
     initial: ChoreRepeat,
     startDate: LocalDate,
+    today: LocalDate,
     onApply: (ChoreRepeat) -> Unit,
     onBack: () -> Unit
 ) {
@@ -262,7 +274,15 @@ fun HomeCrewRepeatScreen(
     var error by rememberSaveable { mutableStateOf<String?>(null) }
     val frequency = ChoreRepeatMode.valueOf(mode)
     val rule = ChoreRepeat(frequency, days.map(DayOfWeek::valueOf).toSet(), interval)
-    val preview = nextChoreDates(startDate, rule, startDate, startDate.plusDays(400)).take(3)
+    val preview = repeatPreviewDates(startDate, today, rule)
+
+    fun selectRepeatMode(option: ChoreRepeatMode) {
+        mode = option.name
+        error = null
+        if (option in setOf(ChoreRepeatMode.WEEKLY, ChoreRepeatMode.BIWEEKLY)
+            && days.isEmpty()
+        ) days = listOf(startDate.dayOfWeek.name)
+    }
 
     ChoreSubpageLayout(
         title = "반복 설정",
@@ -282,23 +302,26 @@ fun HomeCrewRepeatScreen(
         ChoreRepeatMode.entries.forEach { option ->
             Row(
                 modifier = Modifier.fillMaxWidth()
+                    .heightIn(min = HomeCrewDimensions.touchTarget)
+                    .selectable(
+                        selected = frequency == option,
+                        onClick = { selectRepeatMode(option) },
+                        role = Role.RadioButton
+                    )
+                    .semantics {
+                        contentDescription = if (frequency == option) {
+                            "선택됨: 반복 방식 ${option.label}"
+                        } else {
+                            "반복 방식: ${option.label}"
+                        }
+                    }
                     .border(1.dp, palette.border, RoundedCornerShape(4.dp))
                     .padding(8.dp),
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(HomeCrewDimensions.space8)
             ) {
-                RadioButton(
-                    selected = frequency == option,
-                    onClick = {
-                        mode = option.name
-                        error = null
-                        if (option in listOf(ChoreRepeatMode.WEEKLY, ChoreRepeatMode.BIWEEKLY)
-                            && days.isEmpty()
-                        ) days = listOf(startDate.dayOfWeek.name)
-                    }
-                )
-                TextButton(onClick = { mode = option.name; error = null }) {
-                    Text(option.label)
-                }
+                RadioButton(selected = frequency == option, onClick = null)
+                Text(option.label, style = MaterialTheme.typography.bodyLarge)
             }
         }
         if (frequency in setOf(ChoreRepeatMode.WEEKLY, ChoreRepeatMode.BIWEEKLY)) {
@@ -341,8 +364,27 @@ fun HomeCrewRepeatScreen(
         }
         BorderedSection {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("다음 3회 일정", style = MaterialTheme.typography.titleMedium)
-                preview.forEach { Text(it.toString()) }
+                Text(
+                    editorPreviewHeading(rule),
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.semantics {
+                        contentDescription = "반복 일정 미리보기: ${rule.mode.label}, 예정 ${preview.size}건"
+                    }
+                )
+                if (preview.isEmpty()) {
+                    Text(
+                        "오늘부터 62일 이내에 예정된 회차가 없습니다.",
+                        color = palette.muted,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                } else {
+                    preview.forEach { Text(it.toString(), style = MaterialTheme.typography.bodyMedium) }
+                }
+                Text(
+                    "선택한 시작일을 기준으로 계산한 오늘 이후의 예정 날짜입니다.",
+                    color = palette.muted,
+                    style = MaterialTheme.typography.bodySmall
+                )
             }
         }
     }
@@ -350,21 +392,30 @@ fun HomeCrewRepeatScreen(
 
 @Composable
 fun HomeCrewAssignmentScreen(
-    initial: ChoreAssignment,
+    draft: ChoreEditorDraft,
+    today: LocalDate,
     members: List<String>,
-    points: Int,
     baseline: Map<String, Int>,
     onApply: (ChoreAssignment) -> Unit,
     onBack: () -> Unit
 ) {
     val palette = LocalHomeCrewColors.current
-    var mode by rememberSaveable { mutableStateOf(initial.mode.name) }
-    var selected by rememberSaveable { mutableStateOf(initial.members) }
+    var mode by rememberSaveable { mutableStateOf(draft.assignment.mode.name) }
+    var selected by rememberSaveable { mutableStateOf(draft.assignment.members) }
     var error by rememberSaveable { mutableStateOf<String?>(null) }
     val choice = ChoreAssignmentMode.valueOf(mode)
     val orderedSelection = orderedParticipants(selected, members)
     val rule = ChoreAssignment(choice, orderedSelection)
-    val upcoming = assignedOwners(rule, 3, points, baseline)
+    val upcoming = upcomingEditorOccurrences(draft, today, baseline, rule)
+
+    fun selectAssignmentMode(option: ChoreAssignmentMode) {
+        mode = option.name
+        error = null
+        if (option == ChoreAssignmentMode.FIXED) {
+            val first = orderedParticipants(selected, members).firstOrNull() ?: members.firstOrNull()
+            selected = listOfNotNull(first)
+        }
+    }
 
     ChoreSubpageLayout(
         title = "담당 방식",
@@ -383,23 +434,26 @@ fun HomeCrewAssignmentScreen(
         ChoreAssignmentMode.entries.forEach { option ->
             Row(
                 modifier = Modifier.fillMaxWidth()
+                    .heightIn(min = HomeCrewDimensions.touchTarget)
+                    .selectable(
+                        selected = choice == option,
+                        onClick = { selectAssignmentMode(option) },
+                        role = Role.RadioButton
+                    )
+                    .semantics {
+                        contentDescription = if (choice == option) {
+                            "선택됨: 담당 방식 ${option.label}"
+                        } else {
+                            "담당 방식: ${option.label}"
+                        }
+                    }
                     .border(1.dp, palette.border, RoundedCornerShape(4.dp))
                     .padding(8.dp),
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(HomeCrewDimensions.space8)
             ) {
-                RadioButton(
-                    selected = choice == option,
-                    onClick = {
-                        mode = option.name
-                        if (option == ChoreAssignmentMode.FIXED)
-                            selected = listOf(selected.firstOrNull() ?: members.first())
-                    }
-                )
-                TextButton(onClick = {
-                    mode = option.name
-                    if (option == ChoreAssignmentMode.FIXED)
-                        selected = listOf(selected.firstOrNull() ?: members.first())
-                }) { Text(option.label) }
+                RadioButton(selected = choice == option, onClick = null)
+                Text(option.label, style = MaterialTheme.typography.bodyLarge)
             }
         }
         val explanation = when (choice) {
@@ -410,6 +464,22 @@ fun HomeCrewAssignmentScreen(
         }
         Text(explanation, style = MaterialTheme.typography.bodyMedium, color = palette.muted)
         Text("참여 구성원", style = MaterialTheme.typography.titleMedium)
+        if (choice == ChoreAssignmentMode.ROUND_ROBIN && orderedSelection.isNotEmpty()) {
+            Text(
+                "배정 순서: ${orderedSelection.joinToString(" → ")}",
+                color = palette.muted,
+                style = MaterialTheme.typography.bodySmall
+            )
+        }
+        if (choice == ChoreAssignmentMode.BALANCED && orderedSelection.isNotEmpty()) {
+            Text(
+                "기준 업무량: " + orderedSelection.joinToString(" · ") {
+                    "${it} ${baseline[it] ?: 0}점"
+                },
+                color = palette.muted,
+                style = MaterialTheme.typography.bodySmall
+            )
+        }
         members.forEach { member ->
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -434,10 +504,25 @@ fun HomeCrewAssignmentScreen(
         }
         BorderedSection {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("다음 3회 배정 미리보기", style = MaterialTheme.typography.titleMedium)
-                if (upcoming.isEmpty()) Text("참여자를 선택해 주세요.")
-                upcoming.forEachIndexed { index, member ->
-                    Text("${index + 1}회차 · $member", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    if (draft.repeat.mode == ChoreRepeatMode.NONE) "예정 담당자"
+                    else "예정 담당자 · 최대 3회",
+                    style = MaterialTheme.typography.titleMedium
+                )
+                if (upcoming.isEmpty()) {
+                    Text(
+                        if (orderedSelection.isEmpty()) "참여자를 선택해 주세요."
+                        else "오늘부터 62일 이내에 예정된 회차가 없습니다.",
+                        color = palette.muted,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                } else {
+                    upcoming.forEachIndexed { index, occurrence ->
+                        Text(
+                            "${index + 1}회차 · ${occurrence.date} · ${occurrence.owner}",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
                 }
             }
         }
@@ -467,6 +552,7 @@ private fun PreviewRepeatDark() {
     HomeCrewTheme(darkTheme = true) {
         HomeCrewRepeatScreen(
             ChoreRepeat(ChoreRepeatMode.WEEKLY, setOf(DayOfWeek.MONDAY)),
+            LocalDate.of(2026, 11, 10),
             LocalDate.of(2026, 11, 10), {}, {}
         )
     }

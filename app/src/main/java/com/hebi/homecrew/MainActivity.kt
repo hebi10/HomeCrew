@@ -4,33 +4,18 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
-import com.hebi.homecrew.ui.gallery.HomeCrewDesignSystemGallery
 import com.hebi.homecrew.ui.setup.HomeCrewSetupFlow
 import com.hebi.homecrew.ui.setup.LocalHouseholdStore
 import com.hebi.homecrew.ui.screens.HomeCrewMainScreens
 import com.hebi.homecrew.ui.theme.HomeCrewTheme
-import com.hebi.homecrew.ui.theme.LocalHomeCrewColors
 import com.hebi.homecrew.ui.theme.ThemeMode
 
 class MainActivity : ComponentActivity() {
@@ -41,8 +26,16 @@ class MainActivity : ComponentActivity() {
         setContent {
             val localStore = remember { LocalHouseholdStore(applicationContext) }
             var household by remember { mutableStateOf(localStore.load()) }
-            var selectedTheme by rememberSaveable { mutableStateOf(ThemeMode.SYSTEM) }
-            var showingDesignSystem by rememberSaveable { mutableStateOf(false) }
+            val themePreferences = remember {
+                applicationContext.getSharedPreferences("homecrew_ui_settings", MODE_PRIVATE)
+            }
+            var selectedTheme by rememberSaveable {
+                mutableStateOf(
+                    ThemeMode.entries.firstOrNull {
+                        it.name == themePreferences.getString("theme_mode", ThemeMode.SYSTEM.name)
+                    } ?: ThemeMode.SYSTEM
+                )
+            }
             val darkTheme = when (selectedTheme) {
                 ThemeMode.SYSTEM -> isSystemInDarkTheme()
                 ThemeMode.LIGHT -> false
@@ -57,29 +50,7 @@ class MainActivity : ComponentActivity() {
             }
 
             HomeCrewTheme(darkTheme = darkTheme) {
-                if (showingDesignSystem) {
-                    val palette = LocalHomeCrewColors.current
-                    BackHandler { showingDesignSystem = false }
-                    Column(modifier = Modifier.fillMaxSize()) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(palette.surface)
-                                .padding(horizontal = 8.dp),
-                            horizontalArrangement = Arrangement.Start
-                        ) {
-                            TextButton(onClick = { showingDesignSystem = false }) {
-                                Text("← 메인 화면으로")
-                            }
-                        }
-                        Box(modifier = Modifier.weight(1f)) {
-                            HomeCrewDesignSystemGallery(
-                                themeMode = selectedTheme,
-                                onThemeModeChange = { selectedTheme = it }
-                            )
-                        }
-                    }
-                } else if (household == null) {
+                if (household == null) {
                     HomeCrewSetupFlow(onFinished = { setup ->
                         val saved = localStore.save(setup)
                         if (saved) household = setup
@@ -88,9 +59,16 @@ class MainActivity : ComponentActivity() {
                 } else {
                     HomeCrewMainScreens(
                         themeMode = selectedTheme,
-                        onThemeModeChange = { selectedTheme = it },
-                        onOpenDesignSystem = { showingDesignSystem = true },
-                        householdSetup = household
+                        onThemeModeChange = { mode ->
+                            selectedTheme = mode
+                            themePreferences.edit().putString("theme_mode", mode.name).apply()
+                        },
+                        householdSetup = household,
+                        onHouseholdChange = { changed ->
+                            val saved = localStore.save(changed)
+                            if (saved) household = changed
+                            saved
+                        }
                     )
                 }
             }

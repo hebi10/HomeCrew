@@ -1,5 +1,7 @@
 package com.hebi.homecrew.qa
 
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -16,6 +18,7 @@ import com.hebi.homecrew.ui.screens.ChoreRepeatMode
 import com.hebi.homecrew.ui.setup.HouseholdSetup
 import com.hebi.homecrew.ui.setup.LocalHouseholdStore
 import com.hebi.homecrew.ui.setup.suggestedTemplateIds
+import java.io.File
 import java.time.LocalDate
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertNotNull
@@ -31,10 +34,11 @@ class HomeCrewActivityRestartTest {
     private fun taskVisibleAfterActivityStart(taskName: String) {
         val scenario = ActivityScenario.launch(MainActivity::class.java)
         try {
-            assertNotNull(
-                "홈 화면에 진입하지 못했습니다.",
-                device.wait(Until.findObject(By.desc("화면 제목: 우리 집")), 15_000)
-            )
+            var home = device.wait(Until.findObject(By.desc("화면 제목: 우리 집")), 15_000)
+            if (home == null && device.dismissEmulatorLauncherAnrIfShown()) {
+                home = device.wait(Until.findObject(By.desc("화면 제목: 우리 집")), 8_000)
+            }
+            assertNotNull("홈 화면에 진입하지 못했습니다.", home)
             val choresTab = device.wait(Until.findObject(By.desc("집안일 탭")), 10_000)
             assertNotNull("집안일 탭이 보이지 않습니다.", choresTab)
             requireNotNull(choresTab).click()
@@ -54,6 +58,157 @@ class HomeCrewActivityRestartTest {
             assertNotNull("앱 재시작 후 저장된 집안일이 목록에 없습니다.", row)
         } finally {
             scenario.close()
+        }
+    }
+
+    private fun tapFresh(label: String) {
+        repeat(5) {
+            try {
+                val button = device.wait(Until.findObject(By.text(label)), 3_000)
+                if (button != null) {
+                    button.click()
+                    device.waitForIdle()
+                    return
+                }
+            } catch (_: androidx.test.uiautomator.StaleObjectException) {
+                device.waitForIdle()
+            }
+        }
+        throw AssertionError("동작 버튼을 찾거나 누르지 못했습니다: $label")
+    }
+
+    private fun enterFreshText(index: Int, value: String) {
+        repeat(5) {
+            try {
+                val fields = device.findObjects(By.clazz("android.widget.EditText"))
+                if (index >= 0 && index < fields.size) {
+                    fields[index].text = value
+                    device.waitForIdle()
+                    return
+                }
+            } catch (_: androidx.test.uiautomator.StaleObjectException) {
+                device.waitForIdle()
+            }
+        }
+        throw AssertionError("입력 필드에 텍스트를 입력하지 못했습니다: $index")
+    }
+
+    private fun scrollToAction(label: String, down: Boolean = true) {
+        val x = device.displayWidth / 2
+        val upper = device.displayHeight / 3
+        val lower = device.displayHeight * 3 / 4
+        repeat(12) {
+            if (device.wait(Until.findObject(By.text(label)), 700) != null) return
+            device.swipe(x, if (down) lower else upper, x, if (down) upper else lower, 18)
+            device.waitForIdle()
+        }
+        throw AssertionError("화면을 스크롤해도 동작을 찾지 못했습니다: $label")
+    }
+
+    private fun captureSettingsDiagnostic(name: String) {
+        try {
+            val context = InstrumentationRegistry.getInstrumentation().targetContext
+            val base = InstrumentationRegistry.getArguments()
+                .getString("additionalTestOutputDir")
+                ?.takeIf { it.isNotBlank() }
+                ?.let(::File)
+                ?: requireNotNull(context.externalMediaDirs.firstOrNull())
+            val output = File(base, "screen-qa").apply { mkdirs() }
+            device.takeScreenshot(File(output, "$name.png"))
+            device.dumpWindowHierarchy(File(output, "$name.xml"))
+        } catch (_: Exception) {
+        }
+    }
+
+    @Test
+    fun householdSettingsPersistAfterActivityRestart() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val store = LocalHouseholdStore(context)
+        val original = store.load()
+        val seeded = original ?: HouseholdSetup(
+            homeName = "우리 집",
+            members = listOf("나", "지민"),
+            defaultMember = "나",
+            selectedTemplateIds = suggestedTemplateIds
+        )
+        val base = if (seeded.members.size == 1) {
+            seeded.copy(members = seeded.members + "QA보조")
+        } else seeded
+        assertTrue(store.save(base))
+        val unique = System.currentTimeMillis().toString().takeLast(7)
+        val homeName = "QA집" + unique
+        val member = "QA" + unique
+        val scenario = ActivityScenario.launch(MainActivity::class.java)
+        try {
+            assertNotNull(
+                "홈 화면 진입 실패",
+                device.wait(Until.findObject(By.desc("화면 제목: ${base.homeName}")), 20_000)
+            )
+            val settings = device.wait(Until.findObject(By.desc("집 및 앱 설정")), 10_000)
+            assertNotNull("설정 진입 버튼이 없습니다.", settings)
+            requireNotNull(settings).click()
+            assertNotNull("설정 화면 진입 실패", device.wait(Until.findObject(By.text("설정")), 8_000))
+            enterFreshText(0, homeName)
+            tapFresh("집 이름 저장")
+            assertTrue("집 이름이 저장되지 않았습니다.", store.load()?.homeName == homeName)
+            assertNotNull(
+                "집 이름 저장 후 설정 화면이 유지되지 않았습니다.",
+                device.wait(Until.findObject(By.text("설정")), 8_000)
+            )
+            scrollToAction("기본으로 설정")
+            tapFresh("기본으로 설정")
+            assertTrue("기본 구성원 변경이 저장되지 않았습니다.", store.load()?.defaultMember != base.defaultMember)
+            scrollToAction("구성원 추가")
+            val memberField = device.wait(
+                Until.findObject(By.desc("새 구성원 이름 입력")), 8_000
+            )
+            assertNotNull("새 구성원 이름 입력 필드를 찾을 수 없습니다.", memberField)
+            requireNotNull(memberField).click()
+            device.waitForIdle()
+            device.executeShellCommand("input text $member")
+            device.waitForIdle()
+            captureSettingsDiagnostic("13-settings-new-member-input")
+            scenario.onActivity { activity ->
+                WindowCompat.getInsetsController(activity.window, activity.window.decorView)
+                    .hide(WindowInsetsCompat.Type.ime())
+            }
+            device.waitForIdle()
+            assertNotNull(
+                "IME 종료 후 새 구성원 입력 필드가 유지되지 않았습니다.",
+                device.wait(Until.findObject(By.desc("새 구성원 이름 입력")), 5_000)
+            )
+            captureSettingsDiagnostic("13-settings-member-keyboard-dismissed")
+            scrollToAction("구성원 추가")
+            tapFresh("구성원 추가")
+            var memberSaved = member in (store.load()?.members ?: emptyList())
+            repeat(15) {
+                if (!memberSaved) {
+                    Thread.sleep(200)
+                    memberSaved = member in (store.load()?.members ?: emptyList())
+                }
+            }
+            if (!memberSaved) {
+                captureSettingsDiagnostic("error-settings-member-not-saved")
+            }
+            assertTrue("구성원 추가가 저장되지 않았습니다.", memberSaved)
+            device.pressBack()
+            if (device.wait(Until.findObject(By.desc("화면 제목: $homeName")), 2_000) == null) {
+                scrollToAction("뒤로", down = false)
+                tapFresh("뒤로")
+            }
+            assertNotNull(
+                "설정 종료 후 홈 화면 복귀 실패",
+                device.wait(Until.findObject(By.desc("화면 제목: $homeName")), 10_000)
+            )
+            scenario.recreate()
+            assertNotNull(
+                "재시작 후 집 이름이 반영되지 않았습니다.",
+                device.wait(Until.findObject(By.desc("화면 제목: $homeName")), 20_000)
+            )
+            assertTrue("재시작 후 구성원이 유지되지 않았습니다.", member in store.load()!!.members)
+        } finally {
+            scenario.close()
+            if (original != null) store.save(original) else store.save(base)
         }
     }
 

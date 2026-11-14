@@ -1,0 +1,79 @@
+name: Play tracks read-only status check
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+
+jobs:
+  track-status:
+    if: >-
+      github.repository == 'hebi10/HomeCrew' &&
+      github.event.issue.number == 11 &&
+      github.event.comment.user.login == 'hebi10' &&
+      github.event.comment.body == '/check-play-status-20261111'
+    runs-on: ubuntu-latest
+    environment: google-play
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Authenticate read-only Play inspection
+        id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.PLAY_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.PLAY_SERVICE_ACCOUNT }}
+          token_format: access_token
+          access_token_scopes: https://www.googleapis.com/auth/androidpublisher
+          create_credentials_file: false
+          export_environment_variables: false
+      - name: Inspect current Play release tracks without publishing
+        env:
+          PLAY_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import sys
+          sys.path.insert(0, 'scripts/play')
+          from publisher import Publisher, HttpTransport, PACKAGE
+          publisher = Publisher(HttpTransport(os.environ['PLAY_ACCESS_TOKEN']))
+          with publisher.edit(ignore_delete_error=False) as edit:
+              bundles, apks, tracks = publisher.inventory(edit)
+          selected = []
+          for track in tracks:
+              if track.get('track') not in ('alpha', 'internal'):
+                  continue
+              releases = []
+              for release in track.get('releases', []):
+                  releases.append({
+                      'status': release.get('status'),
+                      'versionCodes': release.get('versionCodes', []),
+                      'name': release.get('name', ''),
+                  })
+              selected.append({'track': track['track'], 'releases': releases})
+          report = {
+              'package': PACKAGE,
+              'tracks': selected,
+              'registeredVersionCodes': sorted(
+                  {str(x.get('versionCode')) for x in bundles + apks
+                   if x.get('versionCode') is not None}
+              ),
+              'reviewStatus': 'not_exposed_by_androidpublisher_track_read_api',
+              'sideEffects': 'temporary_inspection_edit_only_no_release_changes'
+          }
+          print(json.dumps(report, ensure_ascii=False))
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8') as f:
+              f.write('### Current Play track inventory\n')
+              f.write('This is not a Play Console review-status query.\n\n')
+              f.write('\\`\\`\\`json\n' + json.dumps(report, ensure_ascii=False, indent=2) + '\n\\`\\`\\`\n')
+          PY

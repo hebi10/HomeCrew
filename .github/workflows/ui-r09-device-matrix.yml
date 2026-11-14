@@ -1,0 +1,98 @@
+name: UI-R09 Android device matrix
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/ui-r09-device-matrix.yml'
+      - 'app/**'
+      - 'scripts/configure_firebase.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: homecrew-ui-r09-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  device-matrix:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - api: 29
+            profile: pixel_6
+            font_scale: '1.0'
+            label: api29-phone
+          - api: 35
+            profile: pixel_6
+            font_scale: '1.0'
+            label: api35-phone
+          - api: 36
+            profile: pixel_6
+            font_scale: '1.0'
+            label: api36-phone
+          - api: 35
+            profile: pixel_6
+            font_scale: '1.6'
+            label: api35-large-font
+          - api: 35
+            profile: pixel_tablet
+            font_scale: '1.0'
+            label: api35-tablet
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: '13114758'
+          packages: platform-tools
+          log-accepted-android-sdk-licenses: false
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+      - name: Install Android SDK
+        run: sdkmanager 'platforms;android-36' 'build-tools;35.0.0'
+      - name: Install HomeCrew Firebase configuration
+        env:
+          HOMECREW_GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.HOMECREW_GOOGLE_SERVICES_JSON_BASE64 }}
+        run: python3 scripts/configure_firebase.py ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && '--required' || '' }}
+      - name: Enable KVM
+        run: |
+          if [ ! -e /dev/kvm ]; then
+            echo "::error::/dev/kvm is unavailable."
+            exit 1
+          fi
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Test and capture ${{ matrix.label }}
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ matrix.api }}
+          arch: x86_64
+          target: google_apis
+          profile: ${{ matrix.profile }}
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -accel on
+          script: |
+            adb shell settings put system font_scale ${{ matrix.font_scale }}
+            bash .github/scripts/capture-screenshots.sh
+      - name: Upload per-device evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-r09-${{ matrix.label }}
+          path: |
+            qa-screenshots/*.png
+            app/build/reports/androidTests/connected/
+            app/build/outputs/androidTest-results/connected/
+          if-no-files-found: warn

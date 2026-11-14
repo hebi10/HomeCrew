@@ -81,13 +81,19 @@ class HomeCrewRoomRepositoryTest {
         val restored = repository.snapshot()
         assertEquals(2, restored.definitions.size)
         assertEquals(initial.chores.size, restored.chores.size)
-        assertTrue(restored.chores.single { it.id == dishes.id }.completed)
+        val completedOccurrence = restored.chores.single { it.id == dishes.id }
+        assertTrue(completedOccurrence.completed)
+        assertEquals("지민", completedOccurrence.completedBy)
+        assertNotNull(completedOccurrence.completedAtEpochMillis)
         assertEquals("지민", database.chores().findOccurrence(dishes.id)?.completedBy)
         assertNotNull(database.chores().findOccurrence(dishes.id)?.completedAtEpochMillis)
 
         repository.toggleCompleted(dishes.id, "지민")
         reopenDatabase()
-        assertFalse(repository.snapshot().chores.single { it.id == dishes.id }.completed)
+        val resetOccurrence = repository.snapshot().chores.single { it.id == dishes.id }
+        assertFalse(resetOccurrence.completed)
+        assertNull(resetOccurrence.completedBy)
+        assertNull(resetOccurrence.completedAtEpochMillis)
         assertNull(database.chores().findOccurrence(dishes.id)?.completedBy)
     }
 

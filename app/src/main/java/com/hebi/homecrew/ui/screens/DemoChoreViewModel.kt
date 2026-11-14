@@ -68,7 +68,12 @@ class DemoChoreViewModel(
     private var committedSaveId: String? = null
 
     fun configureHousehold(setup: HouseholdSetup) {
-        if (_configuredHousehold.value == setup || loadingHousehold == setup) return
+        val configured = _configuredHousehold.value
+        if (configured == setup || loadingHousehold == setup) return
+        if (configured != null && configured.selectedTemplateIds == setup.selectedTemplateIds) {
+            _configuredHousehold.value = setup
+            return
+        }
         val repository = roomRepository
         if (repository == null) {
             val initial = previewChoresForSetup(setup, today)
@@ -145,12 +150,16 @@ class DemoChoreViewModel(
         applySnapshot(repository.snapshot())
     }
 
-    fun openEditor(definition: ChoreDefinition?, members: List<String>) {
+    fun openEditor(
+        definition: ChoreDefinition?,
+        members: List<String>,
+        startDate: LocalDate? = null
+    ) {
         _saveState.value = EditorSaveState.Idle
         committedSaveId = null
         _editor.value = if (definition == null) {
             ChoreEditorDraft(
-                startDate = today,
+                startDate = startDate ?: today,
                 assignment = ChoreAssignment(members = listOf(members.firstOrNull() ?: "나"))
             )
         } else {
@@ -284,7 +293,14 @@ class DemoChoreViewModel(
         if (repository == null) {
             _chores.update { current ->
                 current.map { chore ->
-                    if (chore.id == id) chore.copy(completed = !chore.completed) else chore
+                    if (chore.id == id) {
+                        val nextCompleted = !chore.completed
+                        chore.copy(
+                            completed = nextCompleted,
+                            completedAtEpochMillis = if (nextCompleted) System.currentTimeMillis() else null,
+                            completedBy = if (nextCompleted) actingMember else null
+                        )
+                    } else chore
                 }
             }
             return

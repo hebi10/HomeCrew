@@ -4,6 +4,9 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
@@ -46,7 +49,7 @@ fun HomeCrewLocalDataScreen(
     val scope = rememberCoroutineScope()
     var message by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
-     var pendingRestore by remember { mutableStateOf<String?>(null) }
+    var pendingRestore by remember { mutableStateOf<String?>(null) }
 
     val exportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/json")
@@ -95,7 +98,7 @@ fun HomeCrewLocalDataScreen(
     }
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing),
         contentPadding = PaddingValues(
             horizontal = HomeCrewDimensions.screenPadding,
             vertical = HomeCrewDimensions.space24
@@ -104,7 +107,13 @@ fun HomeCrewLocalDataScreen(
     ) {
         item { TextButton(onClick = onBack) { Text("이전") } }
         item { ScreenHeader("로컬 데이터 관리", "집안일 기록 백업·복원") }
-        item { DemoNotice() }
+        item {
+            Text(
+                "백업 파일은 암호화되지 않습니다. 개인정보가 포함될 수 있으니 보관·공유에 주의해 주세요.",
+                style = MaterialTheme.typography.bodySmall,
+                color = palette.muted
+            )
+        }
         item {
             BorderedSection {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
