@@ -5,6 +5,7 @@ import kotlin.math.roundToInt
 enum class ChoreStatus(val label: String) {
     PLANNED("예정"),
     COMPLETED("완료"),
+    SKIPPED("건너뜀"),
     OVERDUE("기한 초과")
 }
 

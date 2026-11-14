@@ -1,10 +1,13 @@
 """Exercise real HTTP serialization against a local fixture, with no paid API calls."""
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import io
 import json
 from pathlib import Path
 import sys
 import threading
 import unittest
+from unittest import mock
+import urllib.error
 import urllib.request
 
 sys.path.insert(0, str(Path(__file__).parents[1]))
@@ -54,3 +57,59 @@ class HttpFixtureTests(unittest.TestCase):
             server.shutdown()
             server.server_close()
             worker.join()
+
+    def test_transient_get_503_retries_with_backoff(self):
+        attempts = []
+        def opener(request, **kwargs):
+            attempts.append(request.get_method())
+            if len(attempts) < 3:
+                raise urllib.error.HTTPError(
+                    request.full_url, 503, 'temporary outage', {},
+                    io.BytesIO(b'private-server-response')
+                )
+            return io.BytesIO(b'{"bundles": [{"versionCode": 11}]}')
+
+        with mock.patch.object(publisher.time, 'sleep') as sleep:
+            response = publisher.HttpTransport('test-token', opener)('GET', '/edits/123/bundles')
+
+        self.assertEqual(response, {'bundles': [{'versionCode': 11}]})
+        self.assertEqual(attempts, ['GET', 'GET', 'GET'])
+        self.assertEqual(sleep.call_args_list, [mock.call(1), mock.call(2)])
+
+    def test_retries_never_replay_mutations_or_permanent_errors(self):
+        for method, status in [('POST', 503), ('PUT', 503), ('DELETE', 503), ('GET', 403)]:
+            with self.subTest(method=method, status=status):
+                attempts = []
+                def opener(request, **kwargs):
+                    attempts.append(request.get_method())
+                    raise urllib.error.HTTPError(
+                        request.full_url, status, 'private-response', {},
+                        io.BytesIO(b'private-response-body')
+                    )
+
+                with mock.patch.object(publisher.time, 'sleep') as sleep:
+                    with self.assertRaises(publisher.PlayApiError) as caught:
+                        publisher.HttpTransport('private-test-token', opener)(method, '/edits/123')
+
+                self.assertEqual(attempts, [method])
+                self.assertEqual(caught.exception.http_status, status)
+                self.assertNotIn('private-', str(caught.exception))
+                sleep.assert_not_called()
+
+    def test_exhausted_transient_get_503_raises_after_four_attempts(self):
+        attempts = []
+        def opener(request, **kwargs):
+            attempts.append(request.get_method())
+            raise urllib.error.HTTPError(
+                request.full_url, 503, 'private-response', {},
+                io.BytesIO(b'private-response-body')
+            )
+
+        with mock.patch.object(publisher.time, 'sleep') as sleep:
+            with self.assertRaises(publisher.PlayApiError) as caught:
+                publisher.HttpTransport('private-test-token', opener)('GET', '/edits/123/tracks')
+
+        self.assertEqual(attempts, ['GET'] * 4)
+        self.assertEqual(caught.exception.http_status, 503)
+        self.assertEqual(sleep.call_args_list, [mock.call(1), mock.call(2), mock.call(4)])
+        self.assertNotIn('private-', str(caught.exception))

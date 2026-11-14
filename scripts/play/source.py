@@ -55,6 +55,8 @@ def release_mode(env, event, commit_subject):
             raise SourceError('Unsupported Play release mode')
         return mode
     subject = commit_subject.splitlines()[0] if commit_subject else ''
+    if re.search(r'(?<!\S)\[skip-play\](?!\S)', subject):
+        return 'skip'
     return 'initialize' if re.search(r'(?<!\S)\[initialize-play\](?!\S)', subject) else 'deploy'
 
 
@@ -148,18 +150,26 @@ def main():
         ancestry = subprocess.run(['git', 'merge-base', '--is-ancestor', sha, 'origin/main'], capture_output=True, check=False)
         if ancestry.returncode:
             raise SourceError('Release source is not an ancestor of the trusted main branch')
-        run_ids = []
-        for workflow in required_workflows():
-            wait = os.environ.get('GITHUB_EVENT_NAME') == 'workflow_run' and workflow != 'android.yml'
-            run_ids.append(require_workflow(sha, workflow, wait=wait))
         subject = subprocess.run(['git', 'show', '-s', '--format=%s', sha], capture_output=True, check=False, text=True)
         if subject.returncode:
             raise SourceError('Could not inspect the trusted release commit subject')
         mode = release_mode(os.environ, event, subject.stdout)
+        if mode == 'skip':
+            # A main CI-only workflow change must not allocate or upload a new app binary.
+            # The triggering workflow_run was already proven to be a successful main push.
+            with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
+                output.write(f'sha={sha}\nrelease_mode=skip\n')
+            print('Trusted main CI-only commit: Play binary submission intentionally skipped')
+            return 0
+        run_ids = []
+        for workflow in required_workflows():
+            wait = os.environ.get('GITHUB_EVENT_NAME') == 'workflow_run' and workflow != 'android.yml'
+            run_ids.append(require_workflow(sha, workflow, wait=wait))
         with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
             output.write(f'sha={sha}\nverify_run_id={run_ids[0]}\nrelease_mode={mode}\n')
         print(f'Trusted main source {sha}; required CI runs {", ".join(run_ids)} passed')
         return 0
+
     except (SourceError, KeyError, OSError, ValueError) as error:
         message = str(error) if isinstance(error, SourceError) else 'Source metadata is missing or invalid'
         print('Release source check failed: ' + message, file=sys.stderr)

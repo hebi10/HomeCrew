@@ -17,7 +17,7 @@ import androidx.sqlite.execSQL
         AppStateEntity::class
     ],
     version = 2,
-    exportSchema = false
+    exportSchema = true
 )
 abstract class HomeCrewDatabase : RoomDatabase() {
     abstract fun chores(): HomeCrewDao

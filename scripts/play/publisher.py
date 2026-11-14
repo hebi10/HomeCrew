@@ -9,6 +9,7 @@ from pathlib import Path
 import re
 import subprocess
 import sys
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -80,31 +81,36 @@ class HttpTransport:
         if data is not None:
             headers['Content-Type'] = content_type or 'application/json; charset=utf-8'
         request = urllib.request.Request(url, data=data, headers=headers, method=method)
-        try:
-            with self.opener(request, timeout=300 if upload else 60) as response:
-                raw = response.read()
-                return json.loads(raw) if raw else {}
-        except urllib.error.HTTPError as error:
-            # Response bodies can contain supplied credentials or private listing data.
-            api_status = None
-            safe_reason = None
+        # Only read-only GET requests may be retried. Never replay edits, uploads or commits.
+        for attempt in range(4):
             try:
-                raw = error.read(65537)
-                if len(raw) <= 65536:
-                    payload = json.loads(raw)
-                    if isinstance(payload, dict) and isinstance(payload.get('error'), dict):
-                        candidate = payload['error'].get('status')
-                        if isinstance(candidate, str) and candidate in API_STATUSES:
-                            api_status = candidate
-                        if error.code == 400 and payload['error'].get('message') == REVIEW_HOLD_FORBIDDEN_MESSAGE:
-                            safe_reason = REVIEW_HOLD_FORBIDDEN_REASON
-            except (OSError, ValueError):
-                pass
-            finally:
-                error.close()
-            raise PlayApiError(method, error.code, api_status, safe_reason) from None
-        except (urllib.error.URLError, TimeoutError, ValueError):
-            raise ReleaseError('Play API request or response failed; no successful deployment can be claimed') from None
+                with self.opener(request, timeout=300 if upload else 60) as response:
+                    raw = response.read()
+                    return json.loads(raw) if raw else {}
+            except urllib.error.HTTPError as error:
+                # Response bodies can contain supplied credentials or private listing data.
+                api_status = None
+                safe_reason = None
+                try:
+                    raw = error.read(65537)
+                    if len(raw) <= 65536:
+                        payload = json.loads(raw)
+                        if isinstance(payload, dict) and isinstance(payload.get('error'), dict):
+                            candidate = payload['error'].get('status')
+                            if isinstance(candidate, str) and candidate in API_STATUSES:
+                                api_status = candidate
+                            if error.code == 400 and payload['error'].get('message') == REVIEW_HOLD_FORBIDDEN_MESSAGE:
+                                safe_reason = REVIEW_HOLD_FORBIDDEN_REASON
+                except (OSError, ValueError):
+                    pass
+                finally:
+                    error.close()
+                if method == 'GET' and error.code in (429, 500, 502, 503, 504) and attempt < 3:
+                    time.sleep(2 ** attempt)
+                    continue
+                raise PlayApiError(method, error.code, api_status, safe_reason) from None
+            except (urllib.error.URLError, TimeoutError, ValueError):
+                raise ReleaseError('Play API request or response failed; no successful deployment can be claimed') from None
 
 
 class Publisher:

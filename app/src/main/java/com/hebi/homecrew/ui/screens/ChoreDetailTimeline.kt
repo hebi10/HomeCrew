@@ -22,7 +22,7 @@ internal fun upcomingChoreOccurrences(
     occurrences: List<DemoChore>,
     today: LocalDate
 ): List<DemoChore> = occurrences
-    .filter { !it.completed && !it.date.isBefore(today) }
+    .filter { !it.completed && !it.skipped && !it.date.isBefore(today) }
     .sortedWith(compareBy({ it.date }, { it.definition.time }, { it.id }))
     .take(3)
 
@@ -30,7 +30,7 @@ internal fun missedChoreOccurrences(
     occurrences: List<DemoChore>,
     today: LocalDate
 ): List<DemoChore> = occurrences
-    .filter { !it.completed && it.date.isBefore(today) }
+    .filter { !it.completed && !it.skipped && it.date.isBefore(today) }
     .sortedWith(compareByDescending<DemoChore> { it.date }
         .thenByDescending { it.definition.time }.thenBy { it.id })
     .take(3)

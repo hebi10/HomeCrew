@@ -67,6 +67,31 @@ class ChoreEditingTest {
         )
     }
 
+
+    @Test
+    fun recurrenceOrdinalsMatchGeneratedDatesAndAvoidHistoryMaterialization() {
+        val start = LocalDate.of(2028, 1, 31)
+        val rules = listOf(
+            ChoreRepeat(ChoreRepeatMode.NONE),
+            ChoreRepeat(ChoreRepeatMode.DAILY),
+            ChoreRepeat(ChoreRepeatMode.CUSTOM, intervalDays = 3),
+            ChoreRepeat(ChoreRepeatMode.WEEKLY, setOf(DayOfWeek.TUESDAY, DayOfWeek.THURSDAY)),
+            ChoreRepeat(ChoreRepeatMode.BIWEEKLY, setOf(DayOfWeek.MONDAY, DayOfWeek.THURSDAY)),
+            ChoreRepeat(ChoreRepeatMode.MONTHLY)
+        )
+        rules.forEach { rule ->
+            val dates = nextChoreDates(start, rule, start, start.plusDays(180))
+            dates.forEachIndexed { index, date ->
+                assertEquals(index.toLong(), recurrenceOrdinal(start, rule, date))
+            }
+        }
+        val ancientStart = LocalDate.ofEpochDay(-365_000_000)
+        assertEquals(
+            java.time.temporal.ChronoUnit.DAYS.between(ancientStart, today),
+            recurrenceOrdinal(ancientStart, ChoreRepeat(ChoreRepeatMode.DAILY), today)
+        )
+    }
+
     @Test
     fun ownerRotationAndWeightedBalanceBehaveDeterministically() {
         val roundRobin = ChoreAssignment(ChoreAssignmentMode.ROUND_ROBIN, members)
