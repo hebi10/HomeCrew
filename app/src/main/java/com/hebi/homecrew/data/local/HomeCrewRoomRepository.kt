@@ -11,6 +11,7 @@ import com.hebi.homecrew.ui.screens.legacyRepeat
 import com.hebi.homecrew.ui.screens.orderedParticipants
 import com.hebi.homecrew.ui.screens.previewDraftInstances
 import com.hebi.homecrew.ui.screens.repeatDescription
+import com.hebi.homecrew.ui.screens.recurrenceOrdinal
 import com.hebi.homecrew.ui.screens.validationError
 import com.hebi.homecrew.ui.screens.workloadBaseline
 import com.hebi.homecrew.ui.setup.HouseholdSetup
@@ -18,6 +19,8 @@ import com.hebi.homecrew.ui.setup.previewChoresForSetup
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.util.UUID
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 
@@ -39,6 +42,19 @@ class HomeCrewRoomRepository(
     }
 
     suspend fun snapshot(): HomeCrewSnapshot = assembleSnapshot(dao.readRows())
+
+    suspend fun exportBackup(household: HouseholdSetup): String {
+        val rows = dao.readRows()
+        return withContext(Dispatchers.Default) { HomeCrewLocalBackup.encode(household, rows) }
+    }
+
+    suspend fun restoreBackup(json: String, household: HouseholdSetup, today: LocalDate) {
+        val restored = withContext(Dispatchers.Default) {
+            val rows = HomeCrewLocalBackup.decode(json, household)
+            rows.copy(occurrences = rows.occurrences + missingUpcoming(rows, today))
+        }
+        dao.replaceFromBackup(restored)
+    }
 
     suspend fun initializeIfNeeded(household: HouseholdSetup, today: LocalDate) {
         val initial = previewChoresForSetup(household, today)
@@ -84,7 +100,14 @@ class HomeCrewRoomRepository(
     }
 
     suspend fun extendUpcoming(today: LocalDate) {
-        val rows = dao.readRows()
+        val missing = missingUpcoming(dao.readRows(), today)
+        if (missing.isNotEmpty()) dao.insertMissingOccurrences(missing)
+    }
+
+    private fun missingUpcoming(
+        rows: HomeCrewRows,
+        today: LocalDate
+    ): List<ChoreOccurrenceEntity> {
         val definitions = assembleSnapshot(rows).definitions
         val storedByDefinition = rows.occurrences.groupBy { it.definitionId }
         val pointsByDefinition = rows.definitions.associate { it.id to it.points }
@@ -104,7 +127,7 @@ class HomeCrewRoomRepository(
             val rule = definition.recurrence ?: return@forEach
             val start = definition.startDate ?: today
             val dates = com.hebi.homecrew.ui.screens.nextChoreDates(
-                start, rule, start, lastDay
+                start, rule, today, lastDay
             )
             if (dates.isEmpty()) return@forEach
             val participants = definition.assignment?.members.orEmpty()
@@ -113,21 +136,26 @@ class HomeCrewRoomRepository(
             val stored = storedByDefinition[definition.id].orEmpty()
             val savedDays = stored.map { it.scheduledEpochDay }.toHashSet()
             val lastStored = stored.maxByOrNull { it.scheduledEpochDay }
-            val lastIndex = lastStored?.let { last ->
-                dates.indexOfFirst { date -> date.toEpochDay() == last.scheduledEpochDay }
-            } ?: -1
+            val lastDate = lastStored?.let { LocalDate.ofEpochDay(it.scheduledEpochDay) }
+            val lastOrdinal = lastDate?.takeIf { !it.isBefore(start) &&
+                com.hebi.homecrew.ui.screens.nextChoreDates(start, rule, it, it).isNotEmpty()
+            }?.let { recurrenceOrdinal(start, rule, it) }
             val lastMember = lastStored?.let { participants.indexOf(it.assignedMember) } ?: -1
-            val rotationOffset = if (lastIndex >= 0 && lastMember >= 0) {
-                (lastMember - lastIndex % participants.size + participants.size) % participants.size
+            val rotationOffset = if (lastOrdinal != null && lastMember >= 0) {
+                (lastMember - (lastOrdinal % participants.size).toInt() + participants.size) %
+                    participants.size
             } else 0
 
-            dates.forEachIndexed { index, date ->
+            dates.forEach dateLoop@ { date ->
                 val epoch = date.toEpochDay()
-                if (epoch < firstDay || epoch in savedDays) return@forEachIndexed
+                if (epoch < firstDay || epoch in savedDays) return@dateLoop
                 val owner = when (mode) {
                     ChoreAssignmentMode.FIXED -> participants.first()
                     ChoreAssignmentMode.ROUND_ROBIN ->
-                        participants[(index + rotationOffset) % participants.size]
+                        participants[
+                            ((recurrenceOrdinal(start, rule, date) % participants.size).toInt() +
+                                rotationOffset) % participants.size
+                        ]
                     ChoreAssignmentMode.BALANCED ->
                         participants.minBy { loads[it] ?: 0 }
                 }
@@ -141,7 +169,7 @@ class HomeCrewRoomRepository(
                 loads[owner] = (loads[owner] ?: 0) + definition.points
             }
         }
-        if (missing.isNotEmpty()) dao.insertMissingOccurrences(missing)
+        return missing
     }
 
     suspend fun save(
@@ -202,6 +230,20 @@ class HomeCrewRoomRepository(
         ) { "완료 상태를 저장하지 못했습니다." }
     }
 
+    suspend fun toggleSkipped(id: String, reason: String?) {
+        val current = dao.findOccurrence(id) ?: error("건너뛸 회차를 찾을 수 없습니다.")
+        val isUnskipping = current.skippedAtEpochMillis != null
+        require(isUnskipping || !current.completed) { "완료된 회차는 건너뛸 수 없습니다." }
+        check(
+            dao.setSkipped(
+                occurrenceId = id,
+                skippedAt = if (isUnskipping) null else clock(),
+                reason = if (isUnskipping) null else reason?.trim()?.takeIf { it.isNotEmpty() }
+                    ?.also { require(it.length <= 120) }
+            ) == 1
+        ) { "건너뛰기 기록을 저장하지 못했습니다." }
+    }
+
     private fun assembleSnapshot(rows: HomeCrewRows): HomeCrewSnapshot {
         val participants = rows.members.groupBy { it.definitionId }
         val definitions = rows.definitions.map { entity ->
@@ -247,7 +289,9 @@ class HomeCrewRoomRepository(
                 date = LocalDate.ofEpochDay(row.scheduledEpochDay),
                 completed = row.completed,
                 completedAtEpochMillis = row.completedAtEpochMillis,
-                completedBy = row.completedBy
+                completedBy = row.completedBy,
+                skippedAtEpochMillis = row.skippedAtEpochMillis,
+                skipReason = row.skipReason
             )
         }
         return HomeCrewSnapshot(definitions, chores)
@@ -286,6 +330,8 @@ class HomeCrewRoomRepository(
         scheduledEpochDay = date.toEpochDay(),
         assignedMember = definition.owner,
         workloadPoints = definition.points,
-        completed = completed
+        completed = completed,
+        skippedAtEpochMillis = skippedAtEpochMillis,
+        skipReason = skipReason
     )
 }

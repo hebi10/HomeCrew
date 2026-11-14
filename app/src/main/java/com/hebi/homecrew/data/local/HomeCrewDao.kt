@@ -68,13 +68,13 @@ abstract class HomeCrewDao {
 
     @Query(
         "DELETE FROM chore_occurrences WHERE definitionId = :id " +
-            "AND scheduledEpochDay >= :todayEpochDay AND completed = 0"
+            "AND scheduledEpochDay >= :todayEpochDay AND completed = 0 AND skippedAtEpochMillis IS NULL"
     )
     abstract suspend fun deleteFutureIncompleteOccurrences(id: String, todayEpochDay: Long)
 
     @Query(
         "SELECT scheduledEpochDay FROM chore_occurrences WHERE definitionId = :id " +
-            "AND (scheduledEpochDay < :todayEpochDay OR completed = 1)"
+            "AND (scheduledEpochDay < :todayEpochDay OR completed = 1 OR skippedAtEpochMillis IS NOT NULL)"
     )
     abstract suspend fun preservedDays(id: String, todayEpochDay: Long): List<Long>
 
@@ -83,7 +83,8 @@ abstract class HomeCrewDao {
 
     @Query(
         "UPDATE chore_occurrences SET completed = :completed, " +
-            "completedAtEpochMillis = :completedAtEpochMillis, completedBy = :completedBy " +
+            "completedAtEpochMillis = :completedAtEpochMillis, completedBy = :completedBy, " +
+            "skippedAtEpochMillis = NULL, skipReason = NULL " +
             "WHERE id = :occurrenceId"
     )
     abstract suspend fun setCompleted(
@@ -92,6 +93,32 @@ abstract class HomeCrewDao {
         completedAtEpochMillis: Long?,
         completedBy: String?
     ): Int
+
+    @Query(
+        "UPDATE chore_occurrences SET completed = 0, completedAtEpochMillis = NULL, " +
+            "completedBy = NULL, skippedAtEpochMillis = :skippedAt, skipReason = :reason " +
+            "WHERE id = :occurrenceId AND completed = 0"
+    )
+    abstract suspend fun setSkipped(
+        occurrenceId: String,
+        skippedAt: Long?,
+        reason: String?
+    ): Int
+
+    @Query("DELETE FROM chore_definitions")
+    abstract suspend fun deleteAllDefinitions()
+
+    @Transaction
+    open suspend fun replaceFromBackup(rows: HomeCrewRows) {
+        val ids = rows.definitions.map { it.id }.toSet()
+        require(rows.members.all { it.definitionId in ids })
+        require(rows.occurrences.all { it.definitionId in ids })
+        deleteAllDefinitions()
+        upsertDefinitions(rows.definitions)
+        upsertAssignmentMembers(rows.members)
+        upsertOccurrences(rows.occurrences)
+        upsertState(AppStateEntity(SEED_KEY, "1"))
+    }
 
     @Transaction
     open suspend fun readRows(): HomeCrewRows = HomeCrewRows(

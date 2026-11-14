@@ -220,7 +220,15 @@ class ChoreEditorScreenshotTest {
             "선택한 완료 회차로 이동하지 못했습니다."
         }
         screenshot("11-chore-selected-completion")
-        if (!originallyCompleted) press("이 회차 완료 취소")
+        press("이 회차 완료 취소")
+        press("이 회차 건너뛰기")
+        press("건너뛰기")
+        requireNotNull(device.wait(Until.findObject(By.text("건너뜀")), 8_000)) {
+            "선택한 회차의 건너뛰기 상태가 반영되지 않습니다."
+        }
+        screenshot("11-chore-detail-skipped")
+        press("건너뛰기 취소")
+        if (originallyCompleted) press("이 회차 완료 처리")
         press("집안일 수정")
         awaitScreen("집안일 수정")
         screenshot("12-chore-edit")

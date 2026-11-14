@@ -37,6 +37,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.hebi.homecrew.ui.components.HomeCrewEmptyState
 import com.hebi.homecrew.ui.components.HomeCrewFilterChip
+import com.hebi.homecrew.ui.components.HomeCrewSecondaryButton
 import com.hebi.homecrew.ui.components.HomeCrewStatusChip
 import com.hebi.homecrew.ui.components.HomeCrewTextField
 import com.hebi.homecrew.ui.model.ChoreStatus
@@ -52,7 +53,8 @@ fun HomeCrewChoresScreen(
     onDetails: (ChoreDefinition, String?) -> Unit,
     onAdd: () -> Unit,
     definitions: List<ChoreDefinition> = chores.map { it.definition }.distinctBy { it.id },
-    members: List<String> = listOf("나", "지민")
+    members: List<String> = listOf("나", "지민"),
+    onDataManagement: () -> Unit = {}
 ) {
     val palette = LocalHomeCrewColors.current
     var search by rememberSaveable { mutableStateOf("") }
@@ -133,6 +135,7 @@ fun HomeCrewChoresScreen(
                         CHORE_LIST_ALL,
                         ChoreStatus.PLANNED.label,
                         ChoreStatus.COMPLETED.label,
+                        ChoreStatus.SKIPPED.label,
                         ChoreStatus.OVERDUE.label
                     ).forEach { option ->
                         HomeCrewFilterChip(
@@ -166,7 +169,7 @@ fun HomeCrewChoresScreen(
                     color = palette.muted
                 )
                 Text(
-                    "예정·완료는 오늘 회차, 기한 초과는 지난 미완료 회차 기준",
+                    "예정·완료·건너뜀은 오늘 회차, 기한 초과는 지난 미완료 회차 기준",
                     style = MaterialTheme.typography.bodySmall,
                     color = palette.muted
                 )
@@ -261,6 +264,13 @@ fun HomeCrewChoresScreen(
                     )
                 }
             }
+        }
+        item {
+            HomeCrewSecondaryButton(
+                text = "데이터 백업·복원",
+                onClick = onDataManagement,
+                modifier = Modifier.fillMaxWidth()
+            )
         }
     }
 }
