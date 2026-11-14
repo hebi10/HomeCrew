@@ -27,6 +27,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import com.hebi.homecrew.data.auth.homeCrewGoogleSignIn
 import com.hebi.homecrew.ui.components.HomeCrewFilterChip
 import com.hebi.homecrew.ui.setup.HouseholdSetup
 import com.hebi.homecrew.ui.setup.houseNameError
@@ -160,6 +161,9 @@ fun HomeCrewSettingsScreen(
                 style = MaterialTheme.typography.bodyMedium,
                 color = palette.muted
             )
+        }
+        homeCrewGoogleSignIn?.let { signIn ->
+            item { HomeCrewGoogleAccountSetting(signIn) }
         }
         if (error != null) {
             item { Text(error.orEmpty(), color = palette.error) }

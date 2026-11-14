@@ -26,6 +26,9 @@ android {
     namespace = "com.hebi.homecrew"
     compileSdk = 36
 
+    sourceSets.named("main") {
+        java.srcDir(if (hasFirebaseConfig) "src/firebaseAuth/java" else "src/localOnly/java")
+    }
     if (hasFirebaseConfig) {
         sourceSets.named("androidTest") {
             java.srcDir("src/firebaseAndroidTest/java")
@@ -93,8 +96,12 @@ tasks.configureEach {
 
 dependencies {
     if (hasFirebaseConfig) {
-        implementation(platform("com.google.firebase:firebase-bom:35.2.0"))
-        implementation("com.google.firebase:firebase-common")
+        implementation(platform("com.google.firebase:firebase-bom:34.6.0"))
+        implementation("com.google.firebase:firebase-auth")
+        implementation("androidx.credentials:credentials:1.6.0")
+        implementation("androidx.credentials:credentials-play-services-auth:1.6.0")
+        implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
+        implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.10.2")
     }
     implementation(platform("androidx.compose:compose-bom:2025.10.01"))
     implementation("androidx.core:core-ktx:1.17.0")
