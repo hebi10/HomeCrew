@@ -20,6 +20,7 @@ FIREBASE-02-A~D는 Google 계정 선택/선택형 로그인, Firebase AuthStateL
 | 최근 로그인 재인증 필요, 취소, 계정 변경, 두 번째 삭제 실패 | HomeCrewAccountDeletionTest / HomeCrewDeletionFailureIntegrationTest | 다른 계정·취소에서 재삭제 금지, 재시도 횟수 제한 |
 | Firebase 세션 구독/재구독과 로컬 데이터·백업 불변 | FirebaseAuthIsolationTest (Android, Firebase 구성 빌드) | AuthStateListener 구독 전후 Room 완료/건너뛰기·백업·기존 로컬 집 설정 보존 |
 | OAuth 리소스·Firebase 초기화 | FirebaseBootstrapTest | com.hebi.homecrew / homecrew-1b14b + default_web_client_id 구성 확인 |
+| Firebase 설정이 없는 로컬 전용 빌드 | Android CI local-only job (비밀 설정 주입 없음) | src/localOnly 컴파일, JVM·Lint·APK 성공, 기존 로컬 사용 가능 |
 | 앱 계정/외부 삭제·개인정보 진입점 | MainScreensScreenshotTest (Android UIAutomator) | 설정 계정·삭제 안내/개인정보 링크 실제 노출, 외부 브라우저나 서버 삭제 미호출 |
 | 권한·배포 동결/인증-로컬 저장 경계 | scripts/play/tests/test_firebase02e_boundaries.py | Firebase Auth provider가 Room/SharedPreferences를 직접 변경하지 않으며 Play/Pages는 수동 게이트 |
 | 기존 저장·화면·호환성 | Android CI, HomeCrew screen QA, UI-R09 device matrix | API29·35·36, API35 태블릿/160% 글꼴, Kotlin/JVM/Lint/APK, GitGuardian, 최신 Codex P1/P2 해결 |

@@ -41,6 +41,13 @@ class Firebase02EReleaseBoundaryTests(unittest.TestCase):
         self.assertNotIn("\n  push:", workflow)
         self.assertIn("HOMECREW_PRIVACY_PAGES_APPROVED", workflow)
 
+    def test_local_only_app_build_runs_without_firebase_secret(self):
+        workflow = (ROOT / ".github/workflows/android.yml").read_text(encoding="utf-8")
+        self.assertIn("  local-only:", workflow)
+        self.assertIn("Assert local-only build has no Firebase configuration", workflow)
+        self.assertIn("test ! -f app/google-services.json", workflow)
+        self.assertIn("testDebugUnitTest lintDebug assembleDebug", workflow)
+
     def test_google_play_mutation_remains_manual_after_auth_qa(self):
         workflow = (ROOT / ".github/workflows/play-internal.yml").read_text(encoding="utf-8")
         self.assertIn("workflow_dispatch:", workflow)
