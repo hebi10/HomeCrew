@@ -280,6 +280,40 @@ class MainScreensScreenshotTest {
                 local != null || signedIn != null
             )
             screenshot("14-account-section-light")
+
+            var deletionLink = device.wait(
+                Until.findObject(By.text("앱 외 계정 삭제 요청 안내")), 800
+            )
+            repeat(12) {
+                if (deletionLink == null) {
+                    device.swipe(
+                        device.displayWidth / 2, device.displayHeight * 3 / 4,
+                        device.displayWidth / 2, device.displayHeight / 3, 18
+                    )
+                    device.waitForIdle()
+                    deletionLink = device.wait(
+                        Until.findObject(By.text("앱 외 계정 삭제 요청 안내")), 800
+                    )
+                }
+            }
+            assertNotNull("앱 외 계정 삭제 안내 진입점이 보이지 않습니다.", deletionLink)
+
+            var privacyLink = device.wait(
+                Until.findObject(By.text("개인정보처리방침")), 800
+            )
+            repeat(12) {
+                if (privacyLink == null) {
+                    device.swipe(
+                        device.displayWidth / 2, device.displayHeight * 3 / 4,
+                        device.displayWidth / 2, device.displayHeight / 3, 18
+                    )
+                    device.waitForIdle()
+                    privacyLink = device.wait(
+                        Until.findObject(By.text("개인정보처리방침")), 800
+                    )
+                }
+            }
+            assertNotNull("개인정보처리방침 진입점이 보이지 않습니다.", privacyLink)
         }
     }
 }

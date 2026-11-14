@@ -32,21 +32,36 @@ internal fun homeCrewAccountUiState(
         status = "계정 상태 확인 중",
         description = "Google 로그인 정보를 확인하고 있습니다."
     )
-    is HomeCrewAuthSession.SignedIn -> HomeCrewAccountUiState(
-        status = when (accountAction) {
-            HomeCrewAccountAction.SIGN_OUT -> "로그아웃 처리 중"
-            HomeCrewAccountAction.DELETE_ACCOUNT -> "계정 삭제 처리 중"
-            null -> "Google 계정 연결됨"
-        },
-        description = "Firebase 로그인 계정과 기기 내 집안일은 별도로 보관됩니다.",
-        accountName = session.user.displayName?.trim()?.takeIf { it.isNotEmpty() } ?: "이름 정보 없음",
-        accountEmail = session.user.email?.trim()?.takeIf { it.isNotEmpty() } ?: "이메일 정보 없음",
-        showSignOut = true,
-        showDeleteAccount = true,
-        accountActionsEnabled = accountAction == null && !signingIn,
-        feedback = accountResult?.let(::accountActionMessage),
-        feedbackIsError = accountResult?.let(::accountActionIsError) ?: false
-    )
+    is HomeCrewAuthSession.SignedIn -> {
+        val awaitingSessionClear = accountAction == null && accountResult in setOf(
+            HomeCrewAccountActionResult.SIGNED_OUT,
+            HomeCrewAccountActionResult.SIGNED_OUT_CREDENTIAL_WARNING,
+            HomeCrewAccountActionResult.DELETED,
+            HomeCrewAccountActionResult.DELETED_CREDENTIAL_WARNING
+        )
+        HomeCrewAccountUiState(
+            status = when {
+                awaitingSessionClear -> "Firebase 계정 상태 확인 중"
+                accountAction == HomeCrewAccountAction.SIGN_OUT -> "로그아웃 처리 중"
+                accountAction == HomeCrewAccountAction.DELETE_ACCOUNT -> "계정 삭제 처리 중"
+                else -> "Google 계정 연결됨"
+            },
+            description = if (awaitingSessionClear) {
+                "Firebase 계정 변경 사항이 앱에 반영되는지 확인하고 있습니다."
+            } else {
+                "Firebase 로그인 계정과 기기 내 집안일은 별도로 보관됩니다."
+            },
+            accountName = if (awaitingSessionClear) null else
+                session.user.displayName?.trim()?.takeIf { it.isNotEmpty() } ?: "이름 정보 없음",
+            accountEmail = if (awaitingSessionClear) null else
+                session.user.email?.trim()?.takeIf { it.isNotEmpty() } ?: "이메일 정보 없음",
+            showSignOut = !awaitingSessionClear,
+            showDeleteAccount = !awaitingSessionClear,
+            accountActionsEnabled = !awaitingSessionClear && accountAction == null && !signingIn,
+            feedback = accountResult?.let(::accountActionMessage),
+            feedbackIsError = accountResult?.let(::accountActionIsError) ?: false
+        )
+    }
     HomeCrewAuthSession.LocalOnly -> {
         val feedback = when (result) {
             GoogleSignInResult.CANCELLED -> "Google 로그인이 취소되었습니다."
