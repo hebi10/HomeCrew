@@ -1,0 +1,84 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function ownerOf(householdId) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/households/$(householdId))
+        && get(/databases/$(database)/documents/households/$(householdId)).data.ownerUid == request.auth.uid;
+    }
+
+    function memberOf(householdId) {
+      return ownerOf(householdId)
+        || (signedIn() &&
+          exists(/databases/$(database)/documents/households/$(householdId)/members/$(request.auth.uid)));
+    }
+
+    function validHousehold(data) {
+      return data.keys().hasAll(['name', 'ownerUid', 'schemaVersion', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['name', 'ownerUid', 'schemaVersion', 'createdAt', 'updatedAt'])
+        && data.ownerUid is string
+        && data.ownerUid.size() > 0
+        && data.name is string
+        && data.name.size() > 0
+        && data.name.size() <= 80
+        && data.schemaVersion == 1
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    match /users/{userId} {
+      allow get: if signedIn() && request.auth.uid == userId;
+      allow list: if false;
+      allow create, update, delete: if false;
+
+      match /households/{householdId} {
+        allow get, list: if signedIn() && request.auth.uid == userId;
+        allow create, update, delete: if false;
+      }
+    }
+
+    match /households/{householdId} {
+      allow get: if memberOf(householdId);
+      allow list: if false;
+
+      allow create: if signedIn()
+        && validHousehold(request.resource.data)
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+
+      allow update: if ownerOf(householdId)
+        && validHousehold(request.resource.data)
+        && request.resource.data.ownerUid == resource.data.ownerUid
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.schemaVersion == resource.data.schemaVersion
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'updatedAt'])
+        && request.resource.data.updatedAt == request.time;
+
+      allow delete: if false;
+
+      match /members/{memberUid} {
+        allow get, list: if memberOf(householdId);
+        allow create, update, delete: if false;
+      }
+
+      match /chores/{choreId} {
+        allow get, list: if memberOf(householdId);
+        allow create, update, delete: if false;
+      }
+
+      match /occurrences/{occurrenceId} {
+        allow get, list: if memberOf(householdId);
+        allow create, update, delete: if false;
+      }
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
