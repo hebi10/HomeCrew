@@ -18,14 +18,17 @@ service cloud.firestore {
     }
 
     function validHousehold(data) {
-      return data.keys().hasAll(['name', 'ownerUid', 'schemaVersion', 'createdAt', 'updatedAt'])
-        && data.keys().hasOnly(['name', 'ownerUid', 'schemaVersion', 'createdAt', 'updatedAt'])
+      return data.keys().hasAll(['name', 'ownerUid', 'schemaVersion', 'memberCount', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['name', 'ownerUid', 'schemaVersion', 'memberCount', 'createdAt', 'updatedAt'])
         && data.ownerUid is string
         && data.ownerUid.size() > 0
         && data.name is string
         && data.name.size() > 0
         && data.name.size() <= 80
         && data.schemaVersion == 1
+        && data.memberCount is int
+        && data.memberCount >= 1
+        && data.memberCount <= 8
         && data.createdAt is timestamp
         && data.updatedAt is timestamp;
     }
@@ -48,12 +51,14 @@ service cloud.firestore {
       allow create: if signedIn()
         && validHousehold(request.resource.data)
         && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.memberCount == 1
         && request.resource.data.createdAt == request.time
         && request.resource.data.updatedAt == request.time;
 
       allow update: if ownerOf(householdId)
         && validHousehold(request.resource.data)
         && request.resource.data.ownerUid == resource.data.ownerUid
+        && request.resource.data.memberCount == resource.data.memberCount
         && request.resource.data.createdAt == resource.data.createdAt
         && request.resource.data.schemaVersion == resource.data.schemaVersion
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'updatedAt'])

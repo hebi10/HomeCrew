@@ -4,13 +4,15 @@ internal data class CloudHousehold(
     val id: String,
     val ownerUid: String,
     val name: String,
-    val schemaVersion: Int = 1
+    val schemaVersion: Int = 1,
+    val memberCount: Int = 1
 ) {
     init {
         requireValidCloudId(id)
         require(ownerUid.isNotBlank()) { "Firebase UID is required" }
         require(normalizeCloudHouseholdName(name) == name)
         require(schemaVersion == 1)
+        require(memberCount in 1..8)
     }
 }
 

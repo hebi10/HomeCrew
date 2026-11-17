@@ -21,7 +21,7 @@ function db(uid) {
 }
 function home(name = '우리 집', ownerUid = 'alice') {
   return {
-    name, ownerUid, schemaVersion: 1,
+    name, ownerUid, schemaVersion: 1, memberCount: 1,
     createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
   };
 }
@@ -61,6 +61,9 @@ test('client cannot forge ownership or transfer owner to another account', async
   await assertFails(updateDoc(doc(db('alice'), 'households/house-one'), {
     schemaVersion: 2, updatedAt: serverTimestamp(),
   }));
+  await assertFails(updateDoc(doc(db('alice'), 'households/house-one'), {
+    memberCount: 8, updatedAt: serverTimestamp(),
+  }));
   await assertFails(deleteDoc(doc(db('alice'), 'households/house-one')));
 });
 
@@ -89,7 +92,7 @@ test('removed membership revokes reads, and cross-household member access is den
   await environment.withSecurityRulesDisabled(async (admin) => {
     const store = admin.firestore();
     await setDoc(doc(store, 'households/other-house'), {
-      name: 'other', ownerUid: 'charlie', schemaVersion: 1,
+      name: 'other', ownerUid: 'charlie', schemaVersion: 1, memberCount: 1,
       createdAt: new Date(), updatedAt: new Date(),
     });
     await deleteDoc(doc(store, 'households/house-one/members/bob'));
