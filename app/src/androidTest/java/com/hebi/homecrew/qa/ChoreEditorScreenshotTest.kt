@@ -129,6 +129,36 @@ class ChoreEditorScreenshotTest {
         error("하위 화면 전환 실패: $title")
     }
 
+    private fun openEditFromDetail() {
+        val editTitle = By.desc("화면 제목: 집안일 수정")
+        repeat(4) {
+            if (device.wait(Until.findObject(editTitle), 500) != null) return
+            device.waitForIdle()
+            var editButton = device.wait(Until.findObject(By.text("집안일 수정")), 2_000)
+            if (editButton == null) {
+                device.swipe(
+                    device.displayWidth / 2, device.displayHeight * 3 / 4,
+                    device.displayWidth / 2, device.displayHeight / 3, 18
+                )
+                device.waitForIdle()
+                editButton = device.wait(Until.findObject(By.text("집안일 수정")), 2_000)
+            }
+            if (editButton != null) {
+                try {
+                    val bounds = editButton.visibleBounds
+                    device.click(bounds.centerX(), bounds.centerY())
+                    device.waitForIdle()
+                    if (device.wait(Until.findObject(editTitle), 5_000) != null) return
+                } catch (_: androidx.test.uiautomator.StaleObjectException) {
+                    device.waitForIdle()
+                }
+            }
+        }
+        screenshot("error-1d-edit-navigation")
+        device.dumpWindowHierarchy(File(outputDirectory(), "error-1d-edit-navigation.xml"))
+        throw AssertionError("집안일 수정 버튼을 눌러도 수정 화면으로 전환되지 않았습니다.")
+    }
+
     private fun completeSetupIfNeeded() {
         device.dismissEmulatorLauncherAnrIfShown()
         if (device.wait(Until.findObject(By.text("시작하기")), 2_000) != null) {
@@ -254,8 +284,7 @@ class ChoreEditorScreenshotTest {
         screenshot("11-chore-detail-skipped")
         press("건너뛰기 취소")
         if (originallyCompleted) press("이 회차 완료 처리")
-        press("집안일 수정")
-        awaitScreen("집안일 수정")
+        openEditFromDetail()
         screenshot("12-chore-edit")
     }
 }
