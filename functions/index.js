@@ -189,3 +189,5 @@ export const removeHouseholdMember = onCall(options, async (request) => {
   });
   return { householdId: home.id, removed: true };
 });
+
+export { createRemoteChore, updateRemoteChore, ensureRemoteOccurrence, recordChoreCompletion } from "./sync.js";
