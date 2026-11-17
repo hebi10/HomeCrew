@@ -187,4 +187,36 @@ class HomeCrewAccountUiStateTest {
         assertFalse(state.feedbackIsError)
     }
 
+    @Test
+    fun confirmedSignOutOrDeletionWaitsForActualAuthListenerBeforeShowingLocalState() {
+        val user = HomeCrewAuthSession.SignedIn(
+            HomeCrewAuthUser(
+                uid = "internal-uid-not-for-ui", displayName = "테스트", email = "qa@example.invalid"
+            )
+        )
+        for (result in listOf(
+            HomeCrewAccountActionResult.SIGNED_OUT,
+            HomeCrewAccountActionResult.SIGNED_OUT_CREDENTIAL_WARNING,
+            HomeCrewAccountActionResult.DELETED,
+            HomeCrewAccountActionResult.DELETED_CREDENTIAL_WARNING
+        )) {
+            val pending = homeCrewAccountUiState(
+                user, signingIn = false, result = null, accountResult = result
+            )
+            assertEquals("Firebase 계정 상태 확인 중", pending.status)
+            assertFalse(pending.accountActionsEnabled)
+            assertFalse(pending.showSignOut)
+            assertFalse(pending.showDeleteAccount)
+            assertNull(pending.accountName)
+            assertNull(pending.accountEmail)
+            assertFalse(pending.toString().contains("internal-uid-not-for-ui"))
+        }
+        val local = homeCrewAccountUiState(
+            HomeCrewAuthSession.LocalOnly, false, null,
+            accountResult = HomeCrewAccountActionResult.DELETED
+        )
+        assertEquals("로그인 없이 사용 중", local.status)
+        assertTrue(local.signInEnabled)
+    }
+
 }

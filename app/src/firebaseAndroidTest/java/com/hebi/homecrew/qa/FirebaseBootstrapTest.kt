@@ -31,10 +31,13 @@ class FirebaseBootstrapTest {
         val firebaseUser = FirebaseAuth.getInstance().currentUser
 
         if (firebaseUser == null) {
-            assertEquals(HomeCrewAuthSession.LocalOnly, actual)
+            assertTrue("Firebase session should be local only", actual is HomeCrewAuthSession.LocalOnly)
         } else {
             assertTrue("Firebase user should map to signed-in session", actual is HomeCrewAuthSession.SignedIn)
-            assertEquals(firebaseUser.uid, (actual as HomeCrewAuthSession.SignedIn).user.uid)
+            assertTrue(
+                "Firebase Auth UID does not match observed session",
+                firebaseUser.uid == (actual as HomeCrewAuthSession.SignedIn).user.uid
+            )
         }
     }
 

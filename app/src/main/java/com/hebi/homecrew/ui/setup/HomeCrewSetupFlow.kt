@@ -34,6 +34,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -122,15 +124,18 @@ fun HomeCrewSetupFlow(
                         Text("템플릿 없이 건너뛰기")
                     }
                 }
+                val primaryButtonLabel = when (step) {
+                    0 -> "시작하기"
+                    1, 2 -> "다음"
+                    else -> if (selectedIds.isEmpty()) "건너뛰고 홈 보기"
+                    else "선택한 집안일로 시작"
+                }
                 HomeCrewPrimaryButton(
-                    text = when (step) {
-                        0 -> "시작하기"
-                        1, 2 -> "다음"
-                        else -> if (selectedIds.isEmpty()) "건너뛰고 홈 보기"
-                        else "선택한 집안일로 시작"
-                    },
+                    text = primaryButtonLabel,
                     onClick = ::next,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .semantics { contentDescription = primaryButtonLabel }
                 )
                 if (error != null) {
                     Text(
