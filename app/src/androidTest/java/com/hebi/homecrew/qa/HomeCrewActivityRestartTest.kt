@@ -173,8 +173,14 @@ class HomeCrewActivityRestartTest {
             assertNotNull("새 구성원 이름 입력 필드를 찾을 수 없습니다.", memberField)
             requireNotNull(memberField).click()
             device.waitForIdle()
-            device.executeShellCommand("input text $member")
+            val editable = device.findObjects(By.clazz("android.widget.EditText")).lastOrNull()
+            assertNotNull("새 구성원의 편집 가능한 입력 칸이 없습니다.", editable)
+            requireNotNull(editable).text = member
             device.waitForIdle()
+            val exactInput = device.findObjects(By.clazz("android.widget.EditText"))
+                .any { it.text == member }
+            if (!exactInput) captureSettingsDiagnostic("error-settings-member-input-mismatch")
+            assertTrue("구성원 입력값이 저장 전에 변형되었습니다.", exactInput)
             captureSettingsDiagnostic("13-settings-new-member-input")
             scenario.onActivity { activity ->
                 WindowCompat.getInsetsController(activity.window, activity.window.decorView)
