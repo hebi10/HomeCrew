@@ -12,6 +12,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.core.content.ContextCompat
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -28,6 +35,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import com.hebi.homecrew.reminder.HomeCrewReminderPreferences
+import com.hebi.homecrew.reminder.HomeCrewReminderScheduler
+import com.hebi.homecrew.reminder.HomeCrewReminderTime
 import com.hebi.homecrew.data.auth.homeCrewGoogleSignIn
 import com.hebi.homecrew.ui.components.HomeCrewFilterChip
 import com.hebi.homecrew.ui.setup.HouseholdSetup
@@ -49,6 +59,21 @@ fun HomeCrewSettingsScreen(
     val palette = LocalHomeCrewColors.current
     val context = LocalContext.current
     var privacyLinkError by remember { mutableStateOf(false) }
+    val reminderPrefs = remember(context) { HomeCrewReminderPreferences(context) }
+    var reminderSettings by remember { mutableStateOf(reminderPrefs.read()) }
+    var reminderTimeText by remember { mutableStateOf(reminderSettings.time.toString()) }
+    var reminderNotice by remember { mutableStateOf<String?>(null) }
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            reminderSettings = reminderPrefs.updateEnabled(true)
+            HomeCrewReminderScheduler.apply(context, reschedule = true)
+            reminderNotice = "오늘 할 일 알림을 설정했습니다."
+        } else {
+            reminderNotice = "알림 권한이 허용되지 않아 알림을 켜지 않았습니다."
+        }
+    }
     var homeName by remember(household.homeName) { mutableStateOf(household.homeName) }
     var newMember by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
@@ -155,6 +180,66 @@ fun HomeCrewSettingsScreen(
                         onClick = { onThemeModeChange(mode) }
                     )
                 }
+            }
+        }
+        item {
+            Text("오늘 할 일 알림", style = MaterialTheme.typography.titleMedium)
+            Text(
+                "선택한 시간 이후 하루 한 번 남은 집안일 수를 알려드립니다. " +
+                    "배터리 절약 정책에 따라 실제 전달 시각은 달라질 수 있습니다.",
+                style = MaterialTheme.typography.bodySmall,
+                color = palette.muted
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text("알림 사용", modifier = Modifier.padding(vertical = 12.dp))
+                Switch(
+                    checked = reminderSettings.enabled,
+                    onCheckedChange = { enabled ->
+                        if (!enabled) {
+                            reminderSettings = reminderPrefs.updateEnabled(false)
+                            HomeCrewReminderScheduler.apply(context, reschedule = true)
+                            reminderNotice = "알림을 해제했습니다."
+                        } else if (
+                            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
+                                != PackageManager.PERMISSION_GRANTED
+                        ) {
+                            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        } else {
+                            reminderSettings = reminderPrefs.updateEnabled(true)
+                            HomeCrewReminderScheduler.apply(context, reschedule = true)
+                            reminderNotice = "오늘 할 일 알림을 설정했습니다."
+                        }
+                    },
+                    modifier = Modifier.semantics { contentDescription = "오늘 할 일 알림 사용" }
+                )
+            }
+            OutlinedTextField(
+                value = reminderTimeText,
+                onValueChange = { reminderTimeText = it; reminderNotice = null },
+                label = { Text("알림 시간 (24시간제 HH:mm)") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Button(
+                onClick = {
+                    val valid = HomeCrewReminderTime.parse(reminderTimeText)
+                    if (valid == null) {
+                        reminderNotice = "알림 시간을 00:00부터 23:59까지 입력해 주세요."
+                    } else {
+                        reminderSettings = reminderPrefs.updateTime(valid)
+                        reminderTimeText = valid.toString()
+                        HomeCrewReminderScheduler.apply(context, reschedule = true)
+                        reminderNotice = "알림 시간을 기기에 저장했습니다."
+                    }
+                },
+                modifier = Modifier.heightIn(min = 48.dp)
+            ) { Text("알림 시간 저장") }
+            if (reminderNotice != null) {
+                Text(reminderNotice.orEmpty(), style = MaterialTheme.typography.bodySmall, color = palette.muted)
             }
         }
         homeCrewGoogleSignIn?.let { signIn ->
