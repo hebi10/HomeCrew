@@ -23,6 +23,7 @@ internal class HomeCrewFirestoreHouseholds(
                 "name" to normalized,
                 "ownerUid" to uid,
                 "schemaVersion" to 1,
+                "memberCount" to 1,
                 "createdAt" to FieldValue.serverTimestamp(),
                 "updatedAt" to FieldValue.serverTimestamp()
             )
@@ -40,7 +41,8 @@ internal class HomeCrewFirestoreHouseholds(
             id = snapshot.id,
             ownerUid = requireNotNull(snapshot.getString("ownerUid")),
             name = requireNotNull(snapshot.getString("name")),
-            schemaVersion = requireNotNull(snapshot.getLong("schemaVersion")).toInt()
+            schemaVersion = requireNotNull(snapshot.getLong("schemaVersion")).toInt(),
+            memberCount = requireNotNull(snapshot.getLong("memberCount")).toInt()
         )
     }
 
