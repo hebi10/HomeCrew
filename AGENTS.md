@@ -28,3 +28,9 @@
 
 ### 앱별 보존 지침
 - 가족·구성원별 집안일 데이터, 인증·Firebase 권한 경계와 Google 로그인 설정을 보존한다. `.github/workflows/android.yml`, `play-internal.yml`의 기존 최종 릴리스 승인 문자열·서명 조건을 우회하지 않는다.
+
+## CI-DEDUP-20261119 — 배치 종료 후 기기 계측
+- PR 및 main은 `android.yml`의 필수 단위·Lint·빌드·Firebase 정책 검증을 유지한다.
+- `screenshot-qa.yml`의 API 35 중복 자동 캡처는 제거하고 필요 시 별도로 수동 실행한다.
+- `ui-r09-device-matrix.yml`의 API 29·35·36 및 큰 글꼴·태블릿 실계측은 정확한 최종 main SHA에서 수동 1회 실행한다. 해당 매트릭스의 API 35 화면 캡처는 별도 screenshot QA와 동일한 캡처 스크립트를 사용한다.
+- `release-build.yml`은 동일 main SHA에서 Android CI와 UI-R09 Android device matrix 모두 성공해야 서명 요청을 허용한다. 인증·가족 데이터·Firebase 권한 변경의 고위험 사전 검증은 유지한다.
