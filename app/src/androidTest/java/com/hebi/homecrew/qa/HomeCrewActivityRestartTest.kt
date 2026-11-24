@@ -4,6 +4,10 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onAllNodesWithContentDescription
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
@@ -77,34 +81,6 @@ class HomeCrewActivityRestartTest {
         }
     }
 
-    private fun tapFresh(label: String) {
-        repeat(5) {
-            try {
-                val button = device.wait(Until.findObject(By.text(label)), 3_000)
-                if (button != null) {
-                    button.click()
-                    device.waitForIdle()
-                    return
-                }
-            } catch (_: androidx.test.uiautomator.StaleObjectException) {
-                device.waitForIdle()
-            }
-        }
-        throw AssertionError("동작 버튼을 찾거나 누르지 못했습니다: $label")
-    }
-
-    private fun scrollToAction(label: String, down: Boolean = true) {
-        val x = device.displayWidth / 2
-        val upper = device.displayHeight / 3
-        val lower = device.displayHeight * 3 / 4
-        repeat(12) {
-            if (device.wait(Until.findObject(By.text(label)), 700) != null) return
-            device.swipe(x, if (down) lower else upper, x, if (down) upper else lower, 18)
-            device.waitForIdle()
-        }
-        throw AssertionError("화면을 스크롤해도 동작을 찾지 못했습니다: $label")
-    }
-
     private fun waitForKeyboardHidden(scenario: ActivityScenario<MainActivity>) {
         val deadline = SystemClock.elapsedRealtime() + 8_000
         while (SystemClock.elapsedRealtime() < deadline) {
@@ -118,6 +94,27 @@ class HomeCrewActivityRestartTest {
         }
         captureSettingsDiagnostic("error-settings-ime-not-hidden")
         throw AssertionError("키보드가 닫히지 않았습니다.")
+    }
+
+    private fun awaitDescription(description: String) {
+        try {
+            compose.waitUntil(timeoutMillis = 30_000) {
+                device.dismissEmulatorLauncherAnrIfShown()
+                compose.onAllNodesWithContentDescription(description)
+                    .fetchSemanticsNodes().isNotEmpty()
+            }
+            compose.onNodeWithContentDescription(description).assertIsDisplayed()
+        } catch (error: Throwable) {
+            captureSettingsDiagnostic("error-await-screen-" + description.hashCode())
+            throw error
+        }
+    }
+
+    private fun awaitSettings() {
+        compose.waitUntil(timeoutMillis = 15_000) {
+            compose.onAllNodesWithTag("homecrew-settings-list")
+                .fetchSemanticsNodes().isNotEmpty()
+        }
     }
 
     private fun settingsControl(tag: String): androidx.compose.ui.test.SemanticsNodeInteraction {
@@ -160,14 +157,9 @@ class HomeCrewActivityRestartTest {
         val member = "QA" + unique
         val scenario = ActivityScenario.launch(MainActivity::class.java)
         try {
-            assertNotNull(
-                "홈 화면 진입 실패",
-                device.wait(Until.findObject(By.desc("화면 제목: ${base.homeName}")), 20_000)
-            )
-            val settings = device.wait(Until.findObject(By.desc("집 및 앱 설정")), 10_000)
-            assertNotNull("설정 진입 버튼이 없습니다.", settings)
-            requireNotNull(settings).click()
-            assertNotNull("설정 화면 진입 실패", device.wait(Until.findObject(By.text("설정")), 8_000))
+            awaitDescription("화면 제목: ${base.homeName}")
+            compose.onNodeWithContentDescription("집 및 앱 설정").assertIsDisplayed().performClick()
+            awaitSettings()
             settingsControl("homecrew-home-name").performTextReplacement(homeName)
             settingsControl("homecrew-save-home").assertIsEnabled().performClick()
             var homeNameSaved = store.load()?.homeName == homeName
@@ -179,10 +171,7 @@ class HomeCrewActivityRestartTest {
             }
             if (!homeNameSaved) captureSettingsDiagnostic("error-settings-home-name-not-saved")
             assertTrue("집 이름이 저장되지 않았습니다.", homeNameSaved)
-            assertNotNull(
-                "집 이름 저장 후 설정 화면이 유지되지 않았습니다.",
-                device.wait(Until.findObject(By.text("설정")), 8_000)
-            )
+            awaitSettings()
             val newDefault = base.members.first { it != base.defaultMember }
             settingsControl("homecrew-default-member-$newDefault").assertIsEnabled().performClick()
             assertTrue("기본 구성원 변경이 저장되지 않았습니다.", store.load()?.defaultMember == newDefault)
@@ -208,21 +197,17 @@ class HomeCrewActivityRestartTest {
                 captureSettingsDiagnostic("error-settings-member-not-saved")
             }
             assertTrue("구성원 추가가 저장되지 않았습니다.", memberSaved)
-            device.pressBack()
-            if (device.wait(Until.findObject(By.desc("화면 제목: $homeName")), 2_000) == null) {
-                scrollToAction("뒤로", down = false)
-                tapFresh("뒤로")
-            }
-            assertNotNull(
-                "설정 종료 후 홈 화면 복귀 실패",
-                device.wait(Until.findObject(By.desc("화면 제목: $homeName")), 10_000)
+            compose.onNodeWithTag("homecrew-settings-list").performScrollToNode(
+                androidx.compose.ui.test.hasText("뒤로")
             )
+            compose.onNodeWithText("뒤로").performScrollTo().assertIsDisplayed().performClick()
+            awaitDescription("화면 제목: $homeName")
             scenario.recreate()
-            assertNotNull(
-                "재시작 후 집 이름이 반영되지 않았습니다.",
-                device.wait(Until.findObject(By.desc("화면 제목: $homeName")), 20_000)
-            )
+            awaitDescription("화면 제목: $homeName")
             assertTrue("재시작 후 구성원이 유지되지 않았습니다.", member in store.load()!!.members)
+        } catch (error: Throwable) {
+            captureSettingsDiagnostic("error-settings-persistence-final")
+            throw error
         } finally {
             scenario.close()
             if (original != null) store.save(original) else store.save(base)
