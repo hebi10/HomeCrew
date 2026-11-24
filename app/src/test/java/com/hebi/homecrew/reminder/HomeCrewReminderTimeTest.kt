@@ -29,6 +29,27 @@ class HomeCrewReminderTimeTest {
         assertEquals(120L, nextReminderDelay(midway, changedTime).toMinutes())
     }
 
+    @Test fun sameZoneKeepsExistingWorkAndChangedZoneReanchors() {
+        val seoul = ZonedDateTime.of(2026, 11, 17, 19, 0, 0, 0, timeZone)
+        val london = seoul.withZoneSameInstant(ZoneId.of("Europe/London"))
+        val originalKey = reminderScheduleKey(seoul)
+        assertEquals(false, shouldReanchorReminder(originalKey, seoul.plusMinutes(30), false))
+        assertTrue(shouldReanchorReminder(originalKey, seoul, true))
+        assertTrue(shouldReanchorReminder(null, seoul, false))
+        assertTrue(shouldReanchorReminder(originalKey, london, false))
+        assertEquals(600L, nextReminderDelay(london, HomeCrewReminderTime(20, 0)).toMinutes())
+    }
+
+    @Test fun changedDaylightSavingOffsetReanchorsAndEarlyRunDoesNotDeliver() {
+        val zone = ZoneId.of("America/New_York")
+        val before = ZonedDateTime.of(2026, 10, 31, 20, 0, 0, 0, zone)
+        val after = ZonedDateTime.of(2026, 11, 1, 19, 0, 0, 0, zone)
+        val selected = HomeCrewReminderTime(20, 0)
+        assertTrue(shouldReanchorReminder(reminderScheduleKey(before), after, false))
+        assertEquals(false, reminderTimeReached(after, selected))
+        assertTrue(reminderTimeReached(after.plusHours(1), selected))
+    }
+
     @Test fun timezoneTransitionDoesNotScheduleInPast() {
         val z = ZonedDateTime.of(2026, 3, 8, 1, 30, 0, 0, ZoneId.of("America/New_York"))
         assertTrue(nextReminderDelay(z, HomeCrewReminderTime(2, 30)).toMillis() > 0)

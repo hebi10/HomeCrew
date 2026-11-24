@@ -18,7 +18,8 @@ import com.hebi.homecrew.MainActivity
 import com.hebi.homecrew.data.local.HomeCrewDatabase
 import com.hebi.homecrew.data.local.HomeCrewRoomRepository
 import com.hebi.homecrew.ui.setup.LocalHouseholdStore
-import java.time.LocalDate
+import java.time.ZonedDateTime
+import kotlinx.coroutines.CancellationException
 
 internal class HomeCrewDailySummaryWorker(
     context: Context,
@@ -27,11 +28,16 @@ internal class HomeCrewDailySummaryWorker(
     override suspend fun doWork(): Result {
         val context = applicationContext
         val preferences = HomeCrewReminderPreferences(context)
-        if (!preferences.read().enabled) return Result.success()
+        val settings = preferences.read()
+        if (!settings.enabled) return Result.success()
         if (LocalHouseholdStore(context).load() == null) return Result.success()
-        val today = LocalDate.now()
+        val now = ZonedDateTime.now()
+        val today = now.toLocalDate()
         if (preferences.alreadyDelivered(today.toEpochDay())) return Result.success()
         if (!notificationsAllowed(context)) return Result.success()
+        // A periodic run may still be anchored to an earlier zone or DST offset.
+        // Do not deliver or mark today complete before the selected local time.
+        if (!reminderTimeReached(now, settings.time)) return Result.retry()
 
         return try {
             val repository = HomeCrewRoomRepository(HomeCrewDatabase.get(context).chores())
@@ -40,6 +46,13 @@ internal class HomeCrewDailySummaryWorker(
             val remaining = snapshot.chores.count {
                 it.date == today && !it.completed && !it.skipped
             }
+            val latestSettings = preferences.read()
+            val deliveryTime = ZonedDateTime.now()
+            if (isStopped || !latestSettings.enabled || !notificationsAllowed(context)) return Result.success()
+            if (deliveryTime.toLocalDate() != today ||
+                !reminderTimeReached(deliveryTime, latestSettings.time)
+            ) return Result.retry()
+            if (preferences.alreadyDelivered(today.toEpochDay())) return Result.success()
             if (remaining > 0) {
                 showNotification(context, remaining)
             } else {
@@ -47,6 +60,8 @@ internal class HomeCrewDailySummaryWorker(
             }
             preferences.markDelivered(today.toEpochDay())
             Result.success()
+        } catch (error: CancellationException) {
+            throw error
         } catch (_: Exception) {
             Result.retry()
         }

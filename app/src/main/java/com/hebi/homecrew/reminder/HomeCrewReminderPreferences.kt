@@ -26,6 +26,15 @@ internal class HomeCrewReminderPreferences(context: Context) {
         return read()
     }
 
+    fun scheduledZoneKey(): String? = storage.getString("scheduledZoneKey", null)
+
+    fun rememberScheduledZoneKey(value: String?) {
+        val edit = storage.edit()
+        if (value == null) edit.remove("scheduledZoneKey")
+        else edit.putString("scheduledZoneKey", value)
+        edit.apply()
+    }
+
     fun alreadyDelivered(todayEpochDay: Long): Boolean =
         storage.getLong("lastDeliveredEpochDay", Long.MIN_VALUE) == todayEpochDay
 

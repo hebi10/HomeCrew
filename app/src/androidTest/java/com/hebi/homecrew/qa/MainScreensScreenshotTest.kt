@@ -257,6 +257,12 @@ class MainScreensScreenshotTest {
         val oauthResource = context.resources.getIdentifier(
             "default_web_client_id", "string", context.packageName
         )
+        if (InstrumentationRegistry.getArguments().getString("requireAccountQa") == "true") {
+            assertTrue(
+                "계정 회귀 테스트에 필요한 OAuth 리소스가 설치된 앱에 없습니다.",
+                oauthResource != 0 && context.getString(oauthResource).isNotBlank()
+            )
+        }
         if (oauthResource != 0) {
             var accountHeader = device.wait(Until.findObject(By.text("계정")), 800)
             repeat(16) {

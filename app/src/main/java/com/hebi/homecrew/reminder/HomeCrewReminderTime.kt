@@ -1,10 +1,7 @@
 package com.hebi.homecrew.reminder
 
 import java.time.Duration
-import java.time.LocalDateTime
-import java.time.LocalTime
 import java.time.ZonedDateTime
-import java.time.format.DateTimeFormatter
 
 internal data class HomeCrewReminderTime(val hour: Int, val minute: Int) {
     init {
@@ -36,3 +33,17 @@ internal fun nextReminderDelay(now: ZonedDateTime, time: HomeCrewReminderTime): 
         else now.toLocalDate().plusDays(1).atTime(time.hour, time.minute).atZone(now.zone)
     return Duration.between(now, scheduled).coerceAtLeast(Duration.ofSeconds(1))
 }
+
+// Zone and offset are both significant: travel and daylight-saving changes can
+// move an existing 24-hour WorkManager schedule away from the local wall clock.
+internal fun reminderScheduleKey(now: ZonedDateTime): String =
+    "${now.zone.id}|${now.offset.id}"
+
+internal fun shouldReanchorReminder(
+    previousScheduleKey: String?,
+    now: ZonedDateTime,
+    explicitlyRescheduled: Boolean
+): Boolean = explicitlyRescheduled || previousScheduleKey != reminderScheduleKey(now)
+
+internal fun reminderTimeReached(now: ZonedDateTime, time: HomeCrewReminderTime): Boolean =
+    !now.isBefore(now.toLocalDate().atTime(time.hour, time.minute).atZone(now.zone))
