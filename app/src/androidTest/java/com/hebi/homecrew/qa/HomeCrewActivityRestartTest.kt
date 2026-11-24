@@ -1,8 +1,24 @@
 package com.hebi.homecrew.qa
 
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertTextContains
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onAllNodesWithContentDescription
+import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.junit4.createEmptyComposeRule
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performTextReplacement
+import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.test.core.app.ActivityScenario
+import android.os.SystemClock
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.By
@@ -23,11 +39,15 @@ import java.time.LocalDate
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class HomeCrewActivityRestartTest {
+    @get:Rule
+    val compose = createEmptyComposeRule()
+
     private val device: UiDevice
         get() = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
 
@@ -61,48 +81,45 @@ class HomeCrewActivityRestartTest {
         }
     }
 
-    private fun tapFresh(label: String) {
-        repeat(5) {
-            try {
-                val button = device.wait(Until.findObject(By.text(label)), 3_000)
-                if (button != null) {
-                    button.click()
-                    device.waitForIdle()
-                    return
-                }
-            } catch (_: androidx.test.uiautomator.StaleObjectException) {
-                device.waitForIdle()
+    private fun waitForKeyboardHidden(scenario: ActivityScenario<MainActivity>) {
+        val deadline = SystemClock.elapsedRealtime() + 8_000
+        while (SystemClock.elapsedRealtime() < deadline) {
+            var hidden = false
+            scenario.onActivity { activity ->
+                hidden = ViewCompat.getRootWindowInsets(activity.window.decorView)
+                    ?.isVisible(WindowInsetsCompat.Type.ime()) == false
             }
+            if (hidden) return
+            SystemClock.sleep(100)
         }
-        throw AssertionError("동작 버튼을 찾거나 누르지 못했습니다: $label")
+        captureSettingsDiagnostic("error-settings-ime-not-hidden")
+        throw AssertionError("키보드가 닫히지 않았습니다.")
     }
 
-    private fun enterFreshText(index: Int, value: String) {
-        repeat(5) {
-            try {
-                val fields = device.findObjects(By.clazz("android.widget.EditText"))
-                if (index >= 0 && index < fields.size) {
-                    fields[index].text = value
-                    device.waitForIdle()
-                    return
-                }
-            } catch (_: androidx.test.uiautomator.StaleObjectException) {
-                device.waitForIdle()
+    private fun awaitDescription(description: String) {
+        try {
+            compose.waitUntil(timeoutMillis = 30_000) {
+                device.dismissEmulatorLauncherAnrIfShown()
+                compose.onAllNodesWithContentDescription(description)
+                    .fetchSemanticsNodes().isNotEmpty()
             }
+            compose.onNodeWithContentDescription(description).assertIsDisplayed()
+        } catch (error: Throwable) {
+            captureSettingsDiagnostic("error-await-screen-" + description.hashCode())
+            throw error
         }
-        throw AssertionError("입력 필드에 텍스트를 입력하지 못했습니다: $index")
     }
 
-    private fun scrollToAction(label: String, down: Boolean = true) {
-        val x = device.displayWidth / 2
-        val upper = device.displayHeight / 3
-        val lower = device.displayHeight * 3 / 4
-        repeat(12) {
-            if (device.wait(Until.findObject(By.text(label)), 700) != null) return
-            device.swipe(x, if (down) lower else upper, x, if (down) upper else lower, 18)
-            device.waitForIdle()
+    private fun awaitSettings() {
+        compose.waitUntil(timeoutMillis = 15_000) {
+            compose.onAllNodesWithTag("homecrew-settings-list")
+                .fetchSemanticsNodes().isNotEmpty()
         }
-        throw AssertionError("화면을 스크롤해도 동작을 찾지 못했습니다: $label")
+    }
+
+    private fun settingsControl(tag: String): androidx.compose.ui.test.SemanticsNodeInteraction {
+        compose.onNodeWithTag("homecrew-settings-list").performScrollToNode(hasTestTag(tag))
+        return compose.onNodeWithTag(tag).performScrollTo().assertIsDisplayed()
     }
 
     private fun captureSettingsDiagnostic(name: String) {
@@ -140,16 +157,11 @@ class HomeCrewActivityRestartTest {
         val member = "QA" + unique
         val scenario = ActivityScenario.launch(MainActivity::class.java)
         try {
-            assertNotNull(
-                "홈 화면 진입 실패",
-                device.wait(Until.findObject(By.desc("화면 제목: ${base.homeName}")), 20_000)
-            )
-            val settings = device.wait(Until.findObject(By.desc("집 및 앱 설정")), 10_000)
-            assertNotNull("설정 진입 버튼이 없습니다.", settings)
-            requireNotNull(settings).click()
-            assertNotNull("설정 화면 진입 실패", device.wait(Until.findObject(By.text("설정")), 8_000))
-            enterFreshText(0, homeName)
-            tapFresh("집 이름 저장")
+            awaitDescription("화면 제목: ${base.homeName}")
+            compose.onNodeWithContentDescription("집 및 앱 설정").assertIsDisplayed().performClick()
+            awaitSettings()
+            settingsControl("homecrew-home-name").performTextReplacement(homeName)
+            settingsControl("homecrew-save-home").assertIsEnabled().performClick()
             var homeNameSaved = store.load()?.homeName == homeName
             repeat(15) {
                 if (!homeNameSaved) {
@@ -159,35 +171,21 @@ class HomeCrewActivityRestartTest {
             }
             if (!homeNameSaved) captureSettingsDiagnostic("error-settings-home-name-not-saved")
             assertTrue("집 이름이 저장되지 않았습니다.", homeNameSaved)
-            assertNotNull(
-                "집 이름 저장 후 설정 화면이 유지되지 않았습니다.",
-                device.wait(Until.findObject(By.text("설정")), 8_000)
-            )
-            scrollToAction("기본으로 설정")
-            tapFresh("기본으로 설정")
-            assertTrue("기본 구성원 변경이 저장되지 않았습니다.", store.load()?.defaultMember != base.defaultMember)
-            scrollToAction("구성원 추가")
-            val memberField = device.wait(
-                Until.findObject(By.desc("새 구성원 이름 입력")), 8_000
-            )
-            assertNotNull("새 구성원 이름 입력 필드를 찾을 수 없습니다.", memberField)
-            requireNotNull(memberField).click()
-            device.waitForIdle()
-            device.executeShellCommand("input text $member")
-            device.waitForIdle()
+            awaitSettings()
+            val newDefault = base.members.first { it != base.defaultMember }
+            settingsControl("homecrew-default-member-$newDefault").assertIsEnabled().performClick()
+            assertTrue("기본 구성원 변경이 저장되지 않았습니다.", store.load()?.defaultMember == newDefault)
+            settingsControl("homecrew-member-input").performTextReplacement(member)
+            settingsControl("homecrew-member-input").assertTextContains(member)
             captureSettingsDiagnostic("13-settings-new-member-input")
             scenario.onActivity { activity ->
                 WindowCompat.getInsetsController(activity.window, activity.window.decorView)
                     .hide(WindowInsetsCompat.Type.ime())
             }
-            device.waitForIdle()
-            assertNotNull(
-                "IME 종료 후 새 구성원 입력 필드가 유지되지 않았습니다.",
-                device.wait(Until.findObject(By.desc("새 구성원 이름 입력")), 5_000)
-            )
+            waitForKeyboardHidden(scenario)
+            settingsControl("homecrew-member-input").assertTextContains(member)
             captureSettingsDiagnostic("13-settings-member-keyboard-dismissed")
-            scrollToAction("구성원 추가")
-            tapFresh("구성원 추가")
+            settingsControl("homecrew-member-add").assertIsEnabled().performClick()
             var memberSaved = member in (store.load()?.members ?: emptyList())
             repeat(15) {
                 if (!memberSaved) {
@@ -199,21 +197,17 @@ class HomeCrewActivityRestartTest {
                 captureSettingsDiagnostic("error-settings-member-not-saved")
             }
             assertTrue("구성원 추가가 저장되지 않았습니다.", memberSaved)
-            device.pressBack()
-            if (device.wait(Until.findObject(By.desc("화면 제목: $homeName")), 2_000) == null) {
-                scrollToAction("뒤로", down = false)
-                tapFresh("뒤로")
-            }
-            assertNotNull(
-                "설정 종료 후 홈 화면 복귀 실패",
-                device.wait(Until.findObject(By.desc("화면 제목: $homeName")), 10_000)
+            compose.onNodeWithTag("homecrew-settings-list").performScrollToNode(
+                androidx.compose.ui.test.hasText("뒤로")
             )
+            compose.onNodeWithText("뒤로").performScrollTo().assertIsDisplayed().performClick()
+            awaitDescription("화면 제목: $homeName")
             scenario.recreate()
-            assertNotNull(
-                "재시작 후 집 이름이 반영되지 않았습니다.",
-                device.wait(Until.findObject(By.desc("화면 제목: $homeName")), 20_000)
-            )
+            awaitDescription("화면 제목: $homeName")
             assertTrue("재시작 후 구성원이 유지되지 않았습니다.", member in store.load()!!.members)
+        } catch (error: Throwable) {
+            captureSettingsDiagnostic("error-settings-persistence-final")
+            throw error
         } finally {
             scenario.close()
             if (original != null) store.save(original) else store.save(base)
