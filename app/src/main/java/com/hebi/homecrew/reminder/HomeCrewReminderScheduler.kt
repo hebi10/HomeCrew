@@ -2,7 +2,9 @@ package com.hebi.homecrew.reminder
 
 import android.content.Context
 import androidx.core.app.NotificationManagerCompat
-import androidx.core.content.ContextCompat
+import android.os.Handler
+import android.os.Looper
+import androidx.lifecycle.Observer
 import androidx.work.BackoffPolicy
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.Operation
@@ -17,7 +19,11 @@ internal object HomeCrewReminderScheduler {
     private var generation = 0L
 
     @Synchronized
-    fun apply(context: Context, reschedule: Boolean = false): Operation {
+    fun apply(
+        context: Context,
+        reschedule: Boolean = false,
+        onComplete: ((Boolean) -> Unit)? = null
+    ) {
         val app = context.applicationContext
         val preferences = HomeCrewReminderPreferences(app)
         val settings = preferences.read()
@@ -26,7 +32,9 @@ internal object HomeCrewReminderScheduler {
         if (!settings.enabled) {
             preferences.rememberScheduledZoneKey(null)
             NotificationManagerCompat.from(app).cancel(NOTIFICATION_ID)
-            return manager.cancelUniqueWork(WORK_NAME)
+            val operation = manager.cancelUniqueWork(WORK_NAME)
+            if (onComplete != null) observeCompletion(operation, onComplete)
+            return
         }
 
         val now = ZonedDateTime.now()
@@ -47,17 +55,49 @@ internal object HomeCrewReminderScheduler {
             else ExistingPeriodicWorkPolicy.KEEP,
             request
         )
-        operation.result.addListener({
+        observeCompletion(operation) { succeeded ->
             synchronized(this@HomeCrewReminderScheduler) {
-                if (requestGeneration == generation &&
-                    runCatching { operation.result.get() }.isSuccess &&
+                if (requestGeneration == generation && succeeded &&
                     preferences.read() == settings &&
                     reminderScheduleKey(ZonedDateTime.now()) == scheduleKey
                 ) {
                     preferences.rememberScheduledZoneKey(scheduleKey)
                 }
             }
-        }, ContextCompat.getMainExecutor(app))
-        return operation
+            onComplete?.invoke(succeeded)
+        }
+    }
+
+    private fun observeCompletion(operation: Operation, callback: (Boolean) -> Unit) {
+        val handler = Handler(Looper.getMainLooper())
+        handler.post {
+            val state = operation.state
+            var finished = false
+            lateinit var observer: Observer<Operation.State>
+            lateinit var timeout: Runnable
+
+            fun finish(success: Boolean) {
+                if (finished) return
+                finished = true
+                handler.removeCallbacks(timeout)
+                state.removeObserver(observer)
+                callback(success)
+            }
+
+            observer = Observer { value ->
+                when (value) {
+                    is Operation.State.SUCCESS -> finish(true)
+                    is Operation.State.FAILURE -> finish(false)
+                    else -> Unit
+                }
+            }
+            timeout = Runnable { finish(false) }
+            handler.postDelayed(timeout, 8_000)
+            try {
+                state.observeForever(observer)
+            } catch (_: Exception) {
+                finish(false)
+            }
+        }
     }
 }
