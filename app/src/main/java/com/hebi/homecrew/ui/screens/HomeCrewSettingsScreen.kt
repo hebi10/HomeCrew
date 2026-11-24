@@ -22,6 +22,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -49,8 +50,8 @@ fun HomeCrewSettingsScreen(
     val palette = LocalHomeCrewColors.current
     val context = LocalContext.current
     var privacyLinkError by remember { mutableStateOf(false) }
-    var homeName by remember(household.homeName) { mutableStateOf(household.homeName) }
-    var newMember by remember { mutableStateOf("") }
+    var homeName by rememberSaveable(household.homeName) { mutableStateOf(household.homeName) }
+    var newMember by rememberSaveable { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
     var notice by remember { mutableStateOf<String?>(null) }
 
@@ -138,6 +139,7 @@ fun HomeCrewSettingsScreen(
                     }
                 },
                 modifier = Modifier.heightIn(min = 48.dp)
+                    .semantics { contentDescription = "구성원 추가 버튼" }
             ) { Text("구성원 추가") }
             Text(
                 "기존 집안일·완료 기록에 연결된 구성원의 이름 변경과 삭제는 데이터 이전 기능이 준비된 후 지원합니다.",

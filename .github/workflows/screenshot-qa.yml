@@ -1,19 +1,6 @@
 name: HomeCrew screen QA
 
 on:
-  pull_request:
-    paths:
-      - 'app/**'
-      - '.github/workflows/screenshot-qa.yml'
-      - '.github/scripts/capture-screenshots.sh'
-      - 'scripts/configure_firebase.py'
-  push:
-    branches: [main]
-    paths:
-      - 'app/**'
-      - '.github/workflows/screenshot-qa.yml'
-      - '.github/scripts/capture-screenshots.sh'
-      - 'scripts/configure_firebase.py'
   workflow_dispatch:
 
 permissions:
@@ -21,7 +8,7 @@ permissions:
 
 concurrency:
   group: homecrew-screen-qa-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   screenshots:

@@ -1,8 +1,10 @@
 package com.hebi.homecrew.qa
 
+import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.test.core.app.ActivityScenario
+import android.os.SystemClock
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.By
@@ -105,6 +107,51 @@ class HomeCrewActivityRestartTest {
         throw AssertionError("화면을 스크롤해도 동작을 찾지 못했습니다: $label")
     }
 
+    private fun waitForKeyboardHidden(scenario: ActivityScenario<MainActivity>) {
+        val deadline = SystemClock.elapsedRealtime() + 8_000
+        while (SystemClock.elapsedRealtime() < deadline) {
+            var hidden = false
+            scenario.onActivity { activity ->
+                hidden = ViewCompat.getRootWindowInsets(activity.window.decorView)
+                    ?.isVisible(WindowInsetsCompat.Type.ime()) == false
+            }
+            if (hidden) return
+            SystemClock.sleep(100)
+        }
+        captureSettingsDiagnostic("error-settings-ime-not-hidden")
+        throw AssertionError("키보드가 닫히지 않았습니다.")
+    }
+
+    private fun tapVisibleMemberAdd() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val minHeight = (24 * context.resources.displayMetrics.density).toInt()
+        val selector = By.desc("구성원 추가 버튼").clickable(true)
+        repeat(12) {
+            try {
+                val button = device.wait(Until.findObject(selector), 800)
+                val bounds = button?.visibleBounds
+                if (button != null && bounds != null && button.isEnabled &&
+                    bounds.height() >= minHeight &&
+                    bounds.centerY() in (device.displayHeight / 8)..(device.displayHeight * 7 / 8)
+                ) {
+                    button.click()
+                    device.waitForIdle()
+                    return
+                }
+            } catch (_: androidx.test.uiautomator.StaleObjectException) {
+                device.waitForIdle()
+                return@repeat
+            }
+            device.swipe(
+                device.displayWidth / 2, device.displayHeight * 3 / 4,
+                device.displayWidth / 2, device.displayHeight / 2, 18
+            )
+            device.waitForIdle()
+        }
+        captureSettingsDiagnostic("error-settings-member-button-not-visible")
+        throw AssertionError("구성원 추가 버튼을 안전하게 누를 수 없습니다.")
+    }
+
     private fun captureSettingsDiagnostic(name: String) {
         try {
             val context = InstrumentationRegistry.getInstrumentation().targetContext
@@ -186,14 +233,18 @@ class HomeCrewActivityRestartTest {
                 WindowCompat.getInsetsController(activity.window, activity.window.decorView)
                     .hide(WindowInsetsCompat.Type.ime())
             }
+            waitForKeyboardHidden(scenario)
             device.waitForIdle()
             assertNotNull(
                 "IME 종료 후 새 구성원 입력 필드가 유지되지 않았습니다.",
                 device.wait(Until.findObject(By.desc("새 구성원 이름 입력")), 5_000)
             )
+            val retainedInput = device.findObjects(By.clazz("android.widget.EditText"))
+                .any { it.text == member }
+            if (!retainedInput) captureSettingsDiagnostic("error-settings-member-input-after-ime")
+            assertTrue("키보드를 닫은 후 구성원 입력값이 유지되지 않았습니다.", retainedInput)
             captureSettingsDiagnostic("13-settings-member-keyboard-dismissed")
-            scrollToAction("구성원 추가")
-            tapFresh("구성원 추가")
+            tapVisibleMemberAdd()
             var memberSaved = member in (store.load()?.members ?: emptyList())
             repeat(15) {
                 if (!memberSaved) {
