@@ -7,7 +7,9 @@ import com.google.firebase.firestore.MetadataChanges
 import com.google.firebase.firestore.QuerySnapshot
 import com.google.firebase.firestore.Source
 import com.google.firebase.functions.FirebaseFunctions
+import com.google.firebase.functions.FirebaseFunctionsException
 import java.util.UUID
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -25,7 +27,7 @@ internal class HomeCrewRemoteSyncGateway(
     private val firestore: FirebaseFirestore,
     private val functions: FirebaseFunctions,
     private val boundUid: String? = null
-) : RemoteHouseholdReadGateway {
+) : RemoteHouseholdChoreGateway {
     override fun observe(householdId: String): Flow<RemoteSnapshot> = flow {
         val expectedUid = requireUid()
         requireValidCloudId(householdId)
@@ -122,6 +124,38 @@ internal class HomeCrewRemoteSyncGateway(
         val revision = (response["revision"] as? Number)?.toLong()
             ?: error("Missing occurrence revision")
         return id to revision
+    }
+
+    override suspend fun recordCompletion(
+        householdId: String,
+        command: RemoteCompletionCommand
+    ): RemoteCompletionResult {
+        return try {
+            val revision = completeOccurrence(
+                householdId, command.occurrenceId, command.completed,
+                command.expectedRevision, command.requestId
+            )
+            if (revision == command.expectedRevision + 1) {
+                RemoteCompletionResult.Accepted(revision)
+            } else RemoteCompletionResult.Unknown
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: FirebaseFunctionsException) {
+            when (error.code) {
+                FirebaseFunctionsException.Code.ABORTED,
+                FirebaseFunctionsException.Code.ALREADY_EXISTS -> RemoteCompletionResult.Conflict
+                FirebaseFunctionsException.Code.UNAUTHENTICATED,
+                FirebaseFunctionsException.Code.PERMISSION_DENIED,
+                FirebaseFunctionsException.Code.NOT_FOUND,
+                FirebaseFunctionsException.Code.FAILED_PRECONDITION,
+                FirebaseFunctionsException.Code.INVALID_ARGUMENT -> RemoteCompletionResult.Rejected
+                else -> RemoteCompletionResult.Unknown
+            }
+        } catch (_: Exception) {
+            if (boundUid != null && auth.currentUser?.uid != boundUid) {
+                RemoteCompletionResult.Rejected
+            } else RemoteCompletionResult.Unknown
+        }
     }
 
     suspend fun completeOccurrence(

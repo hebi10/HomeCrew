@@ -31,3 +31,30 @@ internal data class RemoteSnapshot(
 internal interface RemoteHouseholdReadGateway {
     fun observe(householdId: String): Flow<RemoteSnapshot>
 }
+
+internal data class RemoteCompletionCommand(
+    val occurrenceId: String,
+    val completed: Boolean,
+    val expectedRevision: Long,
+    val requestId: String
+) {
+    init {
+        requireValidCloudId(occurrenceId)
+        require(expectedRevision in 1 until Long.MAX_VALUE)
+        require(requestId.matches(Regex("[a-zA-Z0-9_-]{20,72}")))
+    }
+}
+
+internal sealed interface RemoteCompletionResult {
+    data class Accepted(val revision: Long) : RemoteCompletionResult
+    data object Conflict : RemoteCompletionResult
+    data object Rejected : RemoteCompletionResult
+    data object Unknown : RemoteCompletionResult
+}
+
+internal interface RemoteHouseholdChoreGateway : RemoteHouseholdReadGateway {
+    suspend fun recordCompletion(
+        householdId: String,
+        command: RemoteCompletionCommand
+    ): RemoteCompletionResult
+}

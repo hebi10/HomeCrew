@@ -41,19 +41,23 @@ async function account() {
   return { token: body.idToken, uid: body.localId };
 }
 
-async function call(name, data, user, expectedError) {
+async function callRaw(name, data, user) {
   const headers = { 'Content-Type': 'application/json' };
   if (user) headers.Authorization = 'Bearer ' + user.token;
   const response = await fetch(
     'http://' + functionHost + '/' + project + '/asia-northeast3/' + name,
     { method: 'POST', headers, body: JSON.stringify({ data }), signal: AbortSignal.timeout(45_000) },
   );
-  const body = await response.json();
+  return { status: response.status, body: await response.json() };
+}
+
+async function call(name, data, user, expectedError) {
+  const { status, body } = await callRaw(name, data, user);
   if (expectedError) {
     assert.equal(body.error?.status, expectedError, name + ' returned unexpected error status');
     return;
   }
-  assert.equal(response.status, 200, name + ' failed');
+  assert.equal(status, 200, name + ' failed');
   assert.ok(body.result && !body.error, name + ' did not return a successful result');
   return body.result;
 }
@@ -163,9 +167,29 @@ test('shared chore occurrences are server-authorized and revision conflicts pres
   assert.equal(undone.revision, 3);
   assert.equal((await read(path, member)).completed.booleanValue, false);
 
+  const raceA = { ...completion, expectedRevision: 3, requestId: randomUUID() };
+  const raceB = { ...completion, expectedRevision: 3, requestId: randomUUID() };
+  const concurrent = await Promise.all([
+    callRaw('recordChoreCompletion', raceA, owner),
+    callRaw('recordChoreCompletion', raceB, member),
+  ]);
+  const winner = concurrent.findIndex(result => result.status === 200 && result.body.result);
+  assert.notEqual(winner, -1, 'One competing request must succeed');
+  assert.equal(concurrent[1 - winner].body.error?.status, 'ABORTED');
+  assert.equal(concurrent[winner].body.result.revision, 4);
+  const winningCommand = winner === 0 ? raceA : raceB;
+  const winningUser = winner === 0 ? owner : member;
+  const replayedWinner = await call('recordChoreCompletion', winningCommand, winningUser);
+  assert.equal(replayedWinner.replayed, true);
+  assert.equal(replayedWinner.revision, 4);
+  const latest = await read(path, owner);
+  assert.equal(latest.revision.integerValue, '4');
+  assert.equal(latest.completed.booleanValue, true);
+  assert.equal(latest.completedByUid.stringValue, winningUser.uid);
+
   await call('removeHouseholdMember', { householdId, memberUid: member.uid }, owner);
   await read(path, member, 403);
   await call('recordChoreCompletion', {
-    ...completion, expectedRevision: 3, requestId: randomUUID(),
+    ...completion, expectedRevision: 4, requestId: randomUUID(),
   }, member, 'PERMISSION_DENIED');
 });

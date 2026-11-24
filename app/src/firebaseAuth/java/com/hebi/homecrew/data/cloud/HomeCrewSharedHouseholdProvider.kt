@@ -42,7 +42,7 @@ private class FirebaseSharedHouseholdGateway(
         check(auth.currentUser?.uid == uid) { "Account changed" }
     }
 
-    override fun choreReadGateway(): RemoteHouseholdReadGateway {
+    override fun choreGateway(): RemoteHouseholdChoreGateway {
         return HomeCrewRemoteSyncGateway(auth, firestore, functions, boundUid = uid)
     }
 

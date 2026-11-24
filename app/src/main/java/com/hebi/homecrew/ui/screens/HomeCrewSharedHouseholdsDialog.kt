@@ -55,7 +55,7 @@ internal fun HomeCrewSharedHouseholdsDialog(
     var joinCode by remember { mutableStateOf("") }
     var invitation by remember { mutableStateOf<HomeCrewCloudInvite?>(null) }
     var selectedHome by remember(gateway, accountUid) { mutableStateOf<SharedHouseholdSummary?>(null) }
-    val choreGateway = remember(gateway, accountUid) { gateway.choreReadGateway() }
+    val choreGateway = remember(gateway, accountUid) { gateway.choreGateway() }
 
     suspend fun refresh() {
         loaded = false
