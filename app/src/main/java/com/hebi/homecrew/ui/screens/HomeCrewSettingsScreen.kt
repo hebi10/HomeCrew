@@ -26,6 +26,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -73,7 +74,8 @@ fun HomeCrewSettingsScreen(
         contentColor = palette.ink
     ) {
         LazyColumn(
-        modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing),
+        modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)
+            .testTag("homecrew-settings-list"),
         contentPadding = PaddingValues(
             horizontal = HomeCrewDimensions.screenPadding,
             vertical = HomeCrewDimensions.space16
@@ -94,7 +96,7 @@ fun HomeCrewSettingsScreen(
                 onValueChange = { homeName = it; error = null; notice = null },
                 label = { Text("집 이름") },
                 singleLine = true,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth().testTag("homecrew-home-name")
             )
             Button(
                 onClick = {
@@ -102,7 +104,7 @@ fun HomeCrewSettingsScreen(
                     if (validation != null) error = validation
                     else persist(household.copy(homeName = homeName.trim()))
                 },
-                modifier = Modifier.heightIn(min = 48.dp)
+                modifier = Modifier.heightIn(min = 48.dp).testTag("homecrew-save-home")
             ) { Text("집 이름 저장") }
         }
         item {
@@ -118,6 +120,7 @@ fun HomeCrewSettingsScreen(
                         onClick = { persist(household.copy(defaultMember = member)) },
                         enabled = household.defaultMember != member,
                         modifier = Modifier.heightIn(min = 48.dp)
+                            .testTag("homecrew-default-member-$member")
                     ) {
                         Text(if (household.defaultMember == member) "기본 구성원" else "기본으로 설정")
                     }
@@ -128,7 +131,9 @@ fun HomeCrewSettingsScreen(
                 onValueChange = { newMember = it; error = null; notice = null },
                 label = { Text("새 구성원 이름") },
                 singleLine = true,
-                modifier = Modifier.fillMaxWidth().semantics { contentDescription = "새 구성원 이름 입력" }
+                modifier = Modifier.fillMaxWidth()
+                    .testTag("homecrew-member-input")
+                    .semantics { contentDescription = "새 구성원 이름 입력" }
             )
             Button(
                 onClick = {
@@ -139,6 +144,7 @@ fun HomeCrewSettingsScreen(
                     }
                 },
                 modifier = Modifier.heightIn(min = 48.dp)
+                    .testTag("homecrew-member-add")
                     .semantics { contentDescription = "구성원 추가 버튼" }
             ) { Text("구성원 추가") }
             Text(
