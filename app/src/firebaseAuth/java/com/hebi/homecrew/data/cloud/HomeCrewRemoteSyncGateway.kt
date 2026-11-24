@@ -3,6 +3,7 @@ package com.hebi.homecrew.data.cloud
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.MetadataChanges
 import com.google.firebase.firestore.QuerySnapshot
 import com.google.firebase.firestore.Source
 import com.google.firebase.functions.FirebaseFunctions
@@ -15,31 +16,6 @@ import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.tasks.await
 
-internal data class RemoteChore(
-    val id: String,
-    val name: String,
-    val category: String,
-    val points: Int,
-    val assigneeUid: String,
-    val revision: Long
-)
-
-internal data class RemoteOccurrence(
-    val id: String,
-    val definitionId: String,
-    val scheduledEpochDay: Long,
-    val assignedUid: String,
-    val completed: Boolean,
-    val completedByUid: String?,
-    val revision: Long
-)
-
-internal data class RemoteSnapshot(
-    val chores: List<RemoteChore>,
-    val occurrences: List<RemoteOccurrence>,
-    val mayBeStale: Boolean
-)
-
 /**
  * Explicit Cloud-only gateway. It must not overwrite Room or auto-migrate data.
  * The user must confirm a separate member mapping and migration plan first.
@@ -47,9 +23,10 @@ internal data class RemoteSnapshot(
 internal class HomeCrewRemoteSyncGateway(
     private val auth: FirebaseAuth,
     private val firestore: FirebaseFirestore,
-    private val functions: FirebaseFunctions
-) {
-    fun observe(householdId: String): Flow<RemoteSnapshot> = flow {
+    private val functions: FirebaseFunctions,
+    private val boundUid: String? = null
+) : RemoteHouseholdReadGateway {
+    override fun observe(householdId: String): Flow<RemoteSnapshot> = flow {
         val expectedUid = requireUid()
         requireValidCloudId(householdId)
 
@@ -62,16 +39,19 @@ internal class HomeCrewRemoteSyncGateway(
             "Current Firebase account is not authorized to read this household"
         }
 
+        val homeFlow = observeHousehold(householdId, expectedUid)
         val choreFlow = observeCollection(householdId, "chores", expectedUid)
         val occurrenceFlow = observeCollection(householdId, "occurrences", expectedUid)
-        emitAll(combine(choreFlow, occurrenceFlow) { chores, occurrences ->
+        emitAll(combine(homeFlow, choreFlow, occurrenceFlow) { home, chores, occurrences ->
             check(auth.currentUser?.uid == expectedUid) {
                 "Firebase account changed while observing shared data"
             }
             RemoteSnapshot(
                 chores = chores.documents.map(::decodeChore),
                 occurrences = occurrences.documents.map(::decodeOccurrence),
-                mayBeStale = chores.metadata.isFromCache || occurrences.metadata.isFromCache
+                mayBeStale = home.metadata.isFromCache || chores.metadata.isFromCache ||
+                    occurrences.metadata.isFromCache || home.metadata.hasPendingWrites() ||
+                    chores.metadata.hasPendingWrites() || occurrences.metadata.hasPendingWrites()
             )
         })
     }
@@ -165,6 +145,38 @@ internal class HomeCrewRemoteSyncGateway(
 
     fun newRequestId(): String = UUID.randomUUID().toString()
 
+    private fun observeHousehold(
+        householdId: String,
+        expectedUid: String
+    ): Flow<DocumentSnapshot> = callbackFlow {
+        val sessionListener = FirebaseAuth.AuthStateListener { current ->
+            if (current.currentUser?.uid != expectedUid) {
+                close(IllegalStateException("Cloud session changed"))
+            }
+        }
+        auth.addAuthStateListener(sessionListener)
+        if (auth.currentUser?.uid != expectedUid) {
+            close(IllegalStateException("Cloud session changed before subscription"))
+            awaitClose { auth.removeAuthStateListener(sessionListener) }
+            return@callbackFlow
+        }
+        val registration = firestore.collection("households").document(householdId)
+            .addSnapshotListener(MetadataChanges.INCLUDE) { snapshot, error ->
+                when {
+                    auth.currentUser?.uid != expectedUid ->
+                        close(IllegalStateException("Cloud session changed"))
+                    error != null -> close(error)
+                    snapshot != null && !snapshot.exists() ->
+                        close(IllegalStateException("Household no longer available"))
+                    snapshot != null -> trySend(snapshot)
+                }
+            }
+        awaitClose {
+            registration.remove()
+            auth.removeAuthStateListener(sessionListener)
+        }
+    }
+
     private fun observeCollection(
         householdId: String,
         collectionName: String,
@@ -184,7 +196,7 @@ internal class HomeCrewRemoteSyncGateway(
 
         val reference = firestore.collection("households").document(householdId)
             .collection(collectionName)
-        val registration = reference.addSnapshotListener { snapshot, error ->
+        val registration = reference.addSnapshotListener(MetadataChanges.INCLUDE) { snapshot, error ->
             if (auth.currentUser?.uid != expectedUid) {
                 close(IllegalStateException("Cloud session changed during subscription"))
             } else if (error != null) {
@@ -208,8 +220,11 @@ internal class HomeCrewRemoteSyncGateway(
         return result as? Map<*, *> ?: error("Malformed callable response")
     }
 
-    private fun requireUid(): String =
-        auth.currentUser?.uid?.takeIf(String::isNotBlank) ?: error("Sign in required")
+    private fun requireUid(): String {
+        val uid = auth.currentUser?.uid?.takeIf(String::isNotBlank) ?: error("Sign in required")
+        check(boundUid == null || boundUid == uid) { "Cloud session changed" }
+        return uid
+    }
 
     private fun decodeChore(doc: DocumentSnapshot) = RemoteChore(
         id = doc.id,
@@ -227,6 +242,7 @@ internal class HomeCrewRemoteSyncGateway(
         assignedUid = requireNotNull(doc.getString("assignedUid")),
         completed = requireNotNull(doc.getBoolean("completed")),
         completedByUid = doc.getString("completedByUid"),
-        revision = requireNotNull(doc.getLong("revision"))
+        revision = requireNotNull(doc.getLong("revision")),
+        skipped = doc.getTimestamp("skippedAt") != null
     )
 }
