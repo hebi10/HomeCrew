@@ -1,22 +1,39 @@
 name: UI-R09 Android device matrix
 
 on:
-  pull_request:
-    paths:
-      - '.github/workflows/ui-r09-device-matrix.yml'
-      - 'app/**'
-      - 'scripts/configure_firebase.py'
   workflow_dispatch:
+    inputs:
+      expected_main_sha:
+        description: 'Exact final main commit for the five-device matrix'
+        type: string
+        required: true
 
 permissions:
   contents: read
 
 concurrency:
   group: homecrew-ui-r09-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
+  validate-source:
+    name: Verify frozen main commit
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Require exact current main SHA
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_MAIN_SHA: ${{ inputs.expected_main_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REF" == "refs/heads/main" ]] || { echo "::error::Final QA must run on main"; exit 1; }
+          [[ "$EXPECTED_MAIN_SHA" =~ ^[0-9a-f]{40}$ && "$EXPECTED_MAIN_SHA" == "$GITHUB_SHA" ]] || { echo "::error::SHA mismatch"; exit 1; }
+          [[ "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq .object.sha)" == "$GITHUB_SHA" ]] || { echo "::error::main changed"; exit 1; }
+
   device-matrix:
+    needs: validate-source
     strategy:
       fail-fast: false
       matrix:

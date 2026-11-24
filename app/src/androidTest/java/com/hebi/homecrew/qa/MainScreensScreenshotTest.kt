@@ -272,12 +272,28 @@ class MainScreensScreenshotTest {
             if (accountHeader == null) dumpFailedUi("계정 상태")
             requireNotNull(accountHeader) { "Google 계정 영역을 찾지 못했습니다." }
 
-            val local = device.wait(Until.findObject(By.text("로그인 없이 사용 중")), 4_000)
-            val signedIn = device.wait(Until.findObject(By.text("Google 계정 연결됨")), 1_000)
-            if (local == null && signedIn == null) dumpFailedUi("계정 인증 상태")
-            assertTrue(
+            // At large font scales the section header may be visible while its status is below the viewport.
+            val settledStatus = By.text(java.util.regex.Pattern.compile("^(로그인 없이 사용 중|Google 계정 연결됨)$"))
+            var accountStatus = device.wait(Until.findObject(settledStatus), 1_500)
+            repeat(12) {
+                if (accountStatus == null) {
+                    if (device.findObject(By.text("계정 상태 확인 중")) != null) {
+                        accountStatus = device.wait(Until.findObject(settledStatus), 8_000)
+                    }
+                    if (accountStatus == null) {
+                        device.swipe(
+                            device.displayWidth / 2, device.displayHeight * 3 / 4,
+                            device.displayWidth / 2, device.displayHeight / 2, 18
+                        )
+                        device.waitForIdle()
+                        accountStatus = device.wait(Until.findObject(settledStatus), 1_500)
+                    }
+                }
+            }
+            if (accountStatus == null) dumpFailedUi("계정 인증 상태")
+            assertNotNull(
                 "계정의 비로그인 또는 로그인 완료 상태가 표시되어야 합니다.",
-                local != null || signedIn != null
+                accountStatus
             )
             screenshot("14-account-section-light")
 
