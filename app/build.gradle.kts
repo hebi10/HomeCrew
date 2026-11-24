@@ -43,6 +43,7 @@ android {
         versionName = "0.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         resValue("bool", "homecrew_shared_households_preview", "false")
+        resValue("string", "homecrew_shared_households_preview_project", "")
     }
 
     signingConfigs {
@@ -63,6 +64,12 @@ android {
                 "homecrew_shared_households_preview",
                 (providers.gradleProperty("homecrewSharedHouseholdsPreview").orNull == "true").toString()
             )
+            val previewProject = providers.gradleProperty("homecrewSharedHouseholdsPreviewProject")
+                .orNull.orEmpty()
+            require(previewProject.isEmpty() || previewProject.matches(Regex("[a-z][a-z0-9-]{4,29}"))) {
+                "Invalid shared household preview project ID"
+            }
+            resValue("string", "homecrew_shared_households_preview_project", previewProject)
         }
         release {
             if (hasReleaseSigning) signingConfig = signingConfigs.getByName("existingRelease")

@@ -31,3 +31,14 @@ internal interface HomeCrewSharedHouseholdGateway {
     suspend fun invite(householdId: String): HomeCrewCloudInvite
     suspend fun join(code: String): String
 }
+
+// A development preview must be explicitly pinned to a non-production project.
+// This gate never enables the release variant and does not configure Firebase.
+internal fun canUseSharedHouseholdPreview(
+    enabled: Boolean,
+    actualProjectId: String?,
+    allowedProjectId: String
+): Boolean = enabled &&
+    allowedProjectId.matches(Regex("[a-z][a-z0-9-]{4,29}")) &&
+    allowedProjectId != "homecrew-1b14b" &&
+    actualProjectId == allowedProjectId

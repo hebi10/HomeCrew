@@ -16,6 +16,11 @@ internal fun homeCrewSharedHouseholdGateway(
     if (!context.resources.getBoolean(R.bool.homecrew_shared_households_preview)) return null
     val app = FirebaseApp.getApps(context).firstOrNull { it.name == FirebaseApp.DEFAULT_APP_NAME }
         ?: return null
+    if (!canUseSharedHouseholdPreview(
+            context.resources.getBoolean(R.bool.homecrew_shared_households_preview),
+            app.options.projectId,
+            context.getString(R.string.homecrew_shared_households_preview_project)
+        )) return null
     val auth = FirebaseAuth.getInstance(app)
     if (auth.currentUser?.uid != accountUid) return null
     return FirebaseSharedHouseholdGateway(
