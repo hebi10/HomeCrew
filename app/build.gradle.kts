@@ -42,6 +42,7 @@ android {
         versionCode = releaseVersionCode
         versionName = "0.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        resValue("bool", "homecrew_shared_households_preview", "false")
     }
 
     signingConfigs {
@@ -56,6 +57,13 @@ android {
     }
 
     buildTypes {
+        debug {
+            resValue(
+                "bool",
+                "homecrew_shared_households_preview",
+                (providers.gradleProperty("homecrewSharedHouseholdsPreview").orNull == "true").toString()
+            )
+        }
         release {
             if (hasReleaseSigning) signingConfig = signingConfigs.getByName("existingRelease")
             isMinifyEnabled = false

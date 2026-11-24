@@ -8,6 +8,8 @@ import {
 } from './invite-core.js';
 import { createHash } from 'node:crypto';
 
+export { createSharedHousehold } from './household-create.js';
+
 initializeApp();
 const db = getFirestore();
 const options = { region: 'asia-northeast3', maxInstances: 10, timeoutSeconds: 30 };
