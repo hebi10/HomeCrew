@@ -50,7 +50,7 @@ internal fun HomeCrewSharedChorePreviewDialog(
             val state by stream.collectAsState(initial = SharedChorePreviewState.Loading)
             AlertDialog(
                 onDismissRequest = onClose,
-                title = { Text(householdName) },
+                title = { Text(if (state is SharedChorePreviewState.Ready) householdName else "공동 집안일") },
                 text = {
                     Column(
                         modifier = Modifier.fillMaxWidth().heightIn(max = 520.dp)

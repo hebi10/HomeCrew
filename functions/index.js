@@ -8,6 +8,8 @@ import {
 } from './invite-core.js';
 import { createHash } from 'node:crypto';
 
+export { createSharedHousehold } from './household-create.js';
+
 initializeApp();
 const db = getFirestore();
 const options = { region: 'asia-northeast3', maxInstances: 10, timeoutSeconds: 30 };
@@ -104,10 +106,18 @@ export const acceptHouseholdInvite = onCall(options, async (request) => {
     const member = home.collection('members').doc(uid);
     const userIndex = db.doc(`users/${uid}/households/${home.id}`);
     const [homeSnap, memberSnap] = await Promise.all([tx.get(home), tx.get(member)]);
-    // A one-use invitation cannot be redeemed by another account after consumption.
+    if (!homeSnap.exists || homeSnap.data().ownerUid !== data.createdBy) invalidInvite();
+    // A lost response may be replayed only by the same still-authorized member.
+    // Never restore a removed member or redeem a consumed code for a new account.
+    if (data.status === 'used') {
+      if (data.acceptedBy !== uid || !memberSnap.exists) invalidInvite();
+      tx.set(userIndex, {
+        householdId: home.id, role: 'member', updatedAt: FieldValue.serverTimestamp(),
+      });
+      return { householdId: home.id, alreadyMember: true };
+    }
     if (data.status !== 'active' || !data.expiresAt ||
-      data.expiresAt.toMillis() <= now || !homeSnap.exists ||
-      homeSnap.data().ownerUid !== data.createdBy) invalidInvite();
+      data.expiresAt.toMillis() <= now) invalidInvite();
     if (homeSnap.data().ownerUid === uid || memberSnap.exists) {
       tx.set(userIndex, {
         householdId: home.id,

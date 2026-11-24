@@ -14,6 +14,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -29,6 +30,7 @@ import com.hebi.homecrew.data.auth.GoogleSignInResult
 import com.hebi.homecrew.data.auth.HomeCrewAccountActionResult
 import com.hebi.homecrew.data.auth.HomeCrewAuthSession
 import com.hebi.homecrew.data.auth.HomeCrewAuthUser
+import com.hebi.homecrew.data.cloud.homeCrewSharedHouseholdGateway
 import com.hebi.homecrew.ui.theme.HomeCrewDimensions
 import com.hebi.homecrew.ui.theme.HomeCrewTheme
 import com.hebi.homecrew.ui.theme.LocalHomeCrewColors
@@ -50,6 +52,11 @@ internal fun HomeCrewGoogleAccountSetting(signIn: GoogleSignIn) {
     val sessionEvents = remember(signIn, context) { signIn.observeSession(context) }
     val session by sessionEvents.collectAsState(initial = HomeCrewAuthSession.Restoring)
     val uiState = homeCrewAccountUiState(session, signingIn, lastResult, accountAction, accountResult)
+    val accountUid = (session as? HomeCrewAuthSession.SignedIn)?.user?.uid
+    val sharedGateway = remember(context, accountUid) {
+        accountUid?.let { homeCrewSharedHouseholdGateway(context, it) }
+    }
+    var showSharedHouseholds by remember(accountUid) { mutableStateOf(false) }
 
     fun runAccountAction(action: HomeCrewAccountAction) {
         if (session !is HomeCrewAuthSession.SignedIn || accountAction != null || signingIn) return
@@ -97,6 +104,17 @@ internal fun HomeCrewGoogleAccountSetting(signIn: GoogleSignIn) {
             webError = !openHomeCrewWebPage(activity, HOMECREW_DELETE_ACCOUNT_URL)
         }
     )
+    if (sharedGateway != null && accountUid != null && uiState.accountActionsEnabled) {
+        TextButton(
+            onClick = { showSharedHouseholds = true },
+            modifier = Modifier.heightIn(min = HomeCrewDimensions.touchTarget)
+        ) { Text("공동 공간 관리 (개발 미리보기)") }
+        if (showSharedHouseholds) {
+            key(accountUid) {
+                HomeCrewSharedHouseholdsDialog(sharedGateway, accountUid) { showSharedHouseholds = false }
+            }
+        }
+    }
     if (webError) {
         Text(
             "브라우저에서 계정 삭제 안내를 열 수 없습니다.",

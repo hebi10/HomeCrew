@@ -169,6 +169,7 @@ internal class HomeCrewRemoteSyncGateway(
                     snapshot != null && !snapshot.exists() ->
                         close(IllegalStateException("Household no longer available"))
                     snapshot != null -> trySend(snapshot)
+                    else -> Unit
                 }
             }
         awaitClose {
