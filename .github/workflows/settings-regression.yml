@@ -75,14 +75,6 @@ jobs:
         env:
           HOMECREW_GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.HOMECREW_GOOGLE_SERVICES_JSON_BASE64 }}
         run: python3 scripts/configure_firebase.py --required
-      - name: Verify OAuth resource for account regression
-        if: matrix.label == 'account-large-font'
-        run: |
-          ./gradlew --no-daemon :app:processDebugGoogleServices
-          if ! grep -rq 'name="default_web_client_id"' app/build/generated/res/google-services/; then
-            echo "::error::Google OAuth resource is missing; account regression cannot be skipped."
-            exit 1
-          fi
       - name: Enable KVM
         run: |
           if [ ! -e /dev/kvm ]; then
@@ -97,6 +89,7 @@ jobs:
         env:
           FONT_SCALE: ${{ matrix.font }}
           TEST_CASE: ${{ matrix.test }}
+          REQUIRE_ACCOUNT_QA: ${{ matrix.label == 'account-large-font' }}
         with:
           api-level: 35
           arch: x86_64
@@ -107,7 +100,7 @@ jobs:
           script: |
             adb shell settings put system font_scale "$FONT_SCALE"
             adb shell cmd uimode night no
-            ./gradlew --no-daemon connectedDebugAndroidTest "-Pandroid.testInstrumentationRunnerArguments.class=$TEST_CASE" --stacktrace
+            ./gradlew --no-daemon connectedDebugAndroidTest "-Pandroid.testInstrumentationRunnerArguments.class=$TEST_CASE" "-Pandroid.testInstrumentationRunnerArguments.requireAccountQa=$REQUIRE_ACCOUNT_QA" --stacktrace
       - name: Verify selected test actually ran
         env:
           TEST_CASE: ${{ matrix.test }}

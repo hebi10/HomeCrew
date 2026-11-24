@@ -93,22 +93,6 @@ class HomeCrewActivityRestartTest {
         throw AssertionError("동작 버튼을 찾거나 누르지 못했습니다: $label")
     }
 
-    private fun enterFreshText(index: Int, value: String) {
-        repeat(5) {
-            try {
-                val fields = device.findObjects(By.clazz("android.widget.EditText"))
-                if (index >= 0 && index < fields.size) {
-                    fields[index].text = value
-                    device.waitForIdle()
-                    return
-                }
-            } catch (_: androidx.test.uiautomator.StaleObjectException) {
-                device.waitForIdle()
-            }
-        }
-        throw AssertionError("입력 필드에 텍스트를 입력하지 못했습니다: $index")
-    }
-
     private fun scrollToAction(label: String, down: Boolean = true) {
         val x = device.displayWidth / 2
         val upper = device.displayHeight / 3
@@ -203,7 +187,7 @@ class HomeCrewActivityRestartTest {
             settingsControl("homecrew-default-member-$newDefault").assertIsEnabled().performClick()
             assertTrue("기본 구성원 변경이 저장되지 않았습니다.", store.load()?.defaultMember == newDefault)
             settingsControl("homecrew-member-input").performTextReplacement(member)
-                .assertTextContains(member)
+            settingsControl("homecrew-member-input").assertTextContains(member)
             captureSettingsDiagnostic("13-settings-new-member-input")
             scenario.onActivity { activity ->
                 WindowCompat.getInsetsController(activity.window, activity.window.decorView)
