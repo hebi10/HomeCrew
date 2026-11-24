@@ -12,6 +12,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.core.view.WindowCompat
+import com.hebi.homecrew.reminder.HomeCrewReminderScheduler
 import com.hebi.homecrew.ui.setup.HomeCrewSetupFlow
 import com.hebi.homecrew.ui.setup.LocalHouseholdStore
 import com.hebi.homecrew.ui.screens.HomeCrewMainScreens
@@ -21,6 +22,7 @@ import com.hebi.homecrew.ui.theme.ThemeMode
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        HomeCrewReminderScheduler.apply(applicationContext)
         enableEdgeToEdge()
 
         setContent {
