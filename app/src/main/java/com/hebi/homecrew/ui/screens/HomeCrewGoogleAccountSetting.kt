@@ -39,7 +39,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 @Composable
-internal fun HomeCrewGoogleAccountSetting(signIn: GoogleSignIn) {
+internal fun HomeCrewGoogleAccountSetting(signIn: GoogleSignIn, onBusyChanged: (Boolean) -> Unit = {}) {
     val activity = LocalActivity.current ?: return
     val scope = rememberCoroutineScope()
     var signingIn by remember { mutableStateOf(false) }
@@ -64,6 +64,7 @@ internal fun HomeCrewGoogleAccountSetting(signIn: GoogleSignIn) {
     fun runAccountAction(action: HomeCrewAccountAction) {
         if (session !is HomeCrewAuthSession.SignedIn || accountAction != null || signingIn) return
         accountAction = action
+        onBusyChanged(true)
         accountResult = null
         scope.launch {
             try {
@@ -77,6 +78,7 @@ internal fun HomeCrewGoogleAccountSetting(signIn: GoogleSignIn) {
                 accountResult = HomeCrewAccountActionResult.FAILED
             } finally {
                 accountAction = null
+                onBusyChanged(false)
             }
         }
     }
@@ -86,6 +88,7 @@ internal fun HomeCrewGoogleAccountSetting(signIn: GoogleSignIn) {
         onSignIn = {
             if (!signingIn && accountAction == null && session == HomeCrewAuthSession.LocalOnly) {
                 signingIn = true
+                onBusyChanged(true)
                 lastResult = null
                 accountResult = null
                 scope.launch {
@@ -97,6 +100,7 @@ internal fun HomeCrewGoogleAccountSetting(signIn: GoogleSignIn) {
                         lastResult = GoogleSignInResult.FAILED
                     } finally {
                         signingIn = false
+                        onBusyChanged(false)
                     }
                 }
             }

@@ -71,6 +71,28 @@ class MainScreensScreenshotTest {
         device.waitForIdle()
     }
 
+    private fun openSettingsMenu(label: String, title: String) {
+        val selector = By.desc("설정 메뉴: $label")
+        var row = device.wait(Until.findObject(selector), 800)
+        repeat(10) {
+            if (row == null) {
+                device.swipe(device.displayWidth / 2, device.displayHeight * 3 / 4,
+                    device.displayWidth / 2, device.displayHeight / 3, 18)
+                device.waitForIdle()
+                row = device.wait(Until.findObject(selector), 800)
+            }
+        }
+        if (row == null) dumpFailedUi(label)
+        val bounds = requireNotNull(row) { "설정 메뉴 없음: $label" }.visibleBounds
+        device.click(bounds.centerX(), bounds.centerY())
+        awaitScreenTitle(title)
+    }
+
+    private fun backToSettingsHub() {
+        device.pressBack()
+        awaitScreenTitle("설정")
+    }
+
     private fun awaitText(label: String) {
         val node = device.wait(Until.findObject(By.text(label)), 12_000)
         if (node == null) dumpFailedUi(label)
@@ -279,6 +301,7 @@ class MainScreensScreenshotTest {
         awaitText("설정")
         Thread.sleep(900)
         screenshot("13-settings-dark")
+        openSettingsMenu("화면 테마", "화면 테마")
 
         var lightOption = device.wait(Until.findObject(By.text("라이트")), 800)
         repeat(12) {
@@ -296,6 +319,7 @@ class MainScreensScreenshotTest {
         device.waitForIdle()
         Thread.sleep(900)
         screenshot("13-settings-light-theme")
+        backToSettingsHub()
 
         var settingsTitle = device.wait(Until.findObject(By.text("설정")), 700)
         repeat(12) {
@@ -311,6 +335,13 @@ class MainScreensScreenshotTest {
         if (settingsTitle == null) dumpFailedUi("설정 라이트 상단")
         requireNotNull(settingsTitle) { "설정 화면 상단으로 복귀하지 못했습니다." }
         screenshot("13-settings-light")
+        openSettingsMenu("알림 설정", "알림 설정")
+        awaitText("오늘 할 일 알림")
+        screenshot("P26-reminder-light")
+        backToSettingsHub()
+        openSettingsMenu("구성원 관리", "구성원 관리")
+        screenshot("P15-local-members-light")
+        backToSettingsHub()
 
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val oauthResource = context.resources.getIdentifier(
@@ -323,19 +354,7 @@ class MainScreensScreenshotTest {
             )
         }
         if (oauthResource != 0) {
-            var accountHeader = device.wait(Until.findObject(By.text("계정")), 800)
-            repeat(16) {
-                if (accountHeader == null) {
-                    device.swipe(
-                        device.displayWidth / 2, device.displayHeight * 3 / 4,
-                        device.displayWidth / 2, device.displayHeight / 3, 18
-                    )
-                    device.waitForIdle()
-                    accountHeader = device.wait(Until.findObject(By.text("계정")), 800)
-                }
-            }
-            if (accountHeader == null) dumpFailedUi("계정 상태")
-            requireNotNull(accountHeader) { "Google 계정 영역을 찾지 못했습니다." }
+            openSettingsMenu("계정", "계정 관리")
 
             // At large font scales the section header may be visible while its status is below the viewport.
             val settledStatus = By.text(java.util.regex.Pattern.compile("^(로그인 없이 사용 중|Google 계정 연결됨)$"))
@@ -378,6 +397,8 @@ class MainScreensScreenshotTest {
                 }
             }
             assertNotNull("앱 외 계정 삭제 안내 진입점이 보이지 않습니다.", deletionLink)
+            backToSettingsHub()
+            openSettingsMenu("개인정보처리방침", "개인정보")
 
             var privacyLink = device.wait(
                 Until.findObject(By.text("개인정보처리방침")), 800

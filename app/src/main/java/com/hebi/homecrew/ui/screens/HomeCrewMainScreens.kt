@@ -117,6 +117,7 @@ fun HomeCrewMainScreens(
         if (currentMember !in memberNames) currentMember = householdSetup?.defaultMember ?: memberNames.first()
     }
     var page by rememberSaveable { mutableStateOf(ChorePage.MAIN) }
+    var dataFromSettings by rememberSaveable { mutableStateOf(false) }
     var detailId by rememberSaveable { mutableStateOf<String?>(null) }
     var selectedOccurrenceId by rememberSaveable { mutableStateOf<String?>(null) }
     var editorOrigin by rememberSaveable { mutableStateOf(ChorePage.MAIN) }
@@ -196,7 +197,8 @@ fun HomeCrewMainScreens(
         when (page) {
             ChorePage.REPEAT, ChorePage.ASSIGNMENT -> page = ChorePage.FORM
             ChorePage.FORM -> requestFormBack()
-            ChorePage.DETAIL, ChorePage.SETTINGS, ChorePage.DATA -> page = ChorePage.MAIN
+            ChorePage.DATA -> page = if (dataFromSettings) ChorePage.SETTINGS else ChorePage.MAIN
+            ChorePage.DETAIL, ChorePage.SETTINGS -> page = ChorePage.MAIN
             ChorePage.MAIN -> Unit
         }
     }
@@ -252,7 +254,7 @@ fun HomeCrewMainScreens(
                                 onAdd = { openAdd() },
                                 definitions = definitions,
                                 members = memberNames,
-                                onDataManagement = { page = ChorePage.DATA }
+                                onDataManagement = { dataFromSettings = false; page = ChorePage.DATA }
                             )
                             HomeTab.STATS -> HomeCrewStatsScreen(
                                 today = currentDate, chores = chores, members = memberNames
@@ -288,7 +290,8 @@ fun HomeCrewMainScreens(
                             result
                         }
                     },
-                    onBack = { page = ChorePage.MAIN }
+                    onBack = { page = ChorePage.MAIN },
+                    onOpenDataManagement = { dataFromSettings = true; page = ChorePage.DATA }
                 )
             }
         }
@@ -332,7 +335,7 @@ fun HomeCrewMainScreens(
         ChorePage.DATA -> {
             HomeCrewLocalDataScreen(
                 viewModel = viewModel,
-                onBack = { page = ChorePage.MAIN }
+                onBack = { page = if (dataFromSettings) ChorePage.SETTINGS else ChorePage.MAIN }
             )
         }
         ChorePage.FORM -> {
