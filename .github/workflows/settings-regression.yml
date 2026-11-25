@@ -4,6 +4,9 @@ on:
     branches: [main]
     paths:
       - 'app/src/androidTest/java/com/hebi/homecrew/qa/HomeCrewActivityRestartTest.kt'
+      - 'app/src/androidTest/java/com/hebi/homecrew/qa/HomeCrewSharedPagesInstrumentedTest.kt'
+      - 'app/src/main/java/com/hebi/homecrew/ui/screens/HomeCrewSharedHouseholdsDialog.kt'
+      - 'app/src/main/java/com/hebi/homecrew/ui/screens/HomeCrewSharedChorePreviewDialog.kt'
       - 'app/src/androidTest/java/com/hebi/homecrew/qa/HomeCrewLocalMemberRecoveryInstrumentedTest.kt'
       - 'app/src/main/java/com/hebi/homecrew/data/local/HomeCrewLocalMemberChanges.kt'
       - 'app/src/main/java/com/hebi/homecrew/ui/screens/HomeCrewSettingsScreen.kt'
@@ -44,6 +47,10 @@ jobs:
           ).splitlines())
           prefix = "app/src/androidTest/java/com/hebi/homecrew/qa/"
           cases = []
+          if (prefix + "HomeCrewSharedPagesInstrumentedTest.kt" in paths or
+              "app/src/main/java/com/hebi/homecrew/ui/screens/HomeCrewSharedHouseholdsDialog.kt" in paths or
+              "app/src/main/java/com/hebi/homecrew/ui/screens/HomeCrewSharedChorePreviewDialog.kt" in paths):
+              cases.append({"label": "shared-pages-fake-gateway", "font": "1.0", "test": "com.hebi.homecrew.qa.HomeCrewSharedPagesInstrumentedTest#sharedSpaceNavigationAndOwnerGate"})
           if (prefix + "HomeCrewActivityRestartTest.kt" in paths or
               "app/src/main/java/com/hebi/homecrew/ui/screens/HomeCrewSettingsScreen.kt" in paths):
               cases.append({"label": "member-persistence", "font": "1.0", "test": "com.hebi.homecrew.qa.HomeCrewActivityRestartTest#householdSettingsPersistAfterActivityRestart"})
