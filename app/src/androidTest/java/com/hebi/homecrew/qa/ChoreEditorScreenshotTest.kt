@@ -5,6 +5,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.By
 import androidx.test.uiautomator.UiDevice
+import androidx.test.uiautomator.UiObject2
 import androidx.test.uiautomator.Until
 import com.hebi.homecrew.MainActivity
 import java.io.File
@@ -34,7 +35,7 @@ class ChoreEditorScreenshotTest {
         assertTrue(device.takeScreenshot(File(outputDirectory(), "$name.png")))
     }
 
-    private fun press(text: String) {
+    private fun findAction(text: String): UiObject2? {
         var node = device.wait(Until.findObject(By.text(text)), 4_000)
             ?: device.wait(Until.findObject(By.desc(text)), 2_000)
         repeat(4) {
@@ -48,6 +49,11 @@ class ChoreEditorScreenshotTest {
                     ?: device.wait(Until.findObject(By.desc(text)), 1_000)
             }
         }
+        return node
+    }
+
+    private fun press(text: String) {
+        val node = findAction(text)
         if (node == null) {
             screenshot("error-1d-button")
             device.dumpWindowHierarchy(File(outputDirectory(), "error-1d.xml"))
@@ -267,12 +273,11 @@ class ChoreEditorScreenshotTest {
         requireNotNull(selectedHistory) {
             "최근 완료 회차를 선택할 수 없습니다: $historyDescription"
         }.click()
-        device.waitForIdle()
-        val undoForSelectedHistory = device.wait(
-            Until.findObject(By.text("이 회차 완료 취소")), 8_000
-        )
-        requireNotNull(undoForSelectedHistory) {
-            "선택한 완료 회차로 이동하지 못했습니다."
+        awaitScreen("설거지")
+        if (findAction("이 회차 완료 취소") == null) {
+            screenshot("error-1d-selected-completion")
+            device.dumpWindowHierarchy(File(outputDirectory(), "error-1d-selected-completion.xml"))
+            error("선택한 완료 회차에서 완료 취소 버튼을 찾지 못했습니다.")
         }
         screenshot("11-chore-selected-completion")
         press("이 회차 완료 취소")
