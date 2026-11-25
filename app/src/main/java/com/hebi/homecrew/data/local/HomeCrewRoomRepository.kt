@@ -43,12 +43,12 @@ class HomeCrewRoomRepository(
 
     suspend fun snapshot(): HomeCrewSnapshot = assembleSnapshot(dao.readRows())
 
-    suspend fun exportBackup(household: HouseholdSetup): String {
+    suspend fun exportBackup(household: HouseholdSetup): String = guardedLocalWrite(dao) {
         val rows = dao.readRows()
-        return withContext(Dispatchers.Default) { HomeCrewLocalBackup.encode(household, rows) }
+        withContext(Dispatchers.Default) { HomeCrewLocalBackup.encode(household, rows) }
     }
 
-    suspend fun restoreBackup(json: String, household: HouseholdSetup, today: LocalDate) {
+    suspend fun restoreBackup(json: String, household: HouseholdSetup, today: LocalDate) = guardedLocalWrite(dao) {
         val restored = withContext(Dispatchers.Default) {
             val rows = HomeCrewLocalBackup.decode(json, household)
             rows.copy(occurrences = rows.occurrences + missingUpcoming(rows, today))
@@ -56,7 +56,7 @@ class HomeCrewRoomRepository(
         dao.replaceFromBackup(restored)
     }
 
-    suspend fun initializeIfNeeded(household: HouseholdSetup, today: LocalDate) {
+    suspend fun initializeIfNeeded(household: HouseholdSetup, today: LocalDate) = guardedLocalWrite(dao) {
         val initial = previewChoresForSetup(household, today)
         val timestamp = clock()
         val definitions = mutableListOf<ChoreDefinitionEntity>()
@@ -96,10 +96,14 @@ class HomeCrewRoomRepository(
                 .distinctBy { it.id }.map { it.asEntity() }
         }
         dao.seedOnce(definitions, people, instances)
-        extendUpcoming(today)
+        extendUpcomingLocked(today)
     }
 
-    suspend fun extendUpcoming(today: LocalDate) {
+    suspend fun extendUpcoming(today: LocalDate) = guardedLocalWrite(dao) {
+        extendUpcomingLocked(today)
+    }
+
+    private suspend fun extendUpcomingLocked(today: LocalDate) {
         val missing = missingUpcoming(dao.readRows(), today)
         if (missing.isNotEmpty()) dao.insertMissingOccurrences(missing)
     }
@@ -177,7 +181,7 @@ class HomeCrewRoomRepository(
         validMembers: List<String>,
         existingChores: List<DemoChore>,
         today: LocalDate
-    ): String {
+    ): String = guardedLocalWrite(dao) {
         require(validationError(draft, validMembers) == null) { "유효하지 않은 집안일입니다." }
         val ordered = orderedParticipants(draft.assignment.members, validMembers)
         val normalized = draft.copy(assignment = draft.assignment.copy(members = ordered))
@@ -210,14 +214,14 @@ class HomeCrewRoomRepository(
             occurrences = instances.map { it.asEntity() },
             todayEpochDay = today.toEpochDay()
         )
-        return id
+        id
     }
 
-    suspend fun delete(id: String) {
+    suspend fun delete(id: String) = guardedLocalWrite(dao) {
         check(dao.deleteDefinition(id) == 1) { "삭제할 집안일을 찾을 수 없습니다." }
     }
 
-    suspend fun toggleCompleted(id: String, actingMember: String) {
+    suspend fun toggleCompleted(id: String, actingMember: String) = guardedLocalWrite(dao) {
         val current = dao.findOccurrence(id) ?: error("완료할 회차를 찾을 수 없습니다.")
         val nextCompleted = !current.completed
         check(
@@ -230,7 +234,7 @@ class HomeCrewRoomRepository(
         ) { "완료 상태를 저장하지 못했습니다." }
     }
 
-    suspend fun toggleSkipped(id: String, reason: String?) {
+    suspend fun toggleSkipped(id: String, reason: String?) = guardedLocalWrite(dao) {
         val current = dao.findOccurrence(id) ?: error("건너뛸 회차를 찾을 수 없습니다.")
         val isUnskipping = current.skippedAtEpochMillis != null
         require(isUnskipping || !current.completed) { "완료된 회차는 건너뛸 수 없습니다." }

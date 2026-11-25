@@ -19,6 +19,11 @@ import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.content.ContextCompat
 import androidx.compose.material3.Switch
+import androidx.compose.material3.AlertDialog
+import androidx.activity.compose.BackHandler
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -56,7 +61,8 @@ fun HomeCrewSettingsScreen(
     themeMode: ThemeMode,
     onThemeModeChange: (ThemeMode) -> Unit,
     onSave: (HouseholdSetup) -> Boolean,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onMemberChange: suspend (String, String?) -> String? = { _, _ -> "구성원 변경을 지원하지 않는 화면입니다." }
 ) {
     val palette = LocalHomeCrewColors.current
     val context = LocalContext.current
@@ -80,8 +86,33 @@ fun HomeCrewSettingsScreen(
     var newMember by rememberSaveable { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
     var notice by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+    var editMember by remember { mutableStateOf<String?>(null) }
+    var replacement by remember { mutableStateOf("") }
+    var deleteMember by remember { mutableStateOf<String?>(null) }
+    var memberBusy by remember { mutableStateOf(false) }
+    BackHandler(enabled = memberBusy) { }
+
+    fun changeMember(member: String, newName: String?) {
+        if (memberBusy) return
+        memberBusy = true
+        error = null
+        notice = null
+        scope.launch {
+            try {
+                val failure = onMemberChange(member, newName)
+                if (failure != null) error = failure
+                else notice = if (newName == null) "구성원을 삭제했습니다." else "구성원 이름과 연결된 기록을 수정했습니다."
+            } catch (cancel: CancellationException) {
+                throw cancel
+            } catch (_: Exception) {
+                error = "구성원 변경 상태를 확인하지 못했습니다. 다시 확인해 주세요."
+            } finally { memberBusy = false }
+        }
+    }
 
     fun persist(updated: HouseholdSetup): Boolean {
+        if (memberBusy) return false
         val saved = onSave(updated)
         if (saved) {
             error = null
@@ -108,7 +139,7 @@ fun HomeCrewSettingsScreen(
         verticalArrangement = Arrangement.spacedBy(HomeCrewDimensions.space16)
     ) {
         item {
-            TextButton(onClick = onBack, modifier = Modifier.heightIn(min = 48.dp)) {
+            TextButton(onClick = onBack, enabled = !memberBusy, modifier = Modifier.heightIn(min = 48.dp)) {
                 Text("뒤로")
             }
             Text("설정", style = MaterialTheme.typography.headlineSmall)
@@ -119,6 +150,7 @@ fun HomeCrewSettingsScreen(
             OutlinedTextField(
                 value = homeName,
                 onValueChange = { homeName = it; error = null; notice = null },
+                enabled = !memberBusy,
                 label = { Text("집 이름") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth().testTag("homecrew-home-name")
@@ -129,31 +161,43 @@ fun HomeCrewSettingsScreen(
                     if (validation != null) error = validation
                     else persist(household.copy(homeName = homeName.trim()))
                 },
+                enabled = !memberBusy,
                 modifier = Modifier.heightIn(min = 48.dp).testTag("homecrew-save-home")
             ) { Text("집 이름 저장") }
         }
         item {
             Text("구성원 관리", style = MaterialTheme.typography.titleMedium)
-            Text("기본 구성원을 선택하거나 새 구성원을 추가할 수 있습니다.", color = palette.muted)
+            Text("구성원 추가·기본 선택·이름 수정·미사용 구성원 삭제를 지원합니다.", color = palette.muted)
             household.members.forEach { member ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(member, modifier = Modifier.padding(vertical = 12.dp))
-                    TextButton(
-                        onClick = { persist(household.copy(defaultMember = member)) },
-                        enabled = household.defaultMember != member,
-                        modifier = Modifier.heightIn(min = 48.dp)
-                            .testTag("homecrew-default-member-$member")
-                    ) {
-                        Text(if (household.defaultMember == member) "기본 구성원" else "기본으로 설정")
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text(member, modifier = Modifier.padding(vertical = 12.dp))
+                        TextButton(
+                            onClick = { persist(household.copy(defaultMember = member)) },
+                            enabled = !memberBusy && household.defaultMember != member,
+                            modifier = Modifier.heightIn(min = 48.dp)
+                                .testTag("homecrew-default-member-$member")
+                        ) {
+                            Text(if (household.defaultMember == member) "기본 구성원" else "기본으로 설정")
+                        }
                     }
+                    Row(horizontalArrangement = Arrangement.spacedBy(HomeCrewDimensions.space8)) {
+                        TextButton(enabled = !memberBusy, onClick = {
+                            editMember = member
+                            replacement = member
+                        }, modifier = Modifier.testTag("homecrew-rename-member-$member")) { Text("이름 수정") }
+                        TextButton(enabled = !memberBusy && household.members.size > 1 && member !in assignedMembers,
+                            onClick = { deleteMember = member },
+                            modifier = Modifier.testTag("homecrew-delete-member-$member")) { Text("삭제") }
+                    }
+                    if (member in assignedMembers) Text("연결된 기록이 있어 삭제할 수 없습니다.",
+                        style = MaterialTheme.typography.bodySmall, color = palette.muted)
                 }
             }
             OutlinedTextField(
                 value = newMember,
                 onValueChange = { newMember = it; error = null; notice = null },
+                enabled = !memberBusy,
                 label = { Text("새 구성원 이름") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
@@ -168,12 +212,13 @@ fun HomeCrewSettingsScreen(
                         newMember = ""
                     }
                 },
+                enabled = !memberBusy,
                 modifier = Modifier.heightIn(min = 48.dp)
                     .testTag("homecrew-member-add")
                     .semantics { contentDescription = "구성원 추가 버튼" }
             ) { Text("구성원 추가") }
             Text(
-                "기존 집안일·완료 기록에 연결된 구성원의 이름 변경과 삭제는 데이터 이전 기능이 준비된 후 지원합니다.",
+                "이름 수정은 배정·완료 기록에도 적용됩니다. 기록이 연결된 구성원의 삭제는 원본 보호를 위해 제한합니다.",
                 style = MaterialTheme.typography.bodySmall,
                 color = palette.muted
             )
@@ -278,5 +323,39 @@ fun HomeCrewSettingsScreen(
             item { Text(notice.orEmpty(), color = palette.muted) }
         }
     }
+    }
+    editMember?.let { member ->
+        val validation = memberNameError(replacement, household.members, household.members.indexOf(member))
+        AlertDialog(
+            onDismissRequest = { editMember = null },
+            title = { Text("구성원 이름 수정") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(HomeCrewDimensions.space8)) {
+                    Text("기존 배정 및 완료 기록의 이름도 함께 수정합니다.")
+                    OutlinedTextField(value = replacement, onValueChange = { if (it.length <= 12) replacement = it },
+                        label = { Text("새 이름") }, singleLine = true,
+                        modifier = Modifier.fillMaxWidth().testTag("homecrew-member-rename-input"))
+                    validation?.let { Text(it, color = palette.error, style = MaterialTheme.typography.bodySmall) }
+                }
+            },
+            confirmButton = { TextButton(
+                enabled = !memberBusy && validation == null && replacement.trim() != member,
+                onClick = { val name = replacement.trim(); editMember = null; changeMember(member, name) },
+                modifier = Modifier.testTag("homecrew-member-rename-confirm")
+            ) { Text("저장") } },
+            dismissButton = { TextButton(onClick = { editMember = null }) { Text("취소") } }
+        )
+    }
+    deleteMember?.let { member ->
+        AlertDialog(
+            onDismissRequest = { deleteMember = null },
+            title = { Text("구성원을 삭제할까요?") },
+            text = { Text("미사용 구성원 $member 의 설정만 삭제합니다. 기존 집안일이나 기록은 삭제하지 않습니다.") },
+            confirmButton = { TextButton(enabled = !memberBusy, onClick = {
+                deleteMember = null
+                changeMember(member, null)
+            }, modifier = Modifier.testTag("homecrew-member-delete-confirm")) { Text("삭제") } },
+            dismissButton = { TextButton(onClick = { deleteMember = null }) { Text("취소") } }
+        )
     }
 }

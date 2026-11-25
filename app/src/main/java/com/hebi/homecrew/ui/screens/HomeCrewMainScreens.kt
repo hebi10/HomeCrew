@@ -49,6 +49,7 @@ fun HomeCrewMainScreens(
     onThemeModeChange: (ThemeMode) -> Unit,
     householdSetup: HouseholdSetup? = null,
     onHouseholdChange: (HouseholdSetup) -> Boolean = { false },
+    onLocalMemberChange: suspend (String, String?) -> String? = { _, _ -> "구성원 변경을 지원하지 않는 화면입니다." },
     viewModel: DemoChoreViewModel = viewModel(
         factory = DemoChoreViewModel.Factory(LocalContext.current.applicationContext)
     )
@@ -111,6 +112,9 @@ fun HomeCrewMainScreens(
     var tab by rememberSaveable { mutableStateOf(HomeTab.HOME) }
     var currentMember by rememberSaveable {
         mutableStateOf(householdSetup?.defaultMember ?: "나")
+    }
+    LaunchedEffect(memberNames) {
+        if (currentMember !in memberNames) currentMember = householdSetup?.defaultMember ?: memberNames.first()
     }
     var page by rememberSaveable { mutableStateOf(ChorePage.MAIN) }
     var detailId by rememberSaveable { mutableStateOf<String?>(null) }
@@ -262,7 +266,8 @@ fun HomeCrewMainScreens(
             if (householdSetup != null) {
                 HomeCrewSettingsScreen(
                     household = householdSetup,
-                    assignedMembers = definitions.map { it.owner }.toSet(),
+                    assignedMembers = (definitions.flatMap { listOf(it.owner) + it.assignment.members } +
+                        chores.map { it.definition.owner } + chores.mapNotNull { it.completedBy }).toSet(),
                     themeMode = themeMode,
                     onThemeModeChange = onThemeModeChange,
                     onSave = { updated ->
@@ -271,6 +276,17 @@ fun HomeCrewMainScreens(
                             currentMember = updated.defaultMember
                         }
                         saved
+                    },
+                    onMemberChange = { member, replacement ->
+                        if (!viewModel.canChangeLocalMembers()) "진행 중인 집안일 저장이 끝난 뒤 다시 시도해 주세요."
+                        else {
+                            val result = onLocalMemberChange(member, replacement)
+                            if (result == null) {
+                                if (currentMember == member && replacement != null) currentMember = replacement
+                                viewModel.refreshAfterLocalMemberChange()
+                            }
+                            result
+                        }
                     },
                     onBack = { page = ChorePage.MAIN }
                 )

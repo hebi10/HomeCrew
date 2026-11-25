@@ -112,6 +112,13 @@ class DemoChoreViewModel(
         _chores.value = snapshot.chores
     }
 
+    fun canChangeLocalMembers(): Boolean = pendingToggles.isEmpty() &&
+        _saveState.value !is EditorSaveState.Saving && _editor.value == null
+
+    suspend fun refreshAfterLocalMemberChange() {
+        roomRepository?.let { applySnapshot(it.snapshot()) }
+    }
+
     fun dismissOperationError() {
         _operationError.value = null
     }

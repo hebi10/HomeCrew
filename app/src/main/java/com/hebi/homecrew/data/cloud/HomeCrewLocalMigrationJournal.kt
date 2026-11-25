@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.AtomicFile
 import com.hebi.homecrew.data.local.HomeCrewDatabase
 import com.hebi.homecrew.data.local.HomeCrewLocalBackup
+import com.hebi.homecrew.data.local.guardedLocalWrite
 import com.hebi.homecrew.ui.setup.HouseholdSetup
 import com.hebi.homecrew.ui.setup.LocalHouseholdStore
 import com.hebi.homecrew.ui.setup.validateHouseholdSetup
@@ -50,10 +51,13 @@ internal fun atomicMigrationFits(manifest: LocalMigrationManifest): Boolean =
 
 internal suspend fun readLocalMigrationSource(context: Context): LocalMigrationSource = withContext(Dispatchers.IO) {
     val store = LocalHouseholdStore(context.applicationContext)
-    val setup = checkNotNull(store.load())
-    val rows = HomeCrewDatabase.get(context.applicationContext).chores().readRows()
-    check(setup == store.load()) { "Local setup changed" }
-    LocalMigrationSource(setup, rows)
+    val dao = HomeCrewDatabase.get(context.applicationContext).chores()
+    guardedLocalWrite(dao) {
+        val setup = checkNotNull(store.load())
+        val rows = dao.readRows()
+        check(setup == store.load()) { "Local setup changed" }
+        LocalMigrationSource(setup, rows)
+    }
 }
 
 internal object LocalMigrationJournalCodec {
