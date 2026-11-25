@@ -2,7 +2,8 @@
 set -u
 adb shell cmd uimode night no
 set +e
-./gradlew --no-daemon connectedDebugAndroidTest --stacktrace
+./gradlew --no-daemon connectedDebugAndroidTest \
+  -Pandroid.testInstrumentationRunnerArguments.captureDarkTabs=true --stacktrace
 test_exit=$?
 set -e
 
@@ -39,3 +40,20 @@ if [ "$screenshots" -lt 7 ]; then
   echo "::error::Expected at least seven successful non-fixture main/state QA PNGs, got $screenshots."
   exit 1
 fi
+
+# The full screen QA must include the dark main tabs, not just a total count.
+python3 - <<'PY'
+import json
+from pathlib import Path
+
+manifest = json.loads(Path("qa-screenshots/manifest.json").read_text(encoding="utf-8"))
+required = {
+    "07-home-dark.png", "02-schedule-dark.png", "02-schedule-month-dark.png",
+    "02-schedule-day-dark.png", "03-chores-dark.png", "04-stats-dark.png",
+}
+actual = {Path(item["source"]).name for item in manifest["files"] if item["kind"] == "app"}
+missing = sorted(required - actual)
+if missing:
+    raise SystemExit("Missing verified dark screen captures: " + ", ".join(missing))
+print("Verified six dark main/state screenshot PNGs in the current run.")
+PY
