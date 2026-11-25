@@ -26,6 +26,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.hebi.homecrew.data.cloud.HomeCrewCompletionJournal
+import com.hebi.homecrew.data.cloud.HomeCrewLocalMigrationJournal
 import com.hebi.homecrew.data.cloud.RemoteCompletionCommand
 import com.hebi.homecrew.data.cloud.RemoteCompletionResult
 import com.hebi.homecrew.data.cloud.RemoteHouseholdChoreGateway
@@ -44,12 +45,13 @@ import kotlinx.coroutines.withTimeoutOrNull
 internal fun HomeCrewSharedChorePreviewDialog(
     gateway: RemoteHouseholdChoreGateway,
     journal: HomeCrewCompletionJournal,
+    migrationJournal: HomeCrewLocalMigrationJournal,
     householdId: String,
     householdName: String,
     accountUid: String,
     onClose: () -> Unit
 ) {
-    key(gateway, journal, accountUid, householdId) {
+    key(gateway, journal, migrationJournal, accountUid, householdId) {
         val palette = LocalHomeCrewColors.current
         var day by rememberSaveable { mutableLongStateOf(sharedChoreToday().toEpochDay()) }
         var retry by remember { mutableIntStateOf(0) }
@@ -60,6 +62,7 @@ internal fun HomeCrewSharedChorePreviewDialog(
         var journalError by remember { mutableStateOf(false) }
         var loadAttempt by remember { mutableIntStateOf(0) }
         var scheduleBusy by remember { mutableStateOf(false) }
+        var migrationBusy by remember { mutableStateOf(false) }
         var autoRefill by rememberSaveable { mutableStateOf(true) }
         var refillBusy by remember { mutableStateOf(false) }
         var refillMessage by remember { mutableStateOf<String?>(null) }
@@ -107,7 +110,7 @@ internal fun HomeCrewSharedChorePreviewDialog(
                 householdId = householdId,
                 accountUid = accountUid,
                 preview = state,
-                enabled = autoRefill && journalReady && !journalError && !scheduleBusy &&
+                enabled = autoRefill && journalReady && !journalError && !scheduleBusy && !migrationBusy &&
                     canStartSharedCompletion(state, completion),
                 retryToken = refillRetry,
                 onBusyChange = { refillBusy = it },
@@ -115,7 +118,7 @@ internal fun HomeCrewSharedChorePreviewDialog(
             )
 
             fun send(command: RemoteCompletionCommand) {
-                if (!journalReady || journalError || scheduleBusy || refillBusy ||
+                if (!journalReady || journalError || scheduleBusy || refillBusy || migrationBusy ||
                     state !is SharedChorePreviewState.Ready ||
                     completion is SharedCompletionState.Sending
                 ) return
@@ -183,7 +186,7 @@ internal fun HomeCrewSharedChorePreviewDialog(
             }
 
             AlertDialog(
-                onDismissRequest = { if (completion !is SharedCompletionState.Sending && !scheduleBusy) onClose() },
+                onDismissRequest = { if (completion !is SharedCompletionState.Sending && !scheduleBusy && !migrationBusy) onClose() },
                 title = { Text(if (state is SharedChorePreviewState.Ready) householdName else "공동 집안일") },
                 text = {
                     Column(
@@ -266,7 +269,7 @@ internal fun HomeCrewSharedChorePreviewDialog(
                                 refillMessage?.let { message ->
                                     Text(message, style = MaterialTheme.typography.bodySmall, color = palette.muted)
                                     TextButton(
-                                        enabled = autoRefill && !refillBusy && !scheduleBusy &&
+                                        enabled = autoRefill && !refillBusy && !scheduleBusy && !migrationBusy &&
                                             journalReady && !journalError && canStartSharedCompletion(state, completion),
                                         onClick = { refillMessage = null; refillRetry++ }
                                     ) { Text("일정 보충 다시 확인") }
@@ -303,7 +306,7 @@ internal fun HomeCrewSharedChorePreviewDialog(
                                         if (row.status == SharedChoreStatus.PENDING ||
                                             row.status == SharedChoreStatus.COMPLETED) {
                                             TextButton(
-                                                enabled = journalReady && !journalError && !scheduleBusy && !refillBusy &&
+                                                enabled = journalReady && !journalError && !scheduleBusy && !refillBusy && !migrationBusy &&
                                                     canStartSharedCompletion(state, completion),
                                                 modifier = Modifier.heightIn(min = HomeCrewDimensions.touchTarget),
                                                 onClick = {
@@ -328,16 +331,19 @@ internal fun HomeCrewSharedChorePreviewDialog(
                                     householdId = householdId,
                                     accountUid = accountUid,
                                     snapshot = current.snapshot,
-                                    enabled = journalReady && !journalError && !refillBusy &&
+                                    enabled = journalReady && !journalError && !refillBusy && !migrationBusy &&
                                         canStartSharedCompletion(state, completion),
                                     onBusyChange = { scheduleBusy = it }
                                 )
                                 HomeCrewLocalMigrationPreviewPanel(
+                                    gateway = gateway,
+                                    journal = migrationJournal,
                                     householdId = householdId,
                                     accountUid = accountUid,
                                     snapshot = current.snapshot,
                                     enabled = journalReady && !journalError && !scheduleBusy && !refillBusy &&
-                                        canStartSharedCompletion(state, completion)
+                                        canStartSharedCompletion(state, completion),
+                                    onBusyChange = { migrationBusy = it }
                                 )
                             }
                         }
@@ -346,7 +352,7 @@ internal fun HomeCrewSharedChorePreviewDialog(
                 confirmButton = {
                     TextButton(
                         onClick = onClose,
-                        enabled = completion !is SharedCompletionState.Sending && !scheduleBusy
+                        enabled = completion !is SharedCompletionState.Sending && !scheduleBusy && !migrationBusy
                     ) { Text("닫기") }
                 }
             )

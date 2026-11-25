@@ -26,7 +26,7 @@ internal fun homeCrewSharedHouseholdGateway(
     return FirebaseSharedHouseholdGateway(
         accountUid, auth, FirebaseFirestore.getInstance(app),
         FirebaseFunctions.getInstance(app, "asia-northeast3"),
-        requireNotNull(app.options.projectId), AndroidCompletionJournalStorage(context)
+        requireNotNull(app.options.projectId), AndroidCompletionJournalStorage(context), context.applicationContext
     )
 }
 
@@ -36,7 +36,8 @@ private class FirebaseSharedHouseholdGateway(
     private val firestore: FirebaseFirestore,
     private val functions: FirebaseFunctions,
     private val projectId: String,
-    private val journalStorage: CompletionJournalStorage
+    private val journalStorage: CompletionJournalStorage,
+    private val context: Context
 ) : HomeCrewSharedHouseholdGateway {
     private val households = HomeCrewFirestoreHouseholds(auth, firestore)
     private val invites = HomeCrewFirebaseInvites(auth, functions)
@@ -51,6 +52,9 @@ private class FirebaseSharedHouseholdGateway(
 
     override fun completionJournal(householdId: String): HomeCrewCompletionJournal =
         HomeCrewCompletionJournal(journalStorage, projectId, uid, householdId)
+
+    override fun migrationJournal(householdId: String): HomeCrewLocalMigrationJournal =
+        HomeCrewLocalMigrationJournal(context, projectId, uid, householdId)
 
     override suspend fun list(): List<SharedHouseholdSummary> {
         verifySession()

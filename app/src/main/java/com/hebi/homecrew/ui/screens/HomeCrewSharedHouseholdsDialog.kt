@@ -89,9 +89,13 @@ internal fun HomeCrewSharedHouseholdsDialog(
         val journal = remember(gateway, accountUid, currentHome.id) {
             gateway.completionJournal(currentHome.id)
         }
+        val migrationJournal = remember(gateway, accountUid, currentHome.id) {
+            gateway.migrationJournal(currentHome.id)
+        }
         HomeCrewSharedChorePreviewDialog(
             gateway = choreGateway,
             journal = journal,
+            migrationJournal = migrationJournal,
             householdId = currentHome.id,
             householdName = currentHome.name,
             accountUid = accountUid,

@@ -354,3 +354,75 @@ test('future reconciliation requires owner, exact preview and preserves touched 
   assert.ok(restored.scheduleCancelledAt.nullValue === null || restored.scheduleCancelledAt.nullValue === 'NULL_VALUE');
   assert.equal(restored.assignedUid.stringValue, owner.uid);
 });
+
+
+test('local manifest import is atomic, owner-bound, idempotent and preserves history', { timeout: 180_000 }, async () => {
+  const { canonicalMigrationDigest } = await import('../functions/migration-core.js');
+  const { remoteOccurrenceId } = await import('../functions/sync-core.js');
+  const { createHash } = await import('node:crypto');
+  const [owner, member, outsider] = await Promise.all([account(), account(), account()]);
+  const { householdId } = await call('createSharedHousehold', { name: '이전 검증', requestId: randomUUID() }, owner);
+  const invite = await call('createHouseholdInvite', { householdId }, owner);
+  await call('acceptHouseholdInvite', { inviteCode: invite.inviteCode }, member);
+  const day = Math.floor((Date.now() + 9 * 3600000) / 86400000);
+  const id = createHash('sha256').update('homecrew-local-definition-v1:local-task').digest('hex');
+  const definition = { id, sourceLocalId: 'local-task', name: '설거지', category: '주방', description: '원본',
+    points: 3, assigneeUid: owner.uid, scheduledTime: '19:20', repeatLabel: '매일',
+    schedule: { startEpochDay: day, repeatMode: 'DAILY', weekdays: [], intervalDays: 2,
+      assignmentMode: 'FIXED', memberUids: [owner.uid] },
+    sourceWeekdayMask: 0, sourceRepeatIntervalDays: 2,
+    sourceCreatedAtEpochMillis: 1000, sourceUpdatedAtEpochMillis: 2000 };
+  const first = { id: remoteOccurrenceId(id, day - 1), sourceLocalId: 'past', definitionId: id,
+    scheduledEpochDay: day - 1, assignedUid: member.uid, workloadPoints: 3, sourceWorkloadPoints: 0,
+    completed: true, completedByUid: owner.uid, completedAtEpochMillis: 1500, skippedAtEpochMillis: null, skipReason: null };
+  const second = { ...first, id: remoteOccurrenceId(id, day), sourceLocalId: 'skip', scheduledEpochDay: day,
+    completed: false, completedByUid: null, completedAtEpochMillis: null, skippedAtEpochMillis: 1700, skipReason: '외출' };
+  const manifest = { version: 1, householdId, ownerUid: owner.uid, definitions: [definition],
+    occurrences: [first, second], memberUids: [owner.uid, member.uid], defaultMemberUid: owner.uid, legacyWorkloadCount: 2 };
+  const request = value => ({ householdId, manifest: value, digest: canonicalMigrationDigest(value) });
+  const path = 'households/' + householdId;
+  await call('importLocalHouseholdManifest', request(manifest), null, 'UNAUTHENTICATED');
+  await call('importLocalHouseholdManifest', request({ ...manifest, ownerUid: member.uid }), member, 'PERMISSION_DENIED');
+  await call('importLocalHouseholdManifest', { ...request(manifest), digest: '0'.repeat(64) }, owner, 'INVALID_ARGUMENT');
+  const malformed = structuredClone(manifest);
+  malformed.occurrences[1].workloadPoints = 1;
+  await call('importLocalHouseholdManifest', request(malformed), owner, 'INVALID_ARGUMENT');
+  await read(path + '/chores/' + id, owner, 404);
+  await call('removeHouseholdMember', { householdId, memberUid: member.uid }, owner);
+  await call('importLocalHouseholdManifest', request(manifest), owner, 'FAILED_PRECONDITION');
+  await read(path + '/chores/' + id, owner, 404);
+  const renewed = await call('createHouseholdInvite', { householdId }, owner);
+  await call('acceptHouseholdInvite', { inviteCode: renewed.inviteCode }, member);
+  const receiptRequest = { householdId, digest: canonicalMigrationDigest(manifest) };
+  assert.equal((await call('getLocalHouseholdMigrationReceipt', receiptRequest, owner)).found, false);
+  await call('getLocalHouseholdMigrationReceipt', receiptRequest, member, 'PERMISSION_DENIED');
+  const imported = await call('importLocalHouseholdManifest', request(manifest), owner);
+  assert.equal(imported.definitions, 1);
+  assert.equal(imported.occurrences, 2);
+  assert.equal(imported.completed, 1);
+  assert.equal(imported.skipped, 1);
+  const def = await read(path + '/chores/' + id, member);
+  assert.equal(def.scheduledTime.stringValue, '19:20');
+  assert.equal(def.sourceCreatedAtEpochMillis.integerValue, '1000');
+  const history = await read(path + '/occurrences/' + first.id, member);
+  assert.equal(history.completed.booleanValue, true);
+  assert.equal(history.completedByUid.stringValue, owner.uid);
+  assert.equal(history.completedAtEpochMillis.integerValue, '1500');
+  assert.equal(history.sourceWorkloadPoints.integerValue, '0');
+  const skipped = await read(path + '/occurrences/' + second.id, owner);
+  assert.equal(skipped.skipReason.stringValue, '외출');
+  assert.equal(skipped.skippedAtEpochMillis.integerValue, '1700');
+  await read(path + '/occurrences/' + first.id, outsider, 403);
+  const replay = await call('importLocalHouseholdManifest', request(manifest), owner);
+  assert.equal(replay.replayed, true);
+  assert.equal(replay.digest, imported.digest);
+  const receipt = await call('getLocalHouseholdMigrationReceipt', receiptRequest, owner);
+  assert.equal(receipt.found, true);
+  assert.equal(receipt.digest, imported.digest);
+  assert.equal(receipt.occurrences, 2);
+  await call('getLocalHouseholdMigrationReceipt', receiptRequest, outsider, 'PERMISSION_DENIED');
+  const changed = structuredClone(manifest);
+  changed.definitions[0].name = '덮어쓰기 금지';
+  await call('importLocalHouseholdManifest', request(changed), owner, 'FAILED_PRECONDITION');
+  assert.equal((await read(path + '/chores/' + id, owner)).name.stringValue, '설거지');
+});

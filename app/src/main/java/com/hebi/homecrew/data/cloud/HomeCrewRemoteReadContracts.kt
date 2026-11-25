@@ -80,6 +80,10 @@ internal interface RemoteHouseholdChoreGateway : RemoteHouseholdReadGateway {
         householdId: String, choreId: String, expectedRevision: Long, previewDigest: String
     ): RemoteFutureSchedulePreview
 
+    suspend fun importLocalManifest(manifest: LocalMigrationManifest): RemoteMigrationReceipt
+
+    suspend fun migrationReceipt(householdId: String, digest: String): RemoteMigrationReceipt?
+
     suspend fun recordCompletion(
         householdId: String,
         command: RemoteCompletionCommand
@@ -133,5 +137,19 @@ internal data class RemoteFutureSchedulePreview(
         require(listOf(cancelled, reassigned, restored, protectedCount, balancedDeferred).all { it in 0..62 })
         require(changes.size == cancelled + reassigned + restored && changes.size <= 62)
         require(changes.all { it.type in setOf("CANCEL", "REASSIGN", "RESTORE") })
+    }
+}
+
+internal data class RemoteMigrationReceipt(
+    val digest: String,
+    val definitions: Int,
+    val occurrences: Int,
+    val completed: Int,
+    val skipped: Int
+) {
+    init {
+        require(digest.matches(Regex("[a-f0-9]{64}")))
+        require(definitions in 1..300 && occurrences in 0..300 && definitions + occurrences <= 300)
+        require(completed in 0..occurrences && skipped in 0..occurrences && completed + skipped <= occurrences)
     }
 }

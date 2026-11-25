@@ -25,12 +25,14 @@ internal data class LocalMigrationManifest(
     val defaultMemberUid: String,
     val legacyWorkloadCount: Int
 ) {
-    val digest: String get() = migrationDigest(mapOf(
+    val digest: String get() = migrationDigest(payload())
+
+    fun payload(): Map<String, Any?> = mapOf(
         "version" to 1, "householdId" to householdId, "ownerUid" to ownerUid,
         "definitions" to definitions, "occurrences" to occurrences,
         "memberUids" to mappedMemberUids, "defaultMemberUid" to defaultMemberUid,
         "legacyWorkloadCount" to legacyWorkloadCount
-    ))
+    )
 }
 
 internal data class LocalMigrationPlan(
