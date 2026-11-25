@@ -12,7 +12,18 @@ import time
 
 REPO = 'hebi10/HomeCrew'
 WORKFLOW = '.github/workflows/android.yml'
-REQUIRED_JOBS = {'verify'}
+MATRIX_WORKFLOW = 'ui-r09-device-matrix.yml'
+REQUIRED_JOBS = {
+    'android.yml': {'verify'},
+    MATRIX_WORKFLOW: {
+            'Verify frozen main commit',
+            'device-matrix (29, pixel_6, 1.0, api29-phone)',
+            'device-matrix (35, pixel_6, 1.0, api35-phone)',
+            'device-matrix (36, pixel_6, 1.0, api36-phone)',
+            'device-matrix (35, pixel_6, 1.6, api35-large-font)',
+            'device-matrix (35, pixel_tablet, 1.0, api35-tablet)',
+    },
+}
 CI_WAIT_TIMEOUT = 3000
 CI_POLL_INTERVAL = 30
 
@@ -60,21 +71,20 @@ def release_mode(env, event, commit_subject):
     return 'initialize' if re.search(r'(?<!\S)\[initialize-play\](?!\S)', subject) else 'deploy'
 
 
-def required_workflows(root=Path('.')):
-    workflows = ['android.yml']
-    if (Path(root) / '.github/workflows/screenshot-qa.yml').is_file():
-        workflows.append('screenshot-qa.yml')
-    return workflows
+def required_workflows():
+    return list(REQUIRED_JOBS)
 
 
 def verify_ci(sha, run, jobs, workflow='android.yml'):
     if (run.get('head_sha') != sha or run.get('head_branch') != 'main' or run.get('conclusion') != 'success'
             or run.get('status', 'completed') != 'completed'
-            or run.get('event') not in ('push', 'workflow_dispatch') or run.get('path') != '.github/workflows/' + workflow):
+            or run.get('event') not in ('push', 'workflow_dispatch')
+            or (workflow == MATRIX_WORKFLOW and run.get('event') != 'workflow_dispatch')
+            or run.get('path') != '.github/workflows/' + workflow):
         raise SourceError('Required main verification has not succeeded for this exact source SHA')
     successful = {job.get('name') for job in jobs if job.get('conclusion') == 'success'}
     if (not jobs or any(job.get('conclusion') != 'success' for job in jobs)
-            or (workflow == 'android.yml' and not REQUIRED_JOBS.issubset(successful))):
+            or not REQUIRED_JOBS[workflow].issubset(successful)):
         raise SourceError('All required Android build and instrumentation jobs must succeed')
 
 
