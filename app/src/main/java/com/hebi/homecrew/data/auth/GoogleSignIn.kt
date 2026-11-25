@@ -50,5 +50,6 @@ internal enum class HomeCrewAccountActionResult {
     CONFIGURATION_ERROR,
     INVALID_CREDENTIAL,
     RECENT_LOGIN_REQUIRED,
+    CLOUD_CLEANUP_REQUIRED,
     FAILED
 }

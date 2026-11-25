@@ -127,6 +127,11 @@ private object FirebaseGoogleSignIn : GoogleSignIn {
         try {
             val auth = firebaseAuth(activity) ?: return HomeCrewAccountActionResult.CONFIGURATION_ERROR
             val user = auth.currentUser ?: return HomeCrewAccountActionResult.NOT_SIGNED_IN
+            // Shared preview accounts may own or have historical references
+            // even after leaving every space. Never delete only their Auth record.
+            if (activity.resources.getBoolean(com.hebi.homecrew.R.bool.homecrew_shared_households_preview)) {
+                return HomeCrewAccountActionResult.CLOUD_CLEANUP_REQUIRED
+            }
             val originalUid = user.uid
             deleteWithRecentLoginFallback(
                 sameAccount = { auth.currentUser?.uid == originalUid },

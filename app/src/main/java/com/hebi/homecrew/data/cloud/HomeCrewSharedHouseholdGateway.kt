@@ -29,6 +29,7 @@ internal interface HomeCrewSharedHouseholdGateway {
     fun choreGateway(): RemoteHouseholdChoreGateway
     fun completionJournal(householdId: String): HomeCrewCompletionJournal
     fun migrationJournal(householdId: String): HomeCrewLocalMigrationJournal
+    suspend fun deletionPreflight(): AccountDeletionPreflight
     suspend fun roster(householdId: String): SharedHouseholdRoster
     suspend fun renameMember(householdId: String, memberUid: String, displayName: String, expectedRosterDigest: String)
     suspend fun changeMembership(householdId: String, memberUid: String, action: SharedMembershipAction, expectedRosterDigest: String)
@@ -69,4 +70,28 @@ internal fun normalizeSharedMemberName(value: String): String {
         Character.getType(codePoint) in setOf(Character.CONTROL.toInt(), Character.FORMAT.toInt(), Character.SURROGATE.toInt())
     })
     return name
+}
+
+internal data class AccountDeletionSpace(val householdId: String, val name: String, val role: String) {
+    init {
+        requireValidCloudId(householdId)
+        require(name.isNotBlank() && name.length <= 80)
+        require(role == "OWNER" || role == "MEMBER")
+    }
+}
+
+internal data class AccountDeletionPreflight(
+    val spaces: List<AccountDeletionSpace>,
+    val ownerCount: Int,
+    val memberCount: Int,
+    val indexIssues: Int,
+    val lockedSpaces: Int,
+    val dataCategories: List<String>
+) {
+    init {
+        require(spaces.size <= 50 && spaces.map { it.householdId }.distinct().size == spaces.size)
+        require(ownerCount == spaces.count { it.role == "OWNER" } &&
+            memberCount == spaces.count { it.role == "MEMBER" })
+        require(indexIssues in 0..100 && lockedSpaces in 0..spaces.size)
+    }
 }
