@@ -302,6 +302,13 @@ internal fun HomeCrewSharedChorePreviewDialog(
                                         canStartSharedCompletion(state, completion),
                                     onBusyChange = { scheduleBusy = it }
                                 )
+                                HomeCrewLocalMigrationPreviewPanel(
+                                    householdId = householdId,
+                                    accountUid = accountUid,
+                                    snapshot = current.snapshot,
+                                    enabled = journalReady && !journalError && !scheduleBusy &&
+                                        canStartSharedCompletion(state, completion)
+                                )
                             }
                         }
                     }
