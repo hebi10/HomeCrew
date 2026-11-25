@@ -90,12 +90,11 @@ fun HomeCrewChoreDetailScreen(
             ),
             verticalArrangement = Arrangement.spacedBy(HomeCrewDimensions.space12)
         ) {
-            item { TextButton(onClick = onBack) { Text("이전") } }
             item {
                 ScreenHeader(
                     title = definition.name,
                     subtitle = "${definition.category} · 업무량 ${definition.points}점"
-                )
+                ) { TextButton(onClick = onBack) { Text("이전") } }
             }
             item {
                 BorderedSection {
@@ -157,7 +156,8 @@ fun HomeCrewChoreDetailScreen(
                                 HomeCrewPrimaryButton(
                                     text = "이 회차 완료 처리",
                                     onClick = { onToggle(selected.id) },
-                                    modifier = Modifier.fillMaxWidth()
+                                    modifier = Modifier.fillMaxWidth(),
+                                    completionAction = true
                                 )
                                 Text(
                                     "선택한 날짜의 회차만 완료 처리됩니다.",

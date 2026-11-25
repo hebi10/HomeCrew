@@ -88,8 +88,9 @@ internal fun ChoreSubpageLayout(
                 .padding(horizontal = HomeCrewDimensions.screenPadding, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(HomeCrewDimensions.space16)
         ) {
-            TextButton(onClick = onBack) { Text("이전") }
-            ScreenHeader(title = title, subtitle = subtitle)
+            ScreenHeader(title = title, subtitle = subtitle) {
+                TextButton(onClick = onBack) { Text("이전") }
+            }
             content()
         }
     }
@@ -315,8 +316,8 @@ fun HomeCrewRepeatScreen(
                             "반복 방식: ${option.label}"
                         }
                     }
-                    .border(1.dp, palette.border, RoundedCornerShape(4.dp))
-                    .padding(8.dp),
+                    .background(if (frequency == option) palette.subtle else palette.surface, RoundedCornerShape(4.dp))
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(HomeCrewDimensions.space8)
             ) {
@@ -447,8 +448,8 @@ fun HomeCrewAssignmentScreen(
                             "담당 방식: ${option.label}"
                         }
                     }
-                    .border(1.dp, palette.border, RoundedCornerShape(4.dp))
-                    .padding(8.dp),
+                    .background(if (choice == option) palette.subtle else palette.surface, RoundedCornerShape(4.dp))
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(HomeCrewDimensions.space8)
             ) {
