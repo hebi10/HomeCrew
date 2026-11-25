@@ -3,6 +3,9 @@ package com.hebi.homecrew.ui.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -139,6 +142,7 @@ fun HomeCrewScheduleScreen(
             Row(
                 modifier = Modifier.fillMaxWidth()
                     .border(1.dp, palette.border, RoundedCornerShape(4.dp))
+                    .selectableGroup()
                     .padding(2.dp),
                 horizontalArrangement = Arrangement.spacedBy(2.dp)
             ) {
@@ -151,10 +155,9 @@ fun HomeCrewScheduleScreen(
                                 if (active) palette.ink else palette.surface,
                                 RoundedCornerShape(2.dp)
                             )
-                            .clickable { mode = option }
+                            .selectable(selected = active, onClick = { mode = option }, role = Role.Tab)
                             .semantics {
-                                contentDescription = "${option.title} 보기"
-                                this.selected = active
+                                contentDescription = if (active) "선택됨: ${option.title} 보기" else "${option.title} 보기"
                             },
                         contentAlignment = Alignment.Center
                     ) {

@@ -58,8 +58,14 @@ class MainScreensScreenshotTest {
     }
 
     private fun tapCalendarMode(label: String) {
-        tapButton("$label 보기")
-        val selected = device.wait(Until.findObject(By.desc("$label 보기").selected(true)), 8_000)
+        val selectedDescription = By.desc("선택됨: $label 보기")
+        if (device.findObject(selectedDescription) == null) {
+            val option = device.wait(Until.findObject(By.desc("$label 보기")), 8_000)
+            if (option == null) dumpFailedUi("$label 보기 버튼")
+            val bounds = requireNotNull(option) { "일정 표시 방식 버튼을 찾지 못했습니다: $label" }.visibleBounds
+            device.click(bounds.centerX(), bounds.centerY())
+        }
+        val selected = device.wait(Until.findObject(selectedDescription), 8_000)
         if (selected == null) dumpFailedUi("$label 보기 선택 상태")
         requireNotNull(selected) { "일정 표시 방식이 $label 상태로 전환되지 않았습니다." }
         device.waitForIdle()
