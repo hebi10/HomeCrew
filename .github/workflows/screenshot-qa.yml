@@ -62,7 +62,7 @@ jobs:
         with:
           name: homecrew-1b-screen-qa
           path: |
-            qa-screenshots/*.png
+            qa-screenshots/
             app/build/reports/androidTests/connected/
             app/build/outputs/androidTest-results/connected/
           if-no-files-found: warn
