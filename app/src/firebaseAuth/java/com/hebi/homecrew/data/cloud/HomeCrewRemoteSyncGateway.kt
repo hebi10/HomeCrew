@@ -206,6 +206,40 @@ internal class HomeCrewRemoteSyncGateway(
         return id to revision
     }
 
+    override suspend fun importLocalManifest(manifest: LocalMigrationManifest): RemoteMigrationReceipt {
+        check(requireUid() == manifest.ownerUid)
+        requireValidCloudId(manifest.householdId)
+        require(atomicMigrationFits(manifest))
+        val result = call("importLocalHouseholdManifest", mapOf(
+            "householdId" to manifest.householdId,
+            "digest" to manifest.digest,
+            "manifest" to manifest.payload()
+        ))
+        return decodeMigrationReceipt(result, manifest.digest)
+    }
+
+    override suspend fun migrationReceipt(householdId: String, digest: String): RemoteMigrationReceipt? {
+        requireUid()
+        requireValidCloudId(householdId)
+        require(digest.matches(Regex("[a-f0-9]{64}")))
+        val result = call("getLocalHouseholdMigrationReceipt", mapOf("householdId" to householdId, "digest" to digest))
+        return when (result["found"]) {
+            false -> null
+            true -> decodeMigrationReceipt(result, digest)
+            else -> error("Missing migration receipt status")
+        }
+    }
+
+    private fun decodeMigrationReceipt(result: Map<*, *>, digest: String): RemoteMigrationReceipt {
+        check(result["digest"] == digest)
+        fun count(key: String): Int {
+            val value = result[key] as? Number ?: error("Missing receipt count")
+            return value.toInt().also { check(value.toDouble() == it.toDouble()) }
+        }
+        return RemoteMigrationReceipt(digest, count("definitions"), count("occurrences"),
+            count("completed"), count("skipped"))
+    }
+
     override suspend fun recordCompletion(
         householdId: String,
         command: RemoteCompletionCommand

@@ -6,6 +6,8 @@ on:
       - 'app/src/androidTest/java/com/hebi/homecrew/qa/HomeCrewActivityRestartTest.kt'
       - 'app/src/androidTest/java/com/hebi/homecrew/qa/MainScreensScreenshotTest.kt'
       - 'app/src/androidTest/java/com/hebi/homecrew/qa/HomeCrewCompletionJournalInstrumentedTest.kt'
+      - 'app/src/androidTest/java/com/hebi/homecrew/qa/HomeCrewLocalMigrationJournalInstrumentedTest.kt'
+      - 'app/src/main/java/com/hebi/homecrew/data/cloud/HomeCrewLocalMigrationJournal.kt'
       - 'app/src/main/java/com/hebi/homecrew/data/cloud/HomeCrewCompletionJournal*.kt'
       - '.github/workflows/settings-regression.yml'
 permissions:
@@ -46,6 +48,9 @@ jobs:
           if (prefix + "HomeCrewCompletionJournalInstrumentedTest.kt" in paths or
               any(p.startswith("app/src/main/java/com/hebi/homecrew/data/cloud/HomeCrewCompletionJournal") for p in paths)):
               cases.append({"label": "completion-journal", "font": "1.0", "test": "com.hebi.homecrew.qa.HomeCrewCompletionJournalInstrumentedTest#storedRequestSurvivesJournalRecreationAndIsAccountScoped"})
+          if (prefix + "HomeCrewLocalMigrationJournalInstrumentedTest.kt" in paths or
+              "app/src/main/java/com/hebi/homecrew/data/cloud/HomeCrewLocalMigrationJournal.kt" in paths):
+              cases.append({"label": "migration-journal", "font": "1.0", "test": "com.hebi.homecrew.qa.HomeCrewLocalMigrationJournalInstrumentedTest#backupAndReceiptSurviveJournalRecreation"})
           print("cases=" + json.dumps(cases, separators=(",", ":")))
           PY
   targeted:

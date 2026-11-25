@@ -393,6 +393,9 @@ test('local manifest import is atomic, owner-bound, idempotent and preserves his
   await read(path + '/chores/' + id, owner, 404);
   const renewed = await call('createHouseholdInvite', { householdId }, owner);
   await call('acceptHouseholdInvite', { inviteCode: renewed.inviteCode }, member);
+  const receiptRequest = { householdId, digest: canonicalMigrationDigest(manifest) };
+  assert.equal((await call('getLocalHouseholdMigrationReceipt', receiptRequest, owner)).found, false);
+  await call('getLocalHouseholdMigrationReceipt', receiptRequest, member, 'PERMISSION_DENIED');
   const imported = await call('importLocalHouseholdManifest', request(manifest), owner);
   assert.equal(imported.definitions, 1);
   assert.equal(imported.occurrences, 2);
@@ -413,6 +416,11 @@ test('local manifest import is atomic, owner-bound, idempotent and preserves his
   const replay = await call('importLocalHouseholdManifest', request(manifest), owner);
   assert.equal(replay.replayed, true);
   assert.equal(replay.digest, imported.digest);
+  const receipt = await call('getLocalHouseholdMigrationReceipt', receiptRequest, owner);
+  assert.equal(receipt.found, true);
+  assert.equal(receipt.digest, imported.digest);
+  assert.equal(receipt.occurrences, 2);
+  await call('getLocalHouseholdMigrationReceipt', receiptRequest, outsider, 'PERMISSION_DENIED');
   const changed = structuredClone(manifest);
   changed.definitions[0].name = '덮어쓰기 금지';
   await call('importLocalHouseholdManifest', request(changed), owner, 'FAILED_PRECONDITION');

@@ -206,4 +206,4 @@ export {
   previewRemoteFutureSchedule, applyRemoteFutureSchedule,
 } from "./sync.js";
 
-export { importLocalHouseholdManifest } from './migration.js';
+export { importLocalHouseholdManifest, getLocalHouseholdMigrationReceipt } from './migration.js';

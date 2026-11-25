@@ -83,3 +83,32 @@ export const importLocalHouseholdManifest = onCall(options, async request => {
     return { ...result, replayed: false };
   });
 });
+
+
+// Read-only recovery: no manifest transmission or mutation required to check
+// whether a previously staged import committed.
+export const getLocalHouseholdMigrationReceipt = onCall(options, async request => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError('unauthenticated', 'Firebase sign-in required.');
+  let householdId, digest;
+  try {
+    householdId = requireDocumentId(request.data?.householdId);
+    digest = request.data?.digest;
+    if (typeof digest !== 'string' || !/^[a-f0-9]{64}$/.test(digest)) throw new Error('invalid-digest');
+  } catch { throw new HttpsError('invalid-argument', 'Invalid receipt identifier.'); }
+  const home = getFirestore().collection('households').doc(householdId);
+  return getFirestore().runTransaction(async tx => {
+    const [house, receipt] = await Promise.all([
+      tx.get(home), tx.get(home.collection('operations').doc('local-migration-' + digest)),
+    ]);
+    if (!house.exists || house.data().ownerUid !== uid) {
+      throw new HttpsError('permission-denied', 'Household owner required.');
+    }
+    if (!receipt.exists) return { found: false };
+    const saved = receipt.data();
+    if (saved.actorUid !== uid || saved.digest !== digest || saved.type !== 'local-migration-v1') {
+      throw new HttpsError('permission-denied', 'Receipt ownership required.');
+    }
+    return { ...saved.result, found: true };
+  });
+});
