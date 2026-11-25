@@ -3,6 +3,13 @@ package com.hebi.homecrew.ui.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.ui.Alignment
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -12,6 +19,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.ProvideTextStyle
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -20,6 +30,9 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import com.hebi.homecrew.ui.theme.HomeCrewDimensions
 import com.hebi.homecrew.ui.components.HomeCrewTaskRow
 import com.hebi.homecrew.ui.model.PreviewChore
 import com.hebi.homecrew.ui.theme.LocalHomeCrewColors
@@ -157,5 +170,50 @@ fun EmptyResult(title: String, description: String) {
             fontWeight = FontWeight.Medium
         )
         Text(description, style = MaterialTheme.typography.bodyMedium, color = palette.muted)
+    }
+}
+
+
+/** Full-page presentation for existing management flows; confirmations remain AlertDialogs. */
+@Composable
+internal fun HomeCrewManagementPage(
+    onDismissRequest: () -> Unit,
+    title: @Composable () -> Unit,
+    text: @Composable () -> Unit,
+    confirmButton: @Composable () -> Unit
+) {
+    val palette = LocalHomeCrewColors.current
+    Dialog(onDismissRequest = onDismissRequest,
+        properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Surface(modifier = Modifier.fillMaxSize(), color = palette.background,
+            contentColor = palette.ink) {
+            Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).imePadding()
+                .padding(horizontal = HomeCrewDimensions.screenPadding),
+                verticalArrangement = Arrangement.spacedBy(HomeCrewDimensions.space12)) {
+                Box(Modifier.fillMaxWidth().heightIn(min = 56.dp), contentAlignment = Alignment.CenterStart) {
+                    ProvideTextStyle(MaterialTheme.typography.headlineSmall) { title() }
+                }
+                Box(Modifier.weight(1f).fillMaxWidth()) {
+                    ProvideTextStyle(MaterialTheme.typography.bodyMedium) { text() }
+                }
+                Row(Modifier.fillMaxWidth().heightIn(min = HomeCrewDimensions.buttonHeight),
+                    horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+                    confirmButton()
+                }
+            }
+        }
+    }
+}
+
+@Composable
+internal fun HomeCrewDesignProgress(label: String, current: Int, total: Int, completed: Boolean = false) {
+    val palette = LocalHomeCrewColors.current
+    val value = current.coerceIn(0, total.coerceAtLeast(0))
+    val fraction = if (total > 0) value.toFloat() / total else 0f
+    Column(verticalArrangement = Arrangement.spacedBy(HomeCrewDimensions.space8)) {
+        SectionHeading(label, "$value / ${total.coerceAtLeast(0)}")
+        LinearProgressIndicator(progress = { fraction }, modifier = Modifier.fillMaxWidth(),
+            color = if (completed && total > 0 && value == total) palette.success else palette.ink,
+            trackColor = palette.border)
     }
 }

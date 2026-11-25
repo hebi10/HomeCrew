@@ -78,11 +78,11 @@ internal fun HomeCrewSharedMemberManager(
     }
     LaunchedEffect(gateway, householdId, accountUid) { run { refresh() } }
 
-    AlertDialog(
+    HomeCrewManagementPage(
         onDismissRequest = { if (!busy) onClose() },
         title = { Text("구성원 관리") },
         text = {
-            Column(Modifier.fillMaxWidth().heightIn(max = 520.dp).verticalScroll(rememberScrollState()),
+            Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(HomeCrewDimensions.space8)) {
                 Text(householdName, style = MaterialTheme.typography.titleMedium)
                 TextButton(enabled = !busy, onClick = { run { refresh() } }) { Text("구성원 다시 확인") }

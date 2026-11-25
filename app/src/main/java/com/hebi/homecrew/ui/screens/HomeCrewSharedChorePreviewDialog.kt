@@ -185,12 +185,12 @@ internal fun HomeCrewSharedChorePreviewDialog(
                 }
             }
 
-            AlertDialog(
+            HomeCrewManagementPage(
                 onDismissRequest = { if (completion !is SharedCompletionState.Sending && !scheduleBusy && !migrationBusy) onClose() },
                 title = { Text(if (state is SharedChorePreviewState.Ready) householdName else "공동 집안일") },
                 text = {
                     Column(
-                        modifier = Modifier.fillMaxWidth().heightIn(max = 520.dp)
+                        modifier = Modifier.fillMaxWidth()
                             .verticalScroll(rememberScrollState()),
                         verticalArrangement = Arrangement.spacedBy(HomeCrewDimensions.space12)
                     ) {
@@ -289,7 +289,7 @@ internal fun HomeCrewSharedChorePreviewDialog(
                                 }
                                 daily.rows.forEach { row ->
                                     Column(verticalArrangement = Arrangement.spacedBy(HomeCrewDimensions.space4)) {
-                                        Text(row.name, style = MaterialTheme.typography.bodyLarge)
+                                        Text(row.name, style = MaterialTheme.typography.titleMedium)
                                         val label = when (row.status) {
                                             SharedChoreStatus.PENDING -> "미완료"
                                             SharedChoreStatus.COMPLETED -> "완료"

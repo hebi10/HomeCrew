@@ -132,12 +132,12 @@ internal fun HomeCrewSharedHouseholdsDialog(
 
     val validName = runCatching { normalizeCloudHouseholdName(name) }.getOrNull()
     val validCode = runCatching { normalizeHomeCrewInviteCode(joinCode) }.getOrNull()
-    AlertDialog(
+    HomeCrewManagementPage(
         onDismissRequest = { if (!busy) onClose() },
         title = { Text("공동 공간 관리") },
         text = {
             Column(
-                modifier = Modifier.fillMaxWidth().heightIn(max = 520.dp).verticalScroll(rememberScrollState()),
+                modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(HomeCrewDimensions.space12)
             ) {
                 Text(
@@ -154,7 +154,7 @@ internal fun HomeCrewSharedHouseholdsDialog(
                 if (!loaded && !busy) Text("공동 공간을 확인하려면 새로고침해 주세요.")
                 households.forEach { home ->
                     Column(verticalArrangement = Arrangement.spacedBy(HomeCrewDimensions.space4)) {
-                        Text(home.name, style = MaterialTheme.typography.bodyLarge)
+                        Text(home.name, style = MaterialTheme.typography.titleMedium)
                         Text(
                             "${if (home.isOwner) "소유자" else "구성원"} · ${home.memberCount}/8명",
                             style = MaterialTheme.typography.bodySmall, color = palette.muted
@@ -190,7 +190,9 @@ internal fun HomeCrewSharedHouseholdsDialog(
                             ) { Text("가족 초대 코드 발급") }
                         }
                         invitation?.takeIf { it.householdId == home.id }?.let { invite ->
-                            SelectionContainer { Text(invite.inviteCode) }
+                            BorderedSection {
+                                SelectionContainer { Text(invite.inviteCode, style = MaterialTheme.typography.titleLarge) }
+                            }
                             val expires = Instant.ofEpochMilli(invite.expiresAtMs)
                                 .atZone(ZoneId.systemDefault())
                                 .format(DateTimeFormatter.ofPattern("yyyy.MM.dd HH:mm"))

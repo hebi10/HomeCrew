@@ -45,13 +45,18 @@ internal fun HomeCrewAccountDeletionReviewDialog(gateway: HomeCrewSharedHousehol
             finally { loading = false }
         }
     }
-    AlertDialog(
+    HomeCrewManagementPage(
         onDismissRequest = onClose,
         title = { Text("계정 삭제 사전 확인") },
         text = {
-            Column(Modifier.fillMaxWidth().heightIn(max = 520.dp).verticalScroll(rememberScrollState()),
+            Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(HomeCrewDimensions.space8)) {
-                Text("공동 공간의 접근 권한과 기록을 확인합니다. 개발 미리보기에서는 인증 계정만 삭제할 수 없습니다. 이 화면에서 데이터나 계정은 삭제하지 않습니다.")
+                BorderedSection {
+                    Column(verticalArrangement = Arrangement.spacedBy(HomeCrewDimensions.space8)) {
+                        Text("아직 삭제하지 않았습니다", style = MaterialTheme.typography.titleMedium, color = palette.warning)
+                        Text("공동 공간의 접근 권한과 기록을 확인합니다. 개발 미리보기에서는 인증 계정만 삭제할 수 없습니다. 이 화면에서 데이터나 계정은 삭제하지 않습니다.")
+                    }
+                }
                 if (gateway == null) Text("공동 공간 설정을 확인하지 못했습니다.", color = palette.error)
                 if (loading) Text("서버에서 계정 자료를 확인 중…")
                 if (failed) Text("자료 범위를 확인하지 못했습니다. 계정 삭제는 차단됩니다.", color = palette.error)
