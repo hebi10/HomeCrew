@@ -37,9 +37,12 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.ExperimentalComposeUiApi
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.layout.widthIn
@@ -95,6 +98,7 @@ internal fun movedScheduleDate(
 internal fun canCreateScheduleChore(date: LocalDate, today: LocalDate): Boolean =
     !date.isBefore(today) && !date.isAfter(today.plusDays(SCHEDULE_DAYS_AHEAD))
 
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun HomeCrewScheduleScreen(
     today: LocalDate,
@@ -125,7 +129,7 @@ fun HomeCrewScheduleScreen(
     }
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxSize().semantics { testTagsAsResourceId = true },
         contentPadding = PaddingValues(
             horizontal = HomeCrewDimensions.screenPadding,
             vertical = HomeCrewDimensions.space16
@@ -157,7 +161,7 @@ fun HomeCrewScheduleScreen(
                             )
                             .selectable(selected = active, onClick = { mode = option }, role = Role.Tab)
                             .semantics {
-                                contentDescription = if (active) "선택됨: ${option.title} 보기" else "${option.title} 보기"
+                                contentDescription = "${option.title} 보기"
                             },
                         contentAlignment = Alignment.Center
                     ) {
@@ -183,7 +187,11 @@ fun HomeCrewScheduleScreen(
                 ) {
                     Icon(Icons.Outlined.ChevronLeft, contentDescription = "이전 기간")
                 }
-                Text(dateRange, style = MaterialTheme.typography.titleMedium)
+                Text(
+                    dateRange,
+                    modifier = Modifier.testTag("homecrew_schedule_period"),
+                    style = MaterialTheme.typography.titleMedium
+                )
                 IconButton(
                     onClick = {
                         selectedEpoch = movedScheduleDate(selected, mode, 1).toEpochDay()
