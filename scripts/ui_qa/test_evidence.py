@@ -43,6 +43,23 @@ class EvidenceTest(unittest.TestCase):
             self.assertTrue((output / "fixture" / "P17-shared-list-fake.png").is_file())
             self.assertEqual(json.loads((output / "manifest.json").read_text())["source_sha"], SHA)
 
+    def test_remaining_cloud_pages_are_fixture_only(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "retained"
+            for stem in ["P19-roster-fake", "P20-shared-chore-fake",
+                         "P21-migration-blocked-fake", "P22-publishing-fake",
+                         "P25-deletion-review-fake"]:
+                sample_png(source / "screen-qa-fake-gateway" / (stem + ".png"))
+            report = collect(source, root / "qa", SHA, "api35-phone", "1.0", 0)
+            self.assertEqual(report["app_capture_count"], 0)
+            self.assertEqual(report["fixture_capture_count"], 5)
+            for page in report["pages"]:
+                if page["id"] in {"P19", "P20", "P21", "P22", "P25"}:
+                    self.assertEqual(page["status"], "fixture_only")
+                    self.assertTrue(page["requires_nonproduction_server_qa"])
+                    self.assertEqual(page["visual_review"], "pending")
+
     def test_failed_run_does_not_certify_capture(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

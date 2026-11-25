@@ -5,6 +5,11 @@ on:
     paths:
       - 'app/src/androidTest/java/com/hebi/homecrew/qa/HomeCrewActivityRestartTest.kt'
       - 'app/src/androidTest/java/com/hebi/homecrew/qa/HomeCrewSharedPagesInstrumentedTest.kt'
+      - 'app/src/androidTest/java/com/hebi/homecrew/qa/HomeCrewSharedAdditionalScreensInstrumentedTest.kt'
+      - 'app/src/main/java/com/hebi/homecrew/ui/screens/HomeCrewSharedMemberManager.kt'
+      - 'app/src/main/java/com/hebi/homecrew/ui/screens/HomeCrewStagedMigrationManager.kt'
+      - 'app/src/main/java/com/hebi/homecrew/ui/screens/HomeCrewLocalMigrationPreviewPanel.kt'
+      - 'app/src/main/java/com/hebi/homecrew/ui/screens/HomeCrewAccountDeletionReviewDialog.kt'
       - 'app/src/main/java/com/hebi/homecrew/ui/screens/HomeCrewSharedHouseholdsDialog.kt'
       - 'app/src/main/java/com/hebi/homecrew/ui/screens/HomeCrewSharedChorePreviewDialog.kt'
       - 'app/src/androidTest/java/com/hebi/homecrew/qa/HomeCrewLocalMemberRecoveryInstrumentedTest.kt'
@@ -47,6 +52,12 @@ jobs:
           ).splitlines())
           prefix = "app/src/androidTest/java/com/hebi/homecrew/qa/"
           cases = []
+          if (prefix + "HomeCrewSharedAdditionalScreensInstrumentedTest.kt" in paths or
+              any("app/src/main/java/com/hebi/homecrew/ui/screens/" + name in paths for name in
+                  ["HomeCrewSharedMemberManager.kt", "HomeCrewSharedChorePreviewDialog.kt",
+                   "HomeCrewStagedMigrationManager.kt", "HomeCrewLocalMigrationPreviewPanel.kt",
+                   "HomeCrewAccountDeletionReviewDialog.kt"])):
+              cases.append({"label": "shared-additional-fixtures", "font": "1.0", "test": "com.hebi.homecrew.qa.HomeCrewSharedAdditionalScreensInstrumentedTest#captureRemainingSharedPagesWithoutWrites"})
           if (prefix + "HomeCrewSharedPagesInstrumentedTest.kt" in paths or
               "app/src/main/java/com/hebi/homecrew/ui/screens/HomeCrewSharedHouseholdsDialog.kt" in paths or
               "app/src/main/java/com/hebi/homecrew/ui/screens/HomeCrewSharedChorePreviewDialog.kt" in paths):
