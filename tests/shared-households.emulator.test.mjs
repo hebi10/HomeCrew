@@ -539,3 +539,73 @@ test('large migration staging is private, ordered, resumable and never publishes
     expectedRevision:1,completed:true,requestId:randomUUID()},member);
   assert.equal((await read(home+'/occurrences/'+occurrences[0].id,owner)).completed.booleanValue,true);
 });
+
+
+test('member profiles, stale previews, owner transfer, invite epoch and historical assignment preservation', {timeout:180_000}, async()=>{
+  const [owner, member, outsider]=await Promise.all([account(),account(),account()]);
+  const {householdId}=await call('createSharedHousehold',{name:'구성원 검증',requestId:randomUUID()},owner);
+  const scope={householdId};
+  const invite=await call('createHouseholdInvite',scope,owner);
+  await call('acceptHouseholdInvite',{inviteCode:invite.inviteCode},member);
+  const oldInvite=await call('createHouseholdInvite',scope,owner);
+  const roster=who=>call('getHouseholdRoster',scope,who);
+  const change=(who,action,memberUid,expectedRosterDigest,error)=>call('changeHouseholdMembership',
+    {...scope,action,memberUid,expectedRosterDigest},who,error);
+  const rename=(who,memberUid,displayName,expectedRosterDigest,error)=>call('updateHouseholdMemberName',
+    {...scope,memberUid,displayName,expectedRosterDigest},who,error);
+  await call('getHouseholdRoster',scope,outsider,'PERMISSION_DENIED');
+  const original=await roster(owner);
+  assert.equal(original.members.length,2);
+  assert.equal(original.members.find(p=>p.uid===owner.uid).isOwner,true);
+  await rename(member,owner.uid,'변경 불가',original.rosterDigest,'PERMISSION_DENIED');
+  await rename(owner,owner.uid,'소유자',original.rosterDigest);
+  await rename(member,member.uid,'가족',original.rosterDigest,'ABORTED');
+  const current=await roster(member);
+  await rename(member,member.uid,'가족',current.rosterDigest);
+  const named=await roster(owner);
+  assert.equal(named.members.find(p=>p.uid===member.uid).displayName,'가족');
+  await rename(owner,member.uid,'소유자',named.rosterDigest,'ALREADY_EXISTS');
+  await read('households/'+householdId+'/memberProfiles/'+member.uid,outsider,403);
+  await change(member,'REMOVE',owner.uid,named.rosterDigest,'PERMISSION_DENIED');
+  await change(owner,'LEAVE',owner.uid,named.rosterDigest,'FAILED_PRECONDITION');
+
+  const task={id:randomUUID(),name:'설거지',category:'주방',description:'',points:3,assigneeUid:member.uid};
+  await call('createRemoteChore',{householdId,chore:task},owner);
+  const day=Math.floor((Date.now()+9*3600000)/86400000);
+  await call('configureRemoteSchedule',{householdId,choreId:task.id,expectedRevision:1,schedule:{
+    startEpochDay:day,repeatMode:'DAILY',assignmentMode:'ROUND_ROBIN',memberUids:[member.uid,owner.uid],
+  }},owner);
+  const occurrence=await call('ensureRemoteOccurrence',{householdId,choreId:task.id,scheduledEpochDay:day},owner);
+  const occurrencePath='households/'+householdId+'/occurrences/'+occurrence.occurrenceId;
+  await call('recordChoreCompletion',{householdId,occurrenceId:occurrence.occurrenceId,
+    completed:true,expectedRevision:1,requestId:randomUUID()},member);
+  await change(owner,'TRANSFER',member.uid,original.rosterDigest,'ABORTED');
+  const transferred=await change(owner,'TRANSFER',member.uid,(await roster(owner)).rosterDigest);
+  assert.equal(transferred.changed,true);
+  const after=await roster(member);
+  assert.equal(after.members.find(p=>p.uid===member.uid).isOwner,true);
+  assert.equal(after.members.find(p=>p.uid===owner.uid).isOwner,false);
+  assert.equal(after.members.find(p=>p.uid===member.uid).displayName,'가족');
+  assert.equal((await read('users/'+owner.uid+'/households/'+householdId,owner)).role.stringValue,'member');
+  assert.equal((await read('users/'+member.uid+'/households/'+householdId,member)).role.stringValue,'owner');
+  await call('createHouseholdInvite',scope,owner,'PERMISSION_DENIED');
+  await change(member,'TRANSFER',owner.uid,after.rosterDigest);
+  await call('acceptHouseholdInvite',{inviteCode:oldInvite.inviteCode},outsider,'NOT_FOUND');
+  const restored=await roster(owner);
+  await change(member,'LEAVE',member.uid,restored.rosterDigest);
+  await read(occurrencePath,member,403);
+  const history=await read(occurrencePath,owner);
+  assert.equal(history.completed.booleanValue,true);
+  assert.equal(history.completedByUid.stringValue,member.uid);
+  assert.equal(history.assignedUid.stringValue,member.uid);
+  await read('households/'+householdId+'/memberProfiles/'+member.uid,owner,404);
+  await call('generateRemoteSchedule',{householdId,choreId:task.id,expectedRevision:2,
+    fromEpochDay:day+1,toEpochDay:day+2},owner,'FAILED_PRECONDITION');
+  const rejoin=await call('createHouseholdInvite',scope,owner);
+  await call('acceptHouseholdInvite',{inviteCode:rejoin.inviteCode},member);
+  const joined=await roster(owner);
+  await change(owner,'REMOVE',member.uid,restored.rosterDigest,'ABORTED');
+  await change(owner,'REMOVE',member.uid,joined.rosterDigest);
+  assert.equal((await roster(owner)).members.length,1);
+  assert.equal((await read(occurrencePath,owner)).completed.booleanValue,true);
+});

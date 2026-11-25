@@ -56,6 +56,48 @@ private class FirebaseSharedHouseholdGateway(
     override fun migrationJournal(householdId: String): HomeCrewLocalMigrationJournal =
         HomeCrewLocalMigrationJournal(context, projectId, uid, householdId)
 
+    private suspend fun memberCall(name: String, payload: Map<String, Any>): Map<*, *> {
+        verifySession()
+        val result = functions.getHttpsCallable(name).call(payload).await().data as? Map<*, *>
+            ?: error("Invalid membership response")
+        verifySession()
+        return result
+    }
+
+    override suspend fun roster(householdId: String): SharedHouseholdRoster {
+        requireValidCloudId(householdId)
+        val result = memberCall("getHouseholdRoster", mapOf("householdId" to householdId))
+        check(result["householdId"] == householdId)
+        val members = (result["members"] as List<*>).map { raw ->
+            val item = raw as Map<*, *>
+            val name = (item["displayName"] as? String)?.also { check(normalizeSharedMemberName(it) == it) }
+            RemoteHouseholdMember(item["uid"] as String, item["isOwner"] as Boolean, name)
+        }
+        check(members.any { it.uid == uid })
+        return SharedHouseholdRoster(members.sortedWith(compareBy({ !it.isOwner }, { it.uid })),
+            result["rosterDigest"] as String, result["transferBlocked"] as Boolean)
+    }
+
+    override suspend fun renameMember(householdId: String, memberUid: String, displayName: String, expectedRosterDigest: String) {
+        requireValidCloudId(householdId)
+        require(expectedRosterDigest.matches(Regex("[a-f0-9]{64}")))
+        val result = memberCall("updateHouseholdMemberName", mapOf(
+            "householdId" to householdId, "memberUid" to memberUid,
+            "displayName" to normalizeSharedMemberName(displayName), "expectedRosterDigest" to expectedRosterDigest
+        ))
+        check(result["updated"] == true)
+    }
+
+    override suspend fun changeMembership(householdId: String, memberUid: String, action: SharedMembershipAction, expectedRosterDigest: String) {
+        requireValidCloudId(householdId)
+        require(expectedRosterDigest.matches(Regex("[a-f0-9]{64}")))
+        val result = memberCall("changeHouseholdMembership", mapOf(
+            "householdId" to householdId, "memberUid" to memberUid,
+            "action" to action.name, "expectedRosterDigest" to expectedRosterDigest
+        ))
+        check(result["changed"] == true && result["action"] == action.name)
+    }
+
     override suspend fun list(): List<SharedHouseholdSummary> {
         verifySession()
         val index = firestore.collection("users").document(uid).collection("households")

@@ -7,6 +7,7 @@ import {
   requireAvailableMemberSlot, requireRemovableMemberCount,
 } from './invite-core.js';
 import { createHash } from 'node:crypto';
+import { ownershipRevision, validMemberUid } from './membership-core.js';
 
 export { createSharedHousehold } from './household-create.js';
 
@@ -81,6 +82,7 @@ export const createHouseholdInvite = onCall(options, async (request) => {
     tx.create(invite, {
       householdId: home.id,
       createdBy: uid,
+      ownershipRevision: ownershipRevision(houseSnap.data()),
       createdAt: FieldValue.serverTimestamp(),
       expiresAt: Timestamp.fromMillis(now + INVITE_TTL_MS),
       status: 'active',
@@ -106,7 +108,8 @@ export const acceptHouseholdInvite = onCall(options, async (request) => {
     const member = home.collection('members').doc(uid);
     const userIndex = db.doc(`users/${uid}/households/${home.id}`);
     const [homeSnap, memberSnap] = await Promise.all([tx.get(home), tx.get(member)]);
-    if (!homeSnap.exists || homeSnap.data().ownerUid !== data.createdBy) invalidInvite();
+    if (!homeSnap.exists || homeSnap.data().ownerUid !== data.createdBy ||
+        ownershipRevision(homeSnap.data()) !== (data.ownershipRevision ?? 0)) invalidInvite();
     // A lost response may be replayed only by the same still-authorized member.
     // Never restore a removed member or redeem a consumed code for a new account.
     if (data.status === 'used') {
@@ -163,6 +166,7 @@ export const leaveHousehold = onCall(options, async (request) => {
     catch { throw new HttpsError('failed-precondition', 'Invalid household membership state.'); }
     tx.delete(member);
     tx.delete(index);
+    tx.delete(home.collection('memberProfiles').doc(uid));
     tx.update(home, {
       memberCount: FieldValue.increment(-1), updatedAt: FieldValue.serverTimestamp(),
     });
@@ -174,7 +178,7 @@ export const removeHouseholdMember = onCall(options, async (request) => {
   const uid = uidOf(request);
   const home = houseRef(request.data?.householdId);
   const target = request.data?.memberUid;
-  if (typeof target !== 'string' || target.length < 1 || target.length > 128 || target.includes('/')) {
+  if (!validMemberUid(target)) {
     throw new HttpsError('invalid-argument', 'Invalid member ID.');
   }
   const member = home.collection('members').doc(target);
@@ -193,6 +197,7 @@ export const removeHouseholdMember = onCall(options, async (request) => {
     catch { throw new HttpsError('failed-precondition', 'Invalid household membership state.'); }
     tx.delete(member);
     tx.delete(index);
+    tx.delete(home.collection('memberProfiles').doc(target));
     tx.update(home, {
       memberCount: FieldValue.increment(-1), updatedAt: FieldValue.serverTimestamp(),
     });
@@ -213,3 +218,5 @@ export {
   sealLocalMigrationStage, cancelLocalMigrationStage,
   publishLocalMigrationStageChunk, rollbackLocalMigrationPublication, cleanupPublishedMigrationStage,
 } from './migration-staging.js';
+
+export { getHouseholdRoster, updateHouseholdMemberName, changeHouseholdMembership } from './membership.js';

@@ -23,7 +23,8 @@ service cloud.firestore {
 
     function validHousehold(data) {
       return data.keys().hasAll(['name', 'ownerUid', 'schemaVersion', 'memberCount', 'createdAt', 'updatedAt'])
-        && data.keys().hasOnly(['name', 'ownerUid', 'schemaVersion', 'memberCount', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['name', 'ownerUid', 'schemaVersion', 'memberCount', 'createdAt', 'updatedAt', 'ownershipRevision'])
+        && (!('ownershipRevision' in data) || (data.ownershipRevision is int && data.ownershipRevision >= 0))
         && data.ownerUid is string
         && data.ownerUid.size() > 0
         && data.name is string
@@ -55,6 +56,7 @@ service cloud.firestore {
       allow create: if signedIn()
         && validHousehold(request.resource.data)
         && request.resource.data.ownerUid == request.auth.uid
+        && !('ownershipRevision' in request.resource.data)
         && request.resource.data.memberCount == 1
         && request.resource.data.createdAt == request.time
         && request.resource.data.updatedAt == request.time;
@@ -71,6 +73,11 @@ service cloud.firestore {
       allow delete: if false;
 
       match /members/{memberUid} {
+        allow get, list: if memberOf(householdId);
+        allow create, update, delete: if false;
+      }
+
+      match /memberProfiles/{memberUid} {
         allow get, list: if memberOf(householdId);
         allow create, update, delete: if false;
       }

@@ -29,6 +29,9 @@ internal interface HomeCrewSharedHouseholdGateway {
     fun choreGateway(): RemoteHouseholdChoreGateway
     fun completionJournal(householdId: String): HomeCrewCompletionJournal
     fun migrationJournal(householdId: String): HomeCrewLocalMigrationJournal
+    suspend fun roster(householdId: String): SharedHouseholdRoster
+    suspend fun renameMember(householdId: String, memberUid: String, displayName: String, expectedRosterDigest: String)
+    suspend fun changeMembership(householdId: String, memberUid: String, action: SharedMembershipAction, expectedRosterDigest: String)
     suspend fun list(): List<SharedHouseholdSummary>
     suspend fun create(request: SharedHouseholdCreateRequest): String
     suspend fun invite(householdId: String): HomeCrewCloudInvite
@@ -45,3 +48,25 @@ internal fun canUseSharedHouseholdPreview(
     allowedProjectId.matches(Regex("[a-z][a-z0-9-]{4,29}")) &&
     allowedProjectId != "homecrew-1b14b" &&
     actualProjectId == allowedProjectId
+
+internal enum class SharedMembershipAction { LEAVE, REMOVE, TRANSFER }
+
+internal data class SharedHouseholdRoster(
+    val members: List<RemoteHouseholdMember>,
+    val digest: String,
+    val transferBlocked: Boolean
+) {
+    init {
+        require(digest.matches(Regex("[a-f0-9]{64}")))
+        require(members.size in 1..8 && members.count { it.isOwner } == 1)
+        require(members.map { it.uid }.distinct().size == members.size)
+    }
+}
+
+internal fun normalizeSharedMemberName(value: String): String {
+    val name = java.text.Normalizer.normalize(value, java.text.Normalizer.Form.NFC).trim()
+    require(name.length in 1..12 && !name.any { ch ->
+        Character.getType(ch) in setOf(Character.CONTROL.toInt(), Character.FORMAT.toInt(), Character.SURROGATE.toInt())
+    })
+    return name
+}

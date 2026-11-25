@@ -185,6 +185,7 @@ export const ensureRemoteOccurrence = onCall(options, async (request) => {
         schedule = normalizeRemoteSchedule(storedDefinition.schedule);
         if (!isScheduledDate(schedule, scheduledEpochDay)) throw new Error('not-scheduled');
       } catch { throw new HttpsError('failed-precondition', 'Date is outside the configured schedule.'); }
+      await Promise.all(schedule.memberUids.map(member => checkAssignee(tx, home, member, homeSnap.data().ownerUid)));
       if (schedule.assignmentMode === 'BALANCED') {
         const allocated = await balancedRows(tx, home, schedule, [scheduledEpochDay],
           workloadPoints, homeSnap.data().ownerUid);
@@ -332,6 +333,7 @@ export const generateRemoteSchedule = onCall(options, async (request) => {
     }
     if (!missing.length) return { created: 0, existing: planned.length };
     const workloadPoints = occurrencePoints(definition.data());
+    await Promise.all(schedule.memberUids.map(member => checkAssignee(tx, home, member, house.data().ownerUid)));
     if (schedule.assignmentMode === 'BALANCED') {
       const allocated = await balancedRows(tx, home, schedule,
         missing.map(entry => entry.row.scheduledEpochDay), workloadPoints, house.data().ownerUid);

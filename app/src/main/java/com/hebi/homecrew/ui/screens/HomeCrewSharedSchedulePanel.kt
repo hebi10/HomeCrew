@@ -25,6 +25,7 @@ import com.hebi.homecrew.data.cloud.RemoteFutureSchedulePreview
 import com.hebi.homecrew.data.cloud.RemoteHouseholdChoreGateway
 import com.hebi.homecrew.data.cloud.RemoteSchedule
 import com.hebi.homecrew.data.cloud.RemoteSnapshot
+import com.hebi.homecrew.data.cloud.sharedMemberLabel
 import com.hebi.homecrew.ui.theme.HomeCrewDimensions
 import com.hebi.homecrew.ui.theme.LocalHomeCrewColors
 import java.time.LocalDate
@@ -206,18 +207,17 @@ internal fun HomeCrewSharedSchedulePanel(
                         if (assignment == "FIXED") participants = participants.take(1)
                     }) { Text(mode.label + if (assignment == mode.name) " · 선택" else "") }
                 }
-                Text("담당 구성원을 선택해 주세요. 표시명 연동 전까지 구성원 번호로 구분합니다.",
+                Text("담당 구성원을 선택해 주세요. 이름을 등록하지 않은 구성원은 번호로 구분합니다.",
                     style = MaterialTheme.typography.bodySmall, color = palette.muted)
                 snapshot.members.forEachIndexed { index, person ->
-                    val label = if (person.isOwner) "소유자" else "구성원 $index"
+                    val label = sharedMemberLabel(person, index, accountUid)
                     val position = participants.indexOf(person.uid)
                     TextButton(enabled = canEdit, onClick = {
                         participants = if (assignment == "FIXED") listOf(person.uid)
                         else if (person.uid in participants) participants - person.uid
                         else participants + person.uid
                     }) {
-                        Text(label + (if (person.uid == accountUid) " (나)" else "") +
-                            if (position >= 0) " · ${position + 1}순위" else "")
+                        Text(label + if (position >= 0) " · ${position + 1}순위" else "")
                     }
                 }
                 val candidate = runCatching {

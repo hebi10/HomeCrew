@@ -29,6 +29,7 @@ import com.hebi.homecrew.data.cloud.readLocalMigrationSource
 import com.hebi.homecrew.data.cloud.LocalMigrationPlan
 import com.hebi.homecrew.data.cloud.LocalMigrationSource
 import com.hebi.homecrew.data.cloud.RemoteSnapshot
+import com.hebi.homecrew.data.cloud.sharedMemberLabel
 import com.hebi.homecrew.data.cloud.migrationMemberNames
 import com.hebi.homecrew.data.cloud.prepareLocalMigration
 import com.hebi.homecrew.data.local.HomeCrewLocalBackup
@@ -257,7 +258,7 @@ internal fun HomeCrewLocalMigrationPreviewPanel(
             requiredNames.takeIf { it.size <= 8 }.orEmpty().forEach { name ->
                 Text(name, style = MaterialTheme.typography.bodyMedium)
                 snapshot.members.forEachIndexed { index, member ->
-                    val label = if (member.isOwner) "소유자" else "구성원 $index"
+                    val label = sharedMemberLabel(member, index, accountUid)
                     val selected = mapping[name] == member.uid
                     val occupied = mapping.any { it.key != name && it.value == member.uid }
                     TextButton(
@@ -267,7 +268,7 @@ internal fun HomeCrewLocalMigrationPreviewPanel(
                             plan = null
                             digest = null
                         }
-                    ) { Text(label + (if (member.uid == accountUid) " (나)" else "") + if (selected) " · 선택" else "") }
+                    ) { Text(label + if (selected) " · 선택" else "") }
                 }
             }
             Button(
