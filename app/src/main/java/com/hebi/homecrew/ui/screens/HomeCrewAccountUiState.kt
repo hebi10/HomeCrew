@@ -112,6 +112,8 @@ internal fun accountActionMessage(result: HomeCrewAccountActionResult): String =
         "계정 인증 설정을 확인할 수 없습니다. 지원팀에 문의해 주세요."
     HomeCrewAccountActionResult.INVALID_CREDENTIAL ->
         "Google 계정을 다시 확인하지 못했습니다. 계정은 삭제되지 않았습니다."
+    HomeCrewAccountActionResult.CLOUD_CLEANUP_REQUIRED ->
+        "공동 공간과 연관 데이터의 정리 상태를 먼저 확인해야 합니다. 인증 계정은 삭제하지 않았습니다."
     HomeCrewAccountActionResult.RECENT_LOGIN_REQUIRED ->
         "재인증이 필요합니다. Google 계정을 확인한 후 다시 시도해 주세요."
     HomeCrewAccountActionResult.FAILED ->

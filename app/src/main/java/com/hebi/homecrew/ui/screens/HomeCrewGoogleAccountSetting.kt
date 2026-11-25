@@ -31,6 +31,7 @@ import com.hebi.homecrew.data.auth.HomeCrewAccountActionResult
 import com.hebi.homecrew.data.auth.HomeCrewAuthSession
 import com.hebi.homecrew.data.auth.HomeCrewAuthUser
 import com.hebi.homecrew.data.cloud.homeCrewSharedHouseholdGateway
+import com.hebi.homecrew.R
 import com.hebi.homecrew.ui.theme.HomeCrewDimensions
 import com.hebi.homecrew.ui.theme.HomeCrewTheme
 import com.hebi.homecrew.ui.theme.LocalHomeCrewColors
@@ -45,7 +46,7 @@ internal fun HomeCrewGoogleAccountSetting(signIn: GoogleSignIn) {
     var lastResult by remember { mutableStateOf<GoogleSignInResult?>(null) }
     var accountAction by remember { mutableStateOf<HomeCrewAccountAction?>(null) }
     var accountResult by remember { mutableStateOf<HomeCrewAccountActionResult?>(null) }
-    var confirmingDeletion by rememberSaveable { mutableStateOf(false) }
+    var confirmingDeletionUid by rememberSaveable { mutableStateOf<String?>(null) }
     var webError by remember { mutableStateOf(false) }
 
     val context = activity.applicationContext
@@ -57,6 +58,8 @@ internal fun HomeCrewGoogleAccountSetting(signIn: GoogleSignIn) {
         accountUid?.let { homeCrewSharedHouseholdGateway(context, it) }
     }
     var showSharedHouseholds by remember(accountUid) { mutableStateOf(false) }
+    var showDeletionReview by remember(accountUid) { mutableStateOf(false) }
+    val cloudPreviewConfigured = context.resources.getBoolean(R.bool.homecrew_shared_households_preview)
 
     fun runAccountAction(action: HomeCrewAccountAction) {
         if (session !is HomeCrewAuthSession.SignedIn || accountAction != null || signingIn) return
@@ -99,7 +102,10 @@ internal fun HomeCrewGoogleAccountSetting(signIn: GoogleSignIn) {
             }
         },
         onSignOut = { runAccountAction(HomeCrewAccountAction.SIGN_OUT) },
-        onDeleteAccount = { confirmingDeletion = true },
+        onDeleteAccount = {
+            if (cloudPreviewConfigured) showDeletionReview = true
+            else confirmingDeletionUid = accountUid
+        },
         onOpenDeletionWeb = {
             webError = !openHomeCrewWebPage(activity, HOMECREW_DELETE_ACCOUNT_URL)
         }
@@ -123,9 +129,16 @@ internal fun HomeCrewGoogleAccountSetting(signIn: GoogleSignIn) {
         )
     }
 
-    if (confirmingDeletion && session is HomeCrewAuthSession.SignedIn) {
+    if (showDeletionReview && accountUid != null && uiState.accountActionsEnabled) {
+        key(accountUid) {
+            HomeCrewAccountDeletionReviewDialog(sharedGateway) { showDeletionReview = false }
+        }
+    }
+
+    if (confirmingDeletionUid != null && confirmingDeletionUid == accountUid &&
+        !cloudPreviewConfigured && session is HomeCrewAuthSession.SignedIn) {
         AlertDialog(
-            onDismissRequest = { confirmingDeletion = false },
+            onDismissRequest = { confirmingDeletionUid = null },
             title = { Text("Firebase 로그인 계정을 삭제할까요?") },
             text = {
                 Text(
@@ -137,12 +150,14 @@ internal fun HomeCrewGoogleAccountSetting(signIn: GoogleSignIn) {
             },
             confirmButton = {
                 TextButton(onClick = {
-                    confirmingDeletion = false
-                    runAccountAction(HomeCrewAccountAction.DELETE_ACCOUNT)
+                    val confirmedUid = confirmingDeletionUid
+                    confirmingDeletionUid = null
+                    if (confirmedUid != null && confirmedUid == accountUid)
+                        runAccountAction(HomeCrewAccountAction.DELETE_ACCOUNT)
                 }) { Text("Firebase 계정 삭제", color = LocalHomeCrewColors.current.error) }
             },
             dismissButton = {
-                TextButton(onClick = { confirmingDeletion = false }) { Text("취소") }
+                TextButton(onClick = { confirmingDeletionUid = null }) { Text("취소") }
             }
         )
     }

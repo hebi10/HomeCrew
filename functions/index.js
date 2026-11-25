@@ -220,3 +220,5 @@ export {
 } from './migration-staging.js';
 
 export { getHouseholdRoster, updateHouseholdMemberName, changeHouseholdMembership } from './membership.js';
+
+export { getAccountDeletionPreflight } from './account-deletion-preflight.js';

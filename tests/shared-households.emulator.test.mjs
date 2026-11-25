@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { initializeTestEnvironment } from '@firebase/rules-unit-testing';
-import { doc, updateDoc, Timestamp } from 'firebase/firestore';
+import { doc, setDoc, updateDoc, Timestamp } from 'firebase/firestore';
 import { inviteDigest } from '../functions/invite-core.js';
 
 const project = 'demo-homecrew-shared-ci';
@@ -618,4 +618,60 @@ test('member profiles, stale previews, owner transfer, invite epoch and historic
   await change(owner,'REMOVE',member.uid,joined.rosterDigest);
   assert.equal((await roster(owner)).members.length,1);
   assert.equal((await read(occurrencePath,owner)).completed.booleanValue,true);
+});
+
+
+test('account deletion preflight inventories current and historical references without deleting anything', { timeout: 180_000 }, async () => {
+  const [owner, member, outsider] = await Promise.all([account(), account(), account()]);
+  const { householdId } = await call('createSharedHousehold', {name:'계정 검증',requestId:randomUUID()},owner);
+  const invite=await call('createHouseholdInvite',{householdId},owner);
+  await call('acceptHouseholdInvite',{inviteCode:invite.inviteCode},member);
+  const preflight = (who,data={})=>call('getAccountDeletionPreflight',data,who);
+  await call('getAccountDeletionPreflight',{},null,'UNAUTHENTICATED');
+  const ownerPlan=await preflight(owner);
+  assert.equal(ownerPlan.ownerCount,1);
+  assert.equal(ownerPlan.memberCount,0);
+  assert.equal(ownerPlan.indexIssues,0);
+  assert.equal(ownerPlan.hasInvites,true);
+  assert.equal(ownerPlan.deletionAllowed,false);
+  const memberPlan=await preflight(member,{uid:owner.uid});
+  assert.equal(memberPlan.ownerCount,0);
+  assert.equal(memberPlan.memberCount,1);
+  const outsidePlan=await preflight(outsider,{uid:owner.uid});
+  assert.deepEqual(outsidePlan.spaces,[]);
+  assert.equal(outsidePlan.deletionAllowed,false);
+  await environment.withSecurityRulesDisabled(async context=>{
+    await setDoc(doc(context.firestore(),'users/'+outsider.uid+'/households/'+householdId),
+      {householdId,role:'member',updatedAt:Timestamp.now()});
+  });
+  const stale=await preflight(outsider);
+  assert.deepEqual(stale.spaces,[]);
+  assert.equal(stale.indexIssues,1);
+  const task={id:randomUUID(),name:'설거지',category:'주방',description:'',points:2,assigneeUid:member.uid};
+  await call('createRemoteChore',{householdId,chore:task},owner);
+  const day=Math.floor((Date.now()+9*3600000)/86400000);
+  const row=await call('ensureRemoteOccurrence',{householdId,choreId:task.id,scheduledEpochDay:day},owner);
+  await call('recordChoreCompletion',{householdId,occurrenceId:row.occurrenceId,completed:true,
+    expectedRevision:1,requestId:randomUUID()},member);
+  await call('leaveHousehold',{householdId},member);
+  const former=await preflight(member);
+  assert.equal(former.memberCount,0);
+  assert.equal(former.hasTaskReferences,true);
+  assert.equal(former.hasOccurrenceReferences,true);
+  assert.equal(former.requiresCleanupReview,true);
+  assert.equal(former.deletionAllowed,false);
+  const historical=await read('households/'+householdId+'/occurrences/'+row.occurrenceId,owner);
+  assert.equal(historical.completed.booleanValue,true);
+  assert.equal(historical.completedByUid.stringValue,member.uid);
+  // A legacy direct owner without an index must be found independently.
+  const legacyId='legacy-'+randomUUID();
+  await environment.withSecurityRulesDisabled(async context=>{
+    await setDoc(doc(context.firestore(),'households/'+legacyId), {
+      name:'기존 집',ownerUid:owner.uid,schemaVersion:1,memberCount:1,createdAt:Timestamp.now(),updatedAt:Timestamp.now(),
+    });
+  });
+  const unindexed=await preflight(owner);
+  assert.equal(unindexed.ownerCount,2);
+  assert.equal(unindexed.indexIssues,1);
+  assert.equal(unindexed.deletionAllowed,false);
 });

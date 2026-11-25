@@ -64,6 +64,28 @@ private class FirebaseSharedHouseholdGateway(
         return result
     }
 
+    override suspend fun deletionPreflight(): AccountDeletionPreflight {
+        val response = memberCall("getAccountDeletionPreflight", emptyMap())
+        check(response["requiresCleanupReview"] == true && response["deletionAllowed"] == false)
+        fun count(key: String): Int {
+            val n = response[key] as Number
+            return n.toInt().also { check(n.toDouble() == it.toDouble()) }
+        }
+        val spaces = (response["spaces"] as List<*>).map { item ->
+            val value = item as Map<*, *>
+            AccountDeletionSpace(value["householdId"] as String, value["name"] as String, value["role"] as String)
+        }
+        val labels = linkedMapOf(
+            "hasProfiles" to "구성원 표시명", "hasMigrationStage" to "데이터 이전 임시 자료",
+            "hasInvites" to "초대 기록", "hasTaskReferences" to "집안일 및 반복 배정",
+            "hasOccurrenceReferences" to "회차 및 완료 기록", "hasOperationReferences" to "서버 작업 이력",
+            "hasAccountMetadata" to "계정 관리 자료"
+        )
+        val categories = labels.entries.filter { (key, _) -> response[key] as Boolean }.map { it.value }
+        return AccountDeletionPreflight(spaces, count("ownerCount"), count("memberCount"),
+            count("indexIssues"), count("lockedSpaces"), categories)
+    }
+
     override suspend fun roster(householdId: String): SharedHouseholdRoster {
         requireValidCloudId(householdId)
         val result = memberCall("getHouseholdRoster", mapOf("householdId" to householdId))
