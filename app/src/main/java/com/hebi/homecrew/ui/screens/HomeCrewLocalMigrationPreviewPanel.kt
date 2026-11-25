@@ -23,6 +23,8 @@ import com.hebi.homecrew.data.cloud.HomeCrewLocalMigrationJournal
 import com.hebi.homecrew.data.cloud.PendingLocalMigration
 import com.hebi.homecrew.data.cloud.RemoteHouseholdChoreGateway
 import com.hebi.homecrew.data.cloud.atomicMigrationFits
+import com.hebi.homecrew.data.cloud.planStagedMigrationUpload
+import com.hebi.homecrew.data.cloud.remainingUploadChunks
 import com.hebi.homecrew.data.cloud.readLocalMigrationSource
 import com.hebi.homecrew.data.cloud.LocalMigrationPlan
 import com.hebi.homecrew.data.cloud.LocalMigrationSource
@@ -111,9 +113,8 @@ internal fun HomeCrewLocalMigrationPreviewPanel(
                     check(fresh.household == previousSource) { "Local household changed" }
                     val candidate = checkNotNull(prepareLocalMigration(fresh, householdId, accountUid,
                         verified, selectedMapping).manifest)
-                    check(candidate.digest == expectedDigest && atomicMigrationFits(candidate)) {
-                        "Local migration preview changed or is too large"
-                    }
+                    check(candidate.digest == expectedDigest) { "Local migration preview changed" }
+                    if (!atomicMigrationFits(candidate)) planStagedMigrationUpload(candidate)
                     val backup = HomeCrewLocalBackup.encode(fresh.household, fresh.rows)
                     val restored = HomeCrewLocalBackup.decode(backup, fresh.household)
                     check(restored == fresh.rows) { "Backup verification failed" }
@@ -133,9 +134,27 @@ internal fun HomeCrewLocalMigrationPreviewPanel(
                     latestSnapshot.chores.isEmpty() && latestSnapshot.occurrences.isEmpty()) {
                     "Target changed"
                 }
-                val receipt = withTimeout(65_000) { gateway.importLocalManifest(manifest) }
-                pending = journal.confirm(receipt)
-                message = "서버 이전 영수증과 보존한 자료가 일치합니다. 로컬 원본은 유지했습니다."
+                if (withContext(Dispatchers.Default) { atomicMigrationFits(manifest) }) {
+                    val receipt = withTimeout(65_000) { gateway.importLocalManifest(manifest) }
+                    pending = journal.confirm(receipt)
+                    message = "서버 이전 영수증과 보존한 자료가 일치합니다. 로컬 원본은 유지했습니다."
+                } else {
+                    val upload = withContext(Dispatchers.Default) { planStagedMigrationUpload(manifest) }
+                    var stage = withTimeout(35_000) { gateway.beginMigrationStage(upload) }
+                    val missing = withContext(Dispatchers.Default) { remainingUploadChunks(upload, stage).take(8) }
+                    for (chunk in missing) {
+                        check(latestEnabled && !latestSnapshot.mayBeStale &&
+                            latestSnapshot.members == verified.members)
+                        stage = withTimeout(35_000) { gateway.appendMigrationChunk(householdId, stage.sessionId, chunk) }
+                        check(stage.digest == expectedDigest && stage.nextIndex > chunk.index)
+                        message = "분할 저장 ${stage.nextIndex}/${stage.chunkCount}개"
+                    }
+                    message = if (stage.nextIndex == stage.chunkCount) {
+                        "분할 저장 완료. 공동 공간 관리의 대용량 이전 관리에서 검증 및 최종 반영을 진행해 주세요."
+                    } else {
+                        "분할 저장 ${stage.nextIndex}/${stage.chunkCount}개. 보존한 동일 요청으로 이어서 전송해 주세요."
+                    }
+                }
                 plan = null
             } catch (_: TimeoutCancellationException) {
                 message = "서버 응답 시간이 초과되었습니다. 원본과 보관된 요청을 유지했습니다. 이전 결과를 확인해 주세요."
@@ -286,10 +305,10 @@ internal fun HomeCrewLocalMigrationPreviewPanel(
                 Text("원본 업무량이 0인 회차 ${result.manifest.legacyWorkloadCount}개는 원래 값과 원본 집안일 점수를 함께 보존합니다.",
                     style = MaterialTheme.typography.bodySmall, color = palette.muted)
                 digest?.let { Text("검증 식별자: " + it.take(12), style = MaterialTheme.typography.bodySmall) }
-                if (!fits) Text("300개 기록 또는 512KiB 한도를 초과합니다. 대용량 이전은 아직 지원하지 않습니다.", color = palette.warning)
-                Button(enabled = enabled && journalReady && !journalFailed && !loading && fits && digest != null,
+                if (!fits) Text("대용량 자료는 비공개로 분할 저장한 뒤 소유자가 별도 확인해야 공개됩니다. 서버 한도와 안전 여유를 초과하면 전송하지 않습니다.", color = palette.muted)
+                Button(enabled = enabled && journalReady && !journalFailed && !loading && digest != null,
                     onClick = { confirm = true }, modifier = Modifier.fillMaxWidth()) {
-                    Text("원본 보존 후 공동 공간으로 복사")
+                    Text(if (fits) "원본 보존 후 공동 공간으로 복사" else "원본 보존 후 분할 저장")
                 }
             }
         }
@@ -300,7 +319,7 @@ internal fun HomeCrewLocalMigrationPreviewPanel(
         AlertDialog(
             onDismissRequest = { confirm = false },
             title = { Text("공동 공간에 복사할까요?") },
-            text = { Text("선택한 구성원에게 집안일과 과거 기록이 공유됩니다. 기기에 원본 백업을 먼저 저장합니다. 원본이 달라졌거나 대상이 비어 있지 않으면 새 이전을 중단합니다.") },
+            text = { Text("기기에 원본 백업을 먼저 저장합니다. 소규모 자료는 공동 공간으로 복사하고, 대용량 자료는 비공개 분할 저장합니다. 최종 공유는 별도 확인이 필요합니다. 원본이나 대상이 변경되면 이전을 중단합니다.") },
             confirmButton = { TextButton(onClick = {
                 confirm = false
                 transfer(pending)

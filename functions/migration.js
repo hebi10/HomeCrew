@@ -36,6 +36,9 @@ export const importLocalHouseholdManifest = onCall(options, async request => {
       }
       return { ...previous.result, replayed: true };
     }
+    if (house.data().migrationPublishLock != null) {
+      throw new HttpsError('failed-precondition', 'Migration publication is in progress.');
+    }
     const [members, chores, occurrences] = await Promise.all([
       tx.get(home.collection('members').limit(9)),
       tx.get(home.collection('chores').limit(1)),

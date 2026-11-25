@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
-import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+import { getFirestore, FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { canonicalMigrationDigest } from './migration-core.js';
 import { requireDocumentId } from './sync-core.js';
 import { stageHeader, stageChunk, appendStageCounts, assembleStagedManifest,
@@ -42,9 +42,15 @@ function status(data) {
     receivedDefinitions: data.receivedDefinitions, definitionCount: data.header.definitionCount,
     receivedOccurrences: data.receivedOccurrences, occurrenceCount: data.header.occurrenceCount,
     receivedBytes: data.receivedBytes,
+    publishIndex: data.publishIndex ?? 0,
+    publishedDefinitions: data.publishedDefinitions ?? 0,
+    publishedOccurrences: data.publishedOccurrences ?? 0,
   };
 }
 async function checkTarget(tx, home, house, uid, header) {
+  if (house.data().migrationPublishLock != null) {
+    throw new HttpsError('failed-precondition', 'Migration publication is in progress.');
+  }
   const [members, definitions, occurrences] = await Promise.all([
     tx.get(home.collection('members').limit(9)),
     tx.get(home.collection('chores').limit(1)),
@@ -118,7 +124,7 @@ export const appendLocalMigrationStageChunk = onCall(options, async request => {
     const [house, snapshot, existing] = await Promise.all([tx.get(home), tx.get(session), tx.get(ref)]);
     checkOwner(house, uid);
     const saved = checkSession(snapshot, uid, sessionId);
-    if (saved.state === 'CANCELLING' || saved.state === 'INVALID') {
+    if (!['UPLOADING','VERIFYING','SEALED'].includes(saved.state)) {
       throw new HttpsError('failed-precondition', 'Staging is closed.');
     }
     await checkTarget(tx, home, house, uid, saved.header);
@@ -210,7 +216,14 @@ export const cancelLocalMigrationStage = onCall(options, async request => {
     const [house, snapshot] = await Promise.all([tx.get(home), tx.get(session)]);
     checkOwner(house, uid);
     if (!snapshot.exists) return { removed: true, remaining: false };
-    checkSession(snapshot, uid, sessionId);
+    const saved = checkSession(snapshot, uid, sessionId);
+    if (house.data().migrationPublishLock != null ||
+        ['PUBLISHING','ROLLING_BACK'].includes(saved.state)) {
+      throw new HttpsError('failed-precondition', 'Finish or roll back publication first.');
+    }
+    if (['PUBLISHED','CLEANING'].includes(saved.state)) {
+      throw new HttpsError('failed-precondition', 'Use completed staging cleanup.');
+    }
     const chunks = await tx.get(session.collection('migrationChunks').limit(CLEANUP_BATCH + 1));
     for (const doc of chunks.docs.slice(0, CLEANUP_BATCH)) tx.delete(doc.ref);
     if (chunks.size <= CLEANUP_BATCH) {
@@ -218,6 +231,213 @@ export const cancelLocalMigrationStage = onCall(options, async request => {
       return { removed: true, remaining: false };
     }
     tx.update(session, { state: 'CANCELLING', updatedAt: FieldValue.serverTimestamp() });
+    return { removed: false, remaining: true };
+  });
+});
+
+
+async function checkPublishMembers(tx, home, house, uid, header) {
+  const members = await tx.get(home.collection('members').limit(9));
+  const ids = members.docs.filter(doc => doc.id === doc.data().uid && doc.data().role === 'member')
+    .map(doc => doc.id);
+  const current = new Set([uid, ...ids]);
+  if (ids.length !== members.size || current.size !== house.data().memberCount ||
+      current.size > 8 || !header.memberUids.every(member => current.has(member))) {
+    throw new HttpsError('failed-precondition', 'Current membership no longer matches. Roll back or restore membership.');
+  }
+}
+
+function readVerifiedChunk(doc, sessionId, index) {
+  if (!doc.exists || doc.data().sessionId !== sessionId) {
+    throw new HttpsError('failed-precondition', 'Sealed chunk missing.');
+  }
+  try {
+    const chunk = JSON.parse(doc.data().payloadJson);
+    const verified = stageChunk(chunk);
+    if (chunk.index !== index || verified.digest !== doc.data().digest ||
+        verified.bytes !== doc.data().bytes) throw new Error('chunk-mismatch');
+    return chunk;
+  } catch { throw new HttpsError('failed-precondition', 'Sealed chunk changed.'); }
+}
+
+function lockMatches(house, sessionId, digest) {
+  const lock = house.data().migrationPublishLock;
+  return lock?.sessionId === sessionId && lock?.digest === digest;
+}
+
+function targetRows(home, chunk, sessionId, digest, uid) {
+  const definitions = chunk.definitions.map(definition => {
+    const { sourceCreatedAtEpochMillis, sourceUpdatedAtEpochMillis, ...row } = definition;
+    return { ref: home.collection('chores').doc(row.id), data: {
+      ...row, sourceCreatedAtEpochMillis, sourceUpdatedAtEpochMillis,
+      createdAt: Timestamp.fromMillis(sourceCreatedAtEpochMillis),
+      updatedAt: Timestamp.fromMillis(sourceUpdatedAtEpochMillis),
+      creatorUid: uid, revision: 1, migrationDigest: digest, migrationStageSessionId: sessionId,
+    } };
+  });
+  const occurrences = chunk.occurrences.map(occurrence => {
+    const { id, completedAtEpochMillis, skippedAtEpochMillis, ...row } = occurrence;
+    return { ref: home.collection('occurrences').doc(id), data: {
+      ...row, completedAtEpochMillis, skippedAtEpochMillis,
+      completedAt: completedAtEpochMillis === null ? null : Timestamp.fromMillis(completedAtEpochMillis),
+      skippedAt: skippedAtEpochMillis === null ? null : Timestamp.fromMillis(skippedAtEpochMillis),
+      revision: 1, scheduleCancelledAt: null, migrationDigest: digest, migrationStageSessionId: sessionId,
+      createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),
+    } };
+  });
+  return [...definitions, ...occurrences];
+}
+
+// A short transaction per sealed chunk. The very first chunk sets the
+// household visibility/write barrier in the SAME transaction. The final chunk
+// creates the receipt and removes it atomically. Repeated indices are no-ops.
+export const publishLocalMigrationStageChunk = onCall(options, async request => {
+  const { db, home, session, uid, sessionId } = context(request);
+  const index = request.data?.index;
+  const digest = request.data?.digest;
+  if (!Number.isSafeInteger(index) || index < 0 || index >= 2048 || !validStageDigest(digest)) {
+    throw new HttpsError('invalid-argument', 'Invalid publication step.');
+  }
+  const receipt = home.collection('operations').doc('local-migration-' + digest);
+  return db.runTransaction(async tx => {
+    const [house, snapshot, previousReceipt] = await Promise.all([
+      tx.get(home), tx.get(session), tx.get(receipt),
+    ]);
+    checkOwner(house, uid);
+    if (previousReceipt.exists) {
+      const saved = previousReceipt.data();
+      if (saved.actorUid !== uid || saved.type !== 'local-migration-v1' ||
+          saved.sessionId !== sessionId || saved.digest !== digest) {
+        throw new HttpsError('already-exists', 'Migration receipt differs.');
+      }
+      return { published: true, replayed: true, ...saved.result };
+    }
+    const saved = checkSession(snapshot, uid, sessionId);
+    if (saved.header.digest !== digest || !['SEALED','PUBLISHING'].includes(saved.state)) {
+      throw new HttpsError('failed-precondition', 'Migration must be sealed first.');
+    }
+    const current = saved.publishIndex ?? 0;
+    if (saved.state === 'SEALED') {
+      if (index !== 0 || current !== 0) throw new HttpsError('failed-precondition', 'Begin with the first chunk.');
+      await checkTarget(tx, home, house, uid, saved.header);
+    } else {
+      if (!lockMatches(house, sessionId, digest)) throw new HttpsError('failed-precondition', 'Publication lock mismatch.');
+      await checkPublishMembers(tx, home, house, uid, saved.header);
+    }
+    if (index < current) return { ...status(saved), published: false, replayed: true };
+    if (index !== current || index >= saved.header.chunkCount) {
+      throw new HttpsError('failed-precondition', 'Publish the next missing chunk.');
+    }
+    const chunk = readVerifiedChunk(await tx.get(session.collection('migrationChunks').doc(chunkId(index))), sessionId, index);
+    const rows = targetRows(home, chunk, sessionId, digest, uid);
+    const occupied = await tx.getAll(...rows.map(row => row.ref));
+    if (occupied.some(doc => doc.exists)) throw new HttpsError('already-exists', 'Publication target occupied.');
+    const progress = {
+      publishIndex: current + 1,
+      publishedDefinitions: (saved.publishedDefinitions ?? 0) + chunk.definitions.length,
+      publishedOccurrences: (saved.publishedOccurrences ?? 0) + chunk.occurrences.length,
+      publishedCompleted: (saved.publishedCompleted ?? 0) + chunk.occurrences.filter(row => row.completed).length,
+      publishedSkipped: (saved.publishedSkipped ?? 0) + chunk.occurrences.filter(row => row.skippedAtEpochMillis !== null).length,
+    };
+    const finished = progress.publishIndex === saved.header.chunkCount;
+    if (progress.publishedDefinitions > saved.header.definitionCount ||
+        progress.publishedOccurrences > saved.header.occurrenceCount ||
+        finished && (progress.publishedDefinitions !== saved.header.definitionCount ||
+          progress.publishedOccurrences !== saved.header.occurrenceCount)) {
+      throw new HttpsError('failed-precondition', 'Publication counts differ.');
+    }
+    for (const row of rows) tx.create(row.ref, row.data);
+    const nextState = finished ? 'PUBLISHED' : 'PUBLISHING';
+    tx.update(session, { ...progress, state: nextState, updatedAt: FieldValue.serverTimestamp() });
+    tx.update(home, {
+      migrationPublishLock: finished ? FieldValue.delete() : { sessionId, digest },
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    if (!finished) return { ...status({ ...saved, ...progress, state: nextState }), published: false, replayed: false };
+    const result = {
+      digest, definitions: progress.publishedDefinitions, occurrences: progress.publishedOccurrences,
+      completed: progress.publishedCompleted, skipped: progress.publishedSkipped,
+    };
+    tx.create(receipt, { type: 'local-migration-v1', actorUid: uid, digest, sessionId, result,
+      defaultMemberUid: saved.header.defaultMemberUid, memberUids: saved.header.memberUids,
+      createdAt: FieldValue.serverTimestamp() });
+    return { published: true, replayed: false, ...result };
+  });
+});
+
+// Explicit recovery only: remove a published prefix in reverse chunk order.
+// Never delete an unrelated or already-visible record. The lock remains until
+// the original empty target is verified in the final rollback transaction.
+export const rollbackLocalMigrationPublication = onCall(options, async request => {
+  const { db, home, session, uid, sessionId } = context(request);
+  return db.runTransaction(async tx => {
+    const [house, snapshot] = await Promise.all([tx.get(home), tx.get(session)]);
+    checkOwner(house, uid);
+    const saved = checkSession(snapshot, uid, sessionId);
+    const digest = saved.header.digest;
+    if (saved.state === 'ROLLED_BACK') return { ...status(saved), rolledBack: true };
+    if (!['PUBLISHING','ROLLING_BACK'].includes(saved.state) || !lockMatches(house, sessionId, digest)) {
+      throw new HttpsError('failed-precondition', 'Only a hidden partial publication can be rolled back.');
+    }
+    const current = saved.publishIndex;
+    if (!Number.isSafeInteger(current) || current < 1) throw new HttpsError('failed-precondition', 'Invalid rollback progress.');
+    const index = current - 1;
+    const chunk = readVerifiedChunk(await tx.get(session.collection('migrationChunks').doc(chunkId(index))), sessionId, index);
+    const rows = targetRows(home, chunk, sessionId, digest, uid);
+    const docs = await tx.getAll(...rows.map(row => row.ref));
+    if (docs.some(doc => !doc.exists || doc.data().migrationStageSessionId !== sessionId ||
+        doc.data().migrationDigest !== digest || doc.data().revision !== 1)) {
+      throw new HttpsError('failed-precondition', 'Unexpected target record. Keep publication locked.');
+    }
+    if (index === 0) {
+      // No foreign records may become visible on unlocking.
+      const [definitions, occurrences] = await Promise.all([
+        tx.get(home.collection('chores').limit(chunk.definitions.length + 1)),
+        tx.get(home.collection('occurrences').limit(chunk.occurrences.length + 1)),
+      ]);
+      if (definitions.size !== chunk.definitions.length || occurrences.size !== chunk.occurrences.length ||
+          [...definitions.docs, ...occurrences.docs].some(doc => !rows.some(row => row.ref.path === doc.ref.path))) {
+        throw new HttpsError('failed-precondition', 'Unexpected records remain. Keep publication locked.');
+      }
+    }
+    for (const row of rows) tx.delete(row.ref);
+    const progress = {
+      publishIndex: index,
+      publishedDefinitions: saved.publishedDefinitions - chunk.definitions.length,
+      publishedOccurrences: saved.publishedOccurrences - chunk.occurrences.length,
+      publishedCompleted: saved.publishedCompleted - chunk.occurrences.filter(row => row.completed).length,
+      publishedSkipped: saved.publishedSkipped - chunk.occurrences.filter(row => row.skippedAtEpochMillis !== null).length,
+    };
+    const state = index === 0 ? 'ROLLED_BACK' : 'ROLLING_BACK';
+    tx.update(session, { ...progress, state, updatedAt: FieldValue.serverTimestamp() });
+    if (index === 0) tx.update(home, { migrationPublishLock: FieldValue.delete(), updatedAt: FieldValue.serverTimestamp() });
+    return { ...status({ ...saved, ...progress, state }), rolledBack: index === 0 };
+  });
+});
+
+// Publication is final. Cleanup only private chunks; preserve the receipt and
+// all live records. Repeating after deletion is safe.
+export const cleanupPublishedMigrationStage = onCall(options, async request => {
+  const { db, home, session, uid, sessionId } = context(request);
+  return db.runTransaction(async tx => {
+    const [house, snapshot] = await Promise.all([tx.get(home), tx.get(session)]);
+    checkOwner(house, uid);
+    if (!snapshot.exists) return { removed: true, remaining: false };
+    const saved = checkSession(snapshot, uid, sessionId);
+    if (!['PUBLISHED','CLEANING'].includes(saved.state) || house.data().migrationPublishLock != null) {
+      throw new HttpsError('failed-precondition', 'Only published staging can be cleaned.');
+    }
+    const receipt = await tx.get(home.collection('operations').doc('local-migration-' + saved.header.digest));
+    if (!receipt.exists || receipt.data().sessionId !== sessionId || receipt.data().actorUid !== uid) {
+      throw new HttpsError('failed-precondition', 'Missing publication receipt.');
+    }
+    const chunks = await tx.get(session.collection('migrationChunks').limit(CLEANUP_BATCH + 1));
+    for (const doc of chunks.docs.slice(0, CLEANUP_BATCH)) tx.delete(doc.ref);
+    if (chunks.size <= CLEANUP_BATCH) {
+      tx.delete(session);
+      return { removed: true, remaining: false };
+    }
+    tx.update(session, { state: 'CLEANING', updatedAt: FieldValue.serverTimestamp() });
     return { removed: false, remaining: true };
   });
 });

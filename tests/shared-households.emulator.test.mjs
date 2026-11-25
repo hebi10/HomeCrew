@@ -485,10 +485,57 @@ test('large migration staging is private, ordered, resumable and never publishes
   assert.equal((await call('sealLocalMigrationStage',scope,owner)).state,'SEALED');
   await read(home+'/chores/'+id,owner,404);
   await read(home+'/occurrences/'+occurrences[0].id,member,404);
+  const publish = (session, index, user=owner, error) => call('publishLocalMigrationStageChunk',
+    {householdId,sessionId:session,digest:header.digest,index},user,error);
+  await publish(started.sessionId,0,member,'PERMISSION_DENIED');
+  await publish(started.sessionId,1,owner,'FAILED_PRECONDITION');
+  assert.equal((await publish(started.sessionId,0)).publishIndex,1);
+  assert.equal((await publish(started.sessionId,0)).replayed,true);
+  await read(home+'/chores/'+id,owner,403);
+  await read(home+'/occurrences/'+occurrences[0].id,member,403);
+  await call('createRemoteChore',{householdId,chore:{
+    id:randomUUID(),name:'차단',category:'생활',description:'',points:1,assigneeUid:owner.uid,
+  }},member,'FAILED_PRECONDITION');
+  await call('cancelLocalMigrationStage',scope,owner,'FAILED_PRECONDITION');
+  assert.equal((await call('getLocalHouseholdMigrationReceipt',{householdId,digest:header.digest},owner)).found,false);
+  assert.equal((await publish(started.sessionId,1)).publishIndex,2);
+  await read(home+'/occurrences/'+occurrences[0].id,owner,403);
+  await call('removeHouseholdMember',{householdId,memberUid:member.uid},owner);
+  await publish(started.sessionId,2,owner,'FAILED_PRECONDITION');
+  const rollback=await call('rollbackLocalMigrationPublication',scope,owner);
+  assert.equal(rollback.rolledBack,false);
+  await read(home+'/chores/'+id,owner,403);
+  assert.equal((await call('rollbackLocalMigrationPublication',scope,owner)).rolledBack,true);
+  await read(home+'/chores/'+id,owner,404);
   assert.equal((await call('cancelLocalMigrationStage',scope,owner)).removed,true);
   assert.equal((await call('getLocalMigrationStage',{householdId},owner)).found,false);
+  const rejoin=await call('createHouseholdInvite',{householdId},owner);
+  await call('acceptHouseholdInvite',{inviteCode:rejoin.inviteCode},member);
   const another=await call('beginLocalMigrationStage',{householdId,header},owner);
   assert.notEqual(another.sessionId,started.sessionId);
   await append(chunks[0],owner,'NOT_FOUND');
-  await call('cancelLocalMigrationStage',{householdId,sessionId:another.sessionId},owner);
+  const nextScope={householdId,sessionId:another.sessionId};
+  for(const chunk of chunks) await call('appendLocalMigrationStageChunk',{
+    ...nextScope,chunk,chunkDigest:canonicalMigrationDigest(chunk)},owner);
+  await call('sealLocalMigrationStage',nextScope,owner);
+  for(let index=0;index<chunks.length;index++) {
+    const result=await publish(another.sessionId,index);
+    if(index<chunks.length-1) {
+      assert.equal(result.published,false);
+      await read(home+'/chores/'+id,member,403);
+    } else {
+      assert.equal(result.published,true);
+      assert.equal(result.occurrences,301);
+    }
+  }
+  assert.equal((await read(home+'/chores/'+id,member)).name.stringValue,'청소');
+  assert.equal((await read(home+'/occurrences/'+occurrences[0].id,member)).assignedUid.stringValue,member.uid);
+  assert.equal((await publish(another.sessionId,chunks.length-1)).replayed,true);
+  await call('rollbackLocalMigrationPublication',nextScope,owner,'FAILED_PRECONDITION');
+  assert.equal((await call('cleanupPublishedMigrationStage',nextScope,owner)).removed,true);
+  assert.equal((await publish(another.sessionId,chunks.length-1)).replayed,true);
+  assert.equal((await call('getLocalHouseholdMigrationReceipt',{householdId,digest:header.digest},owner)).occurrences,301);
+  await call('recordChoreCompletion',{householdId,occurrenceId:occurrences[0].id,
+    expectedRevision:1,completed:true,requestId:randomUUID()},member);
+  assert.equal((await read(home+'/occurrences/'+occurrences[0].id,owner)).completed.booleanValue,true);
 });
