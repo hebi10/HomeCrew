@@ -6,7 +6,10 @@ import {
   remoteOccurrenceId, validateScheduledEpochDay,
 } from './sync-core.js';
 
-import { normalizeRemoteSchedule, scheduledAssignee, scheduleWindow } from './recurrence-core.js';
+import {
+  normalizeRemoteSchedule, isScheduledDate, scheduledAssignee, scheduleWindow,
+  workloadWeekBounds, allocateBalancedOccurrences,
+} from './recurrence-core.js';
 
 const options = { region: 'asia-northeast3', timeoutSeconds: 30, maxInstances: 10 };
 
@@ -33,6 +36,52 @@ async function checkAssignee(tx, home, assigneeUid, ownerUid) {
     const assignee = await tx.get(home.collection('members').doc(assigneeUid));
     if (!assignee.exists) throw new HttpsError('failed-precondition', 'Assignee is not a member.');
   }
+}
+
+// Every occurrence creator touches the already-read household document. This
+// serializes competing allocations across chore definitions as well as membership
+// changes. Read only the relevant weeks and fail closed on oversized ledgers.
+async function balancedRows(tx, home, schedule, dates, points, ownerUid) {
+  await Promise.all(schedule.memberUids.map(uid => checkAssignee(tx, home, uid, ownerUid)));
+  const first = workloadWeekBounds(Math.min(...dates)).from;
+  const last = workloadWeekBounds(Math.max(...dates)).to;
+  const query = home.collection('occurrences')
+    .where('scheduledEpochDay', '>=', first).where('scheduledEpochDay', '<=', last).limit(2049);
+  const ledger = await tx.get(query);
+  if (ledger.size > 2048) {
+    throw new HttpsError('resource-exhausted', 'Too many existing occurrences for balanced generation.');
+  }
+  const rows = ledger.docs.map(doc => doc.data())
+    .filter(row => schedule.memberUids.includes(row.assignedUid));
+  const missingDefinitions = [...new Set(rows
+    .filter(row => row.workloadPoints == null).map(row => row.definitionId))];
+  if (missingDefinitions.length > 200) {
+    throw new HttpsError('resource-exhausted', 'Legacy workload requires migration.');
+  }
+  const definitions = new Map();
+  if (missingDefinitions.length) {
+    const legacy = await tx.getAll(...missingDefinitions.map(id =>
+      home.collection('chores').doc(requireDocumentId(id))));
+    legacy.forEach(doc => {
+      if (doc.exists) definitions.set(doc.id, doc.data().points);
+    });
+  }
+  try {
+    return allocateBalancedOccurrences(schedule, dates, rows.map(row => ({
+      scheduledEpochDay: row.scheduledEpochDay, assignedUid: row.assignedUid,
+      workloadPoints: row.workloadPoints ?? definitions.get(row.definitionId),
+    })), points);
+  } catch {
+    throw new HttpsError('failed-precondition', 'Invalid workload ledger.');
+  }
+}
+
+function occurrencePoints(definition) {
+  const points = definition.points;
+  if (!Number.isInteger(points) || points < 1 || points > 5) {
+    throw new HttpsError('failed-precondition', 'Invalid chore workload.');
+  }
+  return points;
 }
 
 export const createRemoteChore = onCall(options, async (request) => {
@@ -120,14 +169,25 @@ export const ensureRemoteOccurrence = onCall(options, async (request) => {
     // Apply the 62-day creation window only if no occurrence exists.
     try { validateScheduledEpochDay(scheduledEpochDay); }
     catch { throw new HttpsError('invalid-argument', 'Outside the creation window.'); }
-    let assigneeUid = definition.data().assigneeUid;
-    if (definition.data().schedule) {
-      try { assigneeUid = scheduledAssignee(normalizeRemoteSchedule(definition.data().schedule), scheduledEpochDay); }
-      catch { throw new HttpsError('failed-precondition', 'Date is outside the configured schedule.'); }
+    const storedDefinition = definition.data();
+    const workloadPoints = occurrencePoints(storedDefinition);
+    let assigneeUid = storedDefinition.assigneeUid;
+    if (storedDefinition.schedule) {
+      let schedule;
+      try {
+        schedule = normalizeRemoteSchedule(storedDefinition.schedule);
+        if (!isScheduledDate(schedule, scheduledEpochDay)) throw new Error('not-scheduled');
+      } catch { throw new HttpsError('failed-precondition', 'Date is outside the configured schedule.'); }
+      if (schedule.assignmentMode === 'BALANCED') {
+        const allocated = await balancedRows(tx, home, schedule, [scheduledEpochDay],
+          workloadPoints, homeSnap.data().ownerUid);
+        assigneeUid = allocated[0].assignedUid;
+      } else assigneeUid = scheduledAssignee(schedule, scheduledEpochDay);
     }
     await checkAssignee(tx, home, assigneeUid, homeSnap.data().ownerUid);
+    tx.update(home, { updatedAt: FieldValue.serverTimestamp() });
     tx.create(occurrence, {
-      definitionId: choreId, scheduledEpochDay, assignedUid: assigneeUid,
+      definitionId: choreId, scheduledEpochDay, assignedUid: assigneeUid, workloadPoints,
       completed: false, completedByUid: null, completedAt: null, skippedAt: null,
       revision: 1, createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
@@ -263,13 +323,24 @@ export const generateRemoteSchedule = onCall(options, async (request) => {
         missing.push({ ref: refs[n], row });
       }
     }
+    if (!missing.length) return { created: 0, existing: planned.length };
+    const workloadPoints = occurrencePoints(definition.data());
+    if (schedule.assignmentMode === 'BALANCED') {
+      const allocated = await balancedRows(tx, home, schedule,
+        missing.map(entry => entry.row.scheduledEpochDay), workloadPoints, house.data().ownerUid);
+      const byDate = new Map(allocated.map(row => [row.scheduledEpochDay, row.assignedUid]));
+      for (const entry of missing) entry.row = {
+        ...entry.row, assignedUid: byDate.get(entry.row.scheduledEpochDay),
+      };
+    }
     // Validate all new assignees before any write. Revoked membership must not
     // produce a new occurrence, but previously completed records are retained.
     await Promise.all([...new Set(missing.map(entry => entry.row.assignedUid))]
       .map(member => checkAssignee(tx, home, member, house.data().ownerUid)));
+    tx.update(home, { updatedAt: FieldValue.serverTimestamp() });
     for (const { ref, row } of missing) {
       tx.create(ref, {
-        definitionId: choreId, ...row,
+        definitionId: choreId, ...row, workloadPoints,
         completed: false, completedByUid: null, completedAt: null, skippedAt: null,
         revision: 1, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),
       });
