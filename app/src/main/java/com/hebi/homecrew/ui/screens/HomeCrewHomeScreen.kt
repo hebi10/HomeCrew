@@ -56,19 +56,19 @@ fun HomeCrewHomeScreen(
     val todayChores = tasksForDay(chores, today)
     val summary = summaryFor(todayChores)
     val myChores = todayChores.filter { it.definition.owner == currentMember }
-        .sortedBy { it.completed }
+        .sortedBy { it.completed || it.skipped }
     val others = todayChores.filter { it.definition.owner != currentMember }
-        .sortedBy { it.completed }
+        .sortedBy { it.completed || it.skipped }
     val remaining = myChores.count { !it.completed && !it.skipped }
     val myStatus = when {
         myChores.isEmpty() -> "오늘 배정 없음"
-        remaining == 0 -> "모두 완료"
+        remaining == 0 -> if (myChores.any { it.skipped }) "남은 할 일 없음" else "모두 완료"
         else -> "${remaining}개 남음"
     }
     val otherRemaining = others.count { !it.completed && !it.skipped }
     val otherStatus = when {
         others.isEmpty() -> "오늘 배정 없음"
-        otherRemaining == 0 -> "모두 완료"
+        otherRemaining == 0 -> if (others.any { it.skipped }) "남은 할 일 없음" else "모두 완료"
         else -> "${otherRemaining}개 남음"
     }
 
@@ -78,7 +78,7 @@ fun HomeCrewHomeScreen(
             horizontal = HomeCrewDimensions.screenPadding,
             vertical = HomeCrewDimensions.space16
         ),
-        verticalArrangement = Arrangement.spacedBy(HomeCrewDimensions.space12)
+        verticalArrangement = Arrangement.spacedBy(HomeCrewDimensions.space8)
     ) {
         item {
             ScreenHeader(
@@ -102,9 +102,6 @@ fun HomeCrewHomeScreen(
             }
         }
         item {
-            HomeCrewProgressCard(summary.completed, summary.total)
-        }
-        item {
             Column(verticalArrangement = Arrangement.spacedBy(HomeCrewDimensions.space4)) {
                 Text(
                     "구성원",
@@ -126,6 +123,9 @@ fun HomeCrewHomeScreen(
             }
         }
         item {
+            HomeCrewProgressCard(summary.completed, summary.total)
+        }
+        item {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -133,7 +133,7 @@ fun HomeCrewHomeScreen(
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(HomeCrewDimensions.space4)) {
                     Text(
-                        if (currentMember == "나") "내가 할 일" else "${currentMember}의 할 일",
+                        if (currentMember == "나") "내 할 일" else "${currentMember}의 할 일",
                         style = MaterialTheme.typography.titleMedium
                     )
                     Text(
@@ -198,6 +198,32 @@ fun HomeCrewHomeScreen(
                         onToggle = { onToggle(task.id) },
                         onDetails = { onDetails(task) }
                     )
+                }
+            }
+        }
+        if (members.size > 1) {
+            item {
+                BorderedSection {
+                    Column(verticalArrangement = Arrangement.spacedBy(HomeCrewDimensions.space8)) {
+                        SectionHeading("전체 현황")
+                        members.forEach { member ->
+                            val assigned = todayChores.filter { it.definition.owner == member }
+                            val memberSummary = summaryFor(assigned)
+                            val memberRemaining = assigned.count { !it.completed && !it.skipped }
+                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(HomeCrewDimensions.space8)) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(member, style = MaterialTheme.typography.bodyLarge)
+                                    Text("남은 할 일 ${memberRemaining}개", style = MaterialTheme.typography.bodySmall,
+                                        color = palette.muted)
+                                }
+                                Text("완료 ${memberSummary.completed}/${memberSummary.total}",
+                                    color = if (memberSummary.total > 0 && memberSummary.completed == memberSummary.total)
+                                        palette.success else palette.ink,
+                                    style = MaterialTheme.typography.labelLarge)
+                            }
+                        }
+                    }
                 }
             }
         }

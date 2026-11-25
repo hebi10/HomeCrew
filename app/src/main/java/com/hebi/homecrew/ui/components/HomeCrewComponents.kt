@@ -22,10 +22,11 @@ import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.WarningAmber
 import androidx.compose.material.icons.outlined.ChevronRight
-import androidx.compose.material.icons.outlined.FormatListBulleted
+import androidx.compose.material.icons.outlined.Checklist
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Inbox
-import androidx.compose.material.icons.outlined.RadioButtonUnchecked
+import androidx.compose.material.icons.outlined.CheckBox
+import androidx.compose.material.icons.outlined.CheckBoxOutlineBlank
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilterChip
@@ -62,16 +63,17 @@ fun HomeCrewPrimaryButton(
     text: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    enabled: Boolean = true
+    enabled: Boolean = true,
+    completionAction: Boolean = false
 ) {
     val palette = LocalHomeCrewColors.current
     Button(
         onClick = onClick,
-        modifier = modifier.height(HomeCrewDimensions.buttonHeight),
+        modifier = modifier.heightIn(min = HomeCrewDimensions.buttonHeight),
         enabled = enabled,
         shape = RoundedCornerShape(4.dp),
         colors = ButtonDefaults.buttonColors(
-            containerColor = palette.ink,
+            containerColor = if (completionAction) palette.success else palette.ink,
             contentColor = palette.surface
         )
     ) {
@@ -88,7 +90,7 @@ fun HomeCrewSecondaryButton(
     val palette = LocalHomeCrewColors.current
     OutlinedButton(
         onClick = onClick,
-        modifier = modifier.height(HomeCrewDimensions.buttonHeight),
+        modifier = modifier.heightIn(min = HomeCrewDimensions.buttonHeight),
         shape = RoundedCornerShape(4.dp),
         border = BorderStroke(1.dp, palette.border)
     ) {
@@ -195,17 +197,19 @@ fun HomeCrewProgressCard(completed: Int, total: Int) {
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Text("오늘의 진행률", style = MaterialTheme.typography.labelLarge)
-        Row(verticalAlignment = Alignment.Bottom) {
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(HomeCrewDimensions.space12)) {
             Text(
                 text = "${completed.coerceIn(0, total.coerceAtLeast(0))} / ${total.coerceAtLeast(0)}",
-                style = MaterialTheme.typography.headlineSmall,
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold
             )
             Text(
-                text = "  ${homeProgressLabel(completed, total)}",
-                modifier = Modifier.padding(bottom = 3.dp),
-                style = MaterialTheme.typography.bodySmall,
-                color = palette.muted
+                text = if (total > 0) "$percent%" else "–",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.semantics { contentDescription = homeProgressLabel(completed, total) }
             )
         }
         Box(
@@ -222,7 +226,7 @@ fun HomeCrewProgressCard(completed: Int, total: Int) {
                     modifier = Modifier
                         .fillMaxWidth(percent / 100f)
                         .height(6.dp)
-                        .background(palette.ink)
+                        .background(palette.success)
                 )
             }
         }
@@ -243,8 +247,9 @@ fun HomeCrewTaskRow(
         modifier = modifier
             .fillMaxWidth()
             .heightIn(min = HomeCrewDimensions.taskRowMinHeight)
+            .background(palette.surface, RoundedCornerShape(4.dp))
             .clickable(onClick = onOpenDetails)
-            .padding(vertical = 6.dp),
+            .padding(end = 8.dp, top = 4.dp, bottom = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         IconButton(
@@ -252,15 +257,15 @@ fun HomeCrewTaskRow(
             modifier = Modifier.size(HomeCrewDimensions.touchTarget)
         ) {
             Icon(
-                imageVector = if (completed) Icons.Outlined.CheckCircle
-                    else Icons.Outlined.RadioButtonUnchecked,
+                imageVector = if (completed) Icons.Outlined.CheckBox
+                    else Icons.Outlined.CheckBoxOutlineBlank,
                 contentDescription = if (completed) "완료 취소" else "완료 처리",
                 tint = if (completed) palette.success else palette.muted
             )
         }
 
         Column(
-            modifier = Modifier.weight(1f).padding(start = 4.dp),
+            modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
             Text(
@@ -299,12 +304,12 @@ fun HomeCrewBottomBar(
     onTabSelected: (HomeTab) -> Unit
 ) {
     val palette = LocalHomeCrewColors.current
-    NavigationBar(containerColor = palette.surface) {
+    NavigationBar(containerColor = palette.surface, tonalElevation = 0.dp) {
         HomeTab.entries.forEach { tab ->
             val imageVector = when (tab) {
                 HomeTab.HOME -> Icons.Outlined.Home
                 HomeTab.SCHEDULE -> Icons.Outlined.CalendarMonth
-                HomeTab.CHORES -> Icons.Outlined.FormatListBulleted
+                HomeTab.CHORES -> Icons.Outlined.Checklist
                 HomeTab.STATS -> Icons.Outlined.BarChart
             }
             NavigationBarItem(
@@ -318,7 +323,7 @@ fun HomeCrewBottomBar(
                     selectedTextColor = palette.ink,
                     unselectedIconColor = palette.muted,
                     unselectedTextColor = palette.muted,
-                    indicatorColor = palette.subtle
+                    indicatorColor = palette.surface
                 )
             )
         }

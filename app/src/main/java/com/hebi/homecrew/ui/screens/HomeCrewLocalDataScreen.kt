@@ -105,8 +105,11 @@ fun HomeCrewLocalDataScreen(
         ),
         verticalArrangement = Arrangement.spacedBy(18.dp)
     ) {
-        item { TextButton(onClick = onBack) { Text("이전") } }
-        item { ScreenHeader("로컬 데이터 관리", "집안일 기록 백업·복원") }
+        item {
+            ScreenHeader("로컬 데이터 관리", "집안일 기록 백업·복원") {
+                TextButton(onClick = onBack) { Text("이전") }
+            }
+        }
         item {
             Text(
                 "백업 파일은 암호화되지 않습니다. 개인정보가 포함될 수 있으니 보관·공유에 주의해 주세요.",

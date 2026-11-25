@@ -69,7 +69,7 @@ fun HomeCrewStatsScreen(
             horizontal = HomeCrewDimensions.screenPadding,
             vertical = HomeCrewDimensions.space24
         ),
-        verticalArrangement = Arrangement.spacedBy(18.dp)
+        verticalArrangement = Arrangement.spacedBy(HomeCrewDimensions.space12)
     ) {
         item { ScreenHeader("통계", "집안일 완료 및 업무량") }
         item {
@@ -106,31 +106,22 @@ fun HomeCrewStatsScreen(
             )
         }
         item {
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                SummaryStatCard(
-                    label = "완료율",
-                    value = if (summary.total == 0) "–" else "${summary.percent}%",
-                    modifier = Modifier.weight(1f)
-                )
-                SummaryStatCard(
-                    label = "완료한 집안일",
-                    value = "${summary.completed}개",
-                    modifier = Modifier.weight(1f)
-                )
-            }
-        }
-        item {
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                SummaryStatCard(
-                    label = "배정 업무량",
-                    value = "${summary.assignedPoints}점",
-                    modifier = Modifier.weight(1f)
-                )
-                SummaryStatCard(
-                    label = "완료 업무량",
-                    value = "${summary.completedPoints}점",
-                    modifier = Modifier.weight(1f)
-                )
+            BorderedSection {
+                Column(verticalArrangement = Arrangement.spacedBy(HomeCrewDimensions.space12)) {
+                    Text("완료율", style = MaterialTheme.typography.labelLarge, color = palette.muted)
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Text(if (summary.total == 0) "–" else "${summary.percent}%",
+                            style = MaterialTheme.typography.headlineMedium, modifier = Modifier.weight(1f))
+                        Text("${summary.completed} / ${summary.total}회", style = MaterialTheme.typography.bodyMedium)
+                    }
+                    LinearProgressIndicator(progress = { summary.percent.coerceIn(0, 100) / 100f },
+                        modifier = Modifier.fillMaxWidth().height(7.dp), color = palette.success, trackColor = palette.border)
+                    Text("완료한 집안일 ${summary.completed}개", style = MaterialTheme.typography.bodyMedium)
+                    Row(horizontalArrangement = Arrangement.spacedBy(HomeCrewDimensions.space8)) {
+                        SummaryStatCard("배정 업무량", "${summary.assignedPoints}점", Modifier.weight(1f))
+                        SummaryStatCard("완료 업무량", "${summary.completedPoints}점", Modifier.weight(1f))
+                    }
+                }
             }
         }
         item {
@@ -174,6 +165,11 @@ fun HomeCrewStatsScreen(
                                 color = palette.ink,
                                 trackColor = palette.border
                             )
+                            val donePoints = periodChores.filter { it.definition.owner == name && it.completed }
+                                .sumOf { it.definition.points }
+                            Text("배정 기준 완료 ${donePoints}점", style = MaterialTheme.typography.bodySmall, color = palette.muted)
+                            LinearProgressIndicator(progress = { (donePoints.toFloat() / maxPoints).coerceIn(0f, 1f) },
+                                modifier = Modifier.fillMaxWidth().height(5.dp), color = palette.success, trackColor = palette.border)
                         }
                     }
                 }
@@ -286,7 +282,7 @@ private fun PeriodBarChart(
                             Modifier
                                 .fillMaxWidth(0.56f)
                                 .height(barHeight)
-                                .background(palette.ink, RoundedCornerShape(2.dp))
+                                .background(palette.success, RoundedCornerShape(2.dp))
                         )
                     }
                 }

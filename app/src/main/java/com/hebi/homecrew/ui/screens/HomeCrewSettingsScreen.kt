@@ -162,7 +162,7 @@ fun HomeCrewSettingsScreen(
                     else persist(household.copy(homeName = homeName.trim()))
                 },
                 enabled = !memberBusy,
-                modifier = Modifier.heightIn(min = 48.dp).testTag("homecrew-save-home")
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("homecrew-save-home")
             ) { Text("집 이름 저장") }
         }
         item {
@@ -170,8 +170,10 @@ fun HomeCrewSettingsScreen(
             Text("구성원 추가·기본 선택·이름 수정·미사용 구성원 삭제를 지원합니다.", color = palette.muted)
             household.members.forEach { member ->
                 Column(modifier = Modifier.fillMaxWidth()) {
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(member, modifier = Modifier.padding(vertical = 12.dp))
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                        Text(member, modifier = Modifier.weight(1f).padding(vertical = 12.dp),
+                            style = MaterialTheme.typography.bodyLarge)
                         TextButton(
                             onClick = { persist(household.copy(defaultMember = member)) },
                             enabled = !memberBusy && household.defaultMember != member,
@@ -213,7 +215,7 @@ fun HomeCrewSettingsScreen(
                     }
                 },
                 enabled = !memberBusy,
-                modifier = Modifier.heightIn(min = 48.dp)
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
                     .testTag("homecrew-member-add")
                     .semantics { contentDescription = "구성원 추가 버튼" }
             ) { Text("구성원 추가") }
@@ -225,6 +227,7 @@ fun HomeCrewSettingsScreen(
         }
         item {
             Text("화면 테마", style = MaterialTheme.typography.titleMedium)
+            Text("현재 ${themeMode.label}", style = MaterialTheme.typography.bodySmall, color = palette.muted)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 ThemeMode.entries.forEach { mode ->
                     HomeCrewFilterChip(
@@ -289,7 +292,7 @@ fun HomeCrewSettingsScreen(
                         reminderNotice = "알림 시간을 기기에 저장했습니다."
                     }
                 },
-                modifier = Modifier.heightIn(min = 48.dp)
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
             ) { Text("알림 시간 저장") }
             if (reminderNotice != null) {
                 Text(reminderNotice.orEmpty(), style = MaterialTheme.typography.bodySmall, color = palette.muted)

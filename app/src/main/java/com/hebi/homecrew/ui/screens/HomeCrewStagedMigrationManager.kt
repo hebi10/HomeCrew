@@ -125,11 +125,11 @@ internal fun HomeCrewStagedMigrationManager(
         }
     }
 
-    AlertDialog(
+    HomeCrewManagementPage(
         onDismissRequest = { if (!busy) onClose() },
         title = { Text("대용량 이전 관리") },
         text = {
-            Column(Modifier.fillMaxWidth().heightIn(max = 520.dp).verticalScroll(rememberScrollState()),
+            Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(HomeCrewDimensions.space8)) {
                 Text(householdName, style = MaterialTheme.typography.titleMedium)
                 Text("공동 집안일 조회와 독립된 소유자 전용 서버 이전 관리입니다. 모든 변경은 직접 확인한 경우에만 실행합니다.",
@@ -149,8 +149,15 @@ internal fun HomeCrewStagedMigrationManager(
                         else -> "검증 실패"
                     }
                     Text(label)
-                    Text("저장 ${current.nextIndex}/${current.chunkCount} 청크 · 집안일 ${current.receivedDefinitions}/${current.definitionCount}개 · 회차 ${current.receivedOccurrences}/${current.occurrenceCount}개")
-                    Text("반영 ${current.publishIndex}/${current.chunkCount} 청크")
+                    BorderedSection {
+                        Column(verticalArrangement = Arrangement.spacedBy(HomeCrewDimensions.space12)) {
+                            HomeCrewDesignProgress("분할 저장", current.nextIndex, current.chunkCount)
+                            HomeCrewDesignProgress("최종 반영", current.publishIndex, current.chunkCount,
+                                completed = current.state in setOf("PUBLISHED", "CLEANING"))
+                            Text("집안일 ${current.receivedDefinitions}/${current.definitionCount}개 · 회차 ${current.receivedOccurrences}/${current.occurrenceCount}개",
+                                style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
                     val actions = when (current.state) {
                         "UPLOADING" -> if (current.nextIndex == current.chunkCount) listOf(MigrationStageAction.SEAL, MigrationStageAction.CANCEL)
                             else listOf(MigrationStageAction.CANCEL)

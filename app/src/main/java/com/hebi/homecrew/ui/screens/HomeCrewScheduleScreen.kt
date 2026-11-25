@@ -3,6 +3,9 @@ package com.hebi.homecrew.ui.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -34,10 +37,15 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.ExperimentalComposeUiApi
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.hebi.homecrew.ui.components.HomeCrewFilterChip
@@ -90,6 +98,7 @@ internal fun movedScheduleDate(
 internal fun canCreateScheduleChore(date: LocalDate, today: LocalDate): Boolean =
     !date.isBefore(today) && !date.isAfter(today.plusDays(SCHEDULE_DAYS_AHEAD))
 
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun HomeCrewScheduleScreen(
     today: LocalDate,
@@ -120,18 +129,24 @@ fun HomeCrewScheduleScreen(
     }
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxSize().semantics { testTagsAsResourceId = true },
         contentPadding = PaddingValues(
             horizontal = HomeCrewDimensions.screenPadding,
             vertical = HomeCrewDimensions.space16
         ),
-        verticalArrangement = Arrangement.spacedBy(HomeCrewDimensions.space12)
+        verticalArrangement = Arrangement.spacedBy(HomeCrewDimensions.space8)
     ) {
-        item { ScreenHeader(title = "일정", subtitle = "날짜별 집안일 관리") }
+        item {
+            ScreenHeader(title = "일정") {
+                TextButton(onClick = { selectedEpoch = today.toEpochDay() },
+                    modifier = Modifier.heightIn(min = HomeCrewDimensions.touchTarget)) { Text("오늘") }
+            }
+        }
         item {
             Row(
                 modifier = Modifier.fillMaxWidth()
                     .border(1.dp, palette.border, RoundedCornerShape(4.dp))
+                    .selectableGroup()
                     .padding(2.dp),
                 horizontalArrangement = Arrangement.spacedBy(2.dp)
             ) {
@@ -144,10 +159,9 @@ fun HomeCrewScheduleScreen(
                                 if (active) palette.ink else palette.surface,
                                 RoundedCornerShape(2.dp)
                             )
-                            .clickable { mode = option }
+                            .selectable(selected = active, onClick = { mode = option }, role = Role.Tab)
                             .semantics {
                                 contentDescription = "${option.title} 보기"
-                                this.selected = active
                             },
                         contentAlignment = Alignment.Center
                     ) {
@@ -173,7 +187,11 @@ fun HomeCrewScheduleScreen(
                 ) {
                     Icon(Icons.Outlined.ChevronLeft, contentDescription = "이전 기간")
                 }
-                Text(dateRange, style = MaterialTheme.typography.titleMedium)
+                Text(
+                    dateRange,
+                    modifier = Modifier.testTag("homecrew_schedule_period"),
+                    style = MaterialTheme.typography.titleMedium
+                )
                 IconButton(
                     onClick = {
                         selectedEpoch = movedScheduleDate(selected, mode, 1).toEpochDay()
@@ -214,10 +232,11 @@ fun HomeCrewScheduleScreen(
                 )
             }
             CalendarMode.WEEK -> item {
-                CalendarWeekStrip(
+                CalendarWeekList(
                     selected = selected,
                     today = today,
                     summaries = summaries,
+                    chores = visibleChores,
                     onSelect = { selectedEpoch = it.toEpochDay() }
                 )
             }
@@ -253,10 +272,7 @@ fun HomeCrewScheduleScreen(
                     color = palette.muted,
                     style = MaterialTheme.typography.bodySmall
                 )
-                TextButton(
-                    onClick = { selectedEpoch = today.toEpochDay() },
-                    modifier = Modifier.heightIn(min = HomeCrewDimensions.touchTarget)
-                ) { Text("오늘") }
+                if (selected == today) Text("오늘 일정", color = palette.muted, style = MaterialTheme.typography.bodySmall)
             }
         }
         if (!canAdd) {
@@ -291,56 +307,50 @@ fun HomeCrewScheduleScreen(
 }
 
 @Composable
-private fun CalendarWeekStrip(
+private fun CalendarWeekList(
     selected: LocalDate,
     today: LocalDate,
     summaries: Map<LocalDate, ScheduleDaySummary>,
+    chores: List<DemoChore>,
     onSelect: (LocalDate) -> Unit
 ) {
     val palette = LocalHomeCrewColors.current
     val start = weekStart(selected)
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(4.dp)
-    ) {
+    Column(verticalArrangement = Arrangement.spacedBy(HomeCrewDimensions.space4)) {
         repeat(7) { index ->
             val day = start.plusDays(index.toLong())
             val highlighted = selected == day
             val summary = summaries[day] ?: ScheduleDaySummary(0, 0)
-            val foreground = if (highlighted) palette.surface else palette.ink
-            Column(
-                modifier = Modifier.weight(1f)
-                    .heightIn(min = 74.dp)
-                    .background(
-                        if (highlighted) palette.ink else palette.subtle,
-                        RoundedCornerShape(4.dp)
-                    )
+            val tasks = tasksForDay(chores, day)
+            val preview = tasks.take(2).joinToString(" · ") { it.definition.name }
+            val title = if (tasks.isEmpty()) "예정 없음" else preview +
+                if (tasks.size > 2) " 외 ${tasks.size - 2}개" else ""
+            Row(
+                modifier = Modifier.fillMaxWidth()
+                    .heightIn(min = HomeCrewDimensions.touchTarget)
+                    .background(if (highlighted || day == today) palette.subtle else palette.surface, RoundedCornerShape(4.dp))
+                    .border(1.dp, if (highlighted) palette.ink else palette.border, RoundedCornerShape(4.dp))
                     .clickable { onSelect(day) }
                     .semantics {
-                        contentDescription =
-                            "${koreanDateLabel(day)}, 집안일 ${summary.total}개, 완료 ${summary.completed}개${if (day == today) ", 오늘" else ""}"
+                        contentDescription = "${koreanDateLabel(day)}, 집안일 ${summary.total}개, 완료 ${summary.completed}개${if (day == today) ", 오늘" else ""}"
                         this.selected = highlighted
                     }
-                    .padding(vertical = 8.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+                    .padding(horizontal = HomeCrewDimensions.space12, vertical = HomeCrewDimensions.space8),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(HomeCrewDimensions.space12)
             ) {
-                Text(
-                    weekdayLabel(day),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = foreground
-                )
-                Text(
-                    "${day.dayOfMonth}",
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = if (day == today) FontWeight.Bold else FontWeight.Medium,
-                    color = foreground
-                )
-                Text(
-                    summary.statusLabel,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = if (highlighted) foreground else palette.muted
-                )
+                Column(Modifier.widthIn(min = 48.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("${day.dayOfMonth}", style = MaterialTheme.typography.titleMedium,
+                        fontWeight = if (highlighted || day == today) FontWeight.Bold else FontWeight.Medium)
+                    Text(weekdayLabel(day), style = MaterialTheme.typography.bodySmall, color = palette.muted)
+                }
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(title, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                        color = if (tasks.isEmpty()) palette.muted else palette.ink)
+                    Text("집안일 ${summary.total}개 · 완료 ${summary.completed}개",
+                        style = MaterialTheme.typography.bodySmall, color = palette.muted)
+                }
+                Icon(Icons.Outlined.ChevronRight, contentDescription = null, tint = palette.muted)
             }
         }
     }
@@ -389,7 +399,7 @@ private fun CalendarMonthGrid(
                             modifier = Modifier.weight(1f)
                                 .heightIn(min = 56.dp)
                                 .background(
-                                    if (highlighted) palette.ink else palette.subtle,
+                                    if (highlighted) palette.ink else if (day == today) palette.subtle else palette.surface,
                                     RoundedCornerShape(3.dp)
                                 )
                                 .clickable { onSelect(day) }

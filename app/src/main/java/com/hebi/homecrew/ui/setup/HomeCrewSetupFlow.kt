@@ -20,6 +20,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Home
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -177,8 +182,11 @@ fun HomeCrewSetupFlow(
             }
             when (step) {
                 0 -> {
+                    Icon(Icons.Outlined.Home, contentDescription = null, tint = palette.ink,
+                        modifier = Modifier.size(52.dp))
+                    Text("HomeCrew", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
                     SetupTitle(
-                        title = "집안일을 함께, 더 간단하게",
+                        title = "함께 관리하는 우리 집",
                         subtitle = "한 기기에서 우리 집의 할 일과 분담 현황을 확인합니다."
                     )
                     listOf(
@@ -223,7 +231,7 @@ fun HomeCrewSetupFlow(
                 2 -> {
                     SetupTitle(
                         title = "함께할 사람 등록",
-                        subtitle = "한 명부터 시작할 수 있습니다. 다른 기기를 초대하는 기능은 아직 없습니다."
+                        subtitle = "한 명부터 시작할 수 있습니다. 이 단계에서는 기기 내 구성원을 등록합니다."
                     )
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         HomeCrewTextField(
@@ -343,7 +351,9 @@ fun HomeCrewSetupFlow(
                                         .padding(horizontal = 8.dp, vertical = 10.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Checkbox(checked = checked, onCheckedChange = null)
+                                    Checkbox(checked = checked, onCheckedChange = null,
+                                        colors = CheckboxDefaults.colors(checkedColor = palette.ink,
+                                            checkmarkColor = palette.surface))
                                     Column(
                                         modifier = Modifier.weight(1f),
                                         verticalArrangement = Arrangement.spacedBy(4.dp)
