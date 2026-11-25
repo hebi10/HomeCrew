@@ -99,7 +99,16 @@ internal interface RemoteHouseholdChoreGateway : RemoteHouseholdReadGateway {
     ): RemoteCompletionResult
 }
 
-internal data class RemoteHouseholdMember(val uid: String, val isOwner: Boolean)
+internal data class RemoteHouseholdMember(
+    val uid: String,
+    val isOwner: Boolean,
+    val displayName: String? = null
+)
+
+internal fun sharedMemberLabel(member: RemoteHouseholdMember, index: Int, accountUid: String): String {
+    val name = member.displayName ?: if (member.isOwner) "소유자" else "구성원 $index"
+    return name + (if (member.uid == accountUid) " (나)" else "")
+}
 
 internal data class RemoteSchedule(
     val startEpochDay: Long,

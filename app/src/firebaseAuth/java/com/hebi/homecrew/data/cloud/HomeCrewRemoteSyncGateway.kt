@@ -45,7 +45,8 @@ internal class HomeCrewRemoteSyncGateway(
         val choreFlow = observeCollection(householdId, "chores", expectedUid)
         val occurrenceFlow = observeCollection(householdId, "occurrences", expectedUid)
         val memberFlow = observeCollection(householdId, "members", expectedUid)
-        emitAll(combine(homeFlow, choreFlow, occurrenceFlow, memberFlow) { home, chores, occurrences, members ->
+        val profileFlow = observeCollection(householdId, "memberProfiles", expectedUid)
+        emitAll(combine(homeFlow, choreFlow, occurrenceFlow, memberFlow, profileFlow) { home, chores, occurrences, members, profiles ->
             check(auth.currentUser?.uid == expectedUid) {
                 "Firebase account changed while observing shared data"
             }
@@ -55,8 +56,9 @@ internal class HomeCrewRemoteSyncGateway(
                 mayBeStale = home.metadata.isFromCache || chores.metadata.isFromCache ||
                     occurrences.metadata.isFromCache || home.metadata.hasPendingWrites() ||
                     chores.metadata.hasPendingWrites() || occurrences.metadata.hasPendingWrites() ||
-                    members.metadata.isFromCache || members.metadata.hasPendingWrites(),
-                members = decodeMembers(home, members)
+                    members.metadata.isFromCache || members.metadata.hasPendingWrites() ||
+                    profiles.metadata.isFromCache || profiles.metadata.hasPendingWrites(),
+                members = decodeMembers(home, members, profiles)
             )
         })
     }
@@ -446,12 +448,16 @@ internal class HomeCrewRemoteSyncGateway(
         return uid
     }
 
-    private fun decodeMembers(home: DocumentSnapshot, snapshot: QuerySnapshot): List<RemoteHouseholdMember> {
+    private fun decodeMembers(home: DocumentSnapshot, snapshot: QuerySnapshot, profiles: QuerySnapshot): List<RemoteHouseholdMember> {
         val ownerUid = requireNotNull(home.getString("ownerUid"))
-        return listOf(RemoteHouseholdMember(ownerUid, true)) +
+        val names = profiles.documents.associate { doc ->
+            check(doc.getString("uid") == doc.id)
+            doc.id to requireNotNull(doc.getString("displayName")).also { check(normalizeSharedMemberName(it) == it) }
+        }
+        return listOf(RemoteHouseholdMember(ownerUid, true, names[ownerUid])) +
             snapshot.documents.filter { it.id != ownerUid }.map {
                 check(it.getString("uid") == it.id && it.getString("role") == "member")
-                RemoteHouseholdMember(it.id, false)
+                RemoteHouseholdMember(it.id, false, names[it.id])
             }.sortedBy { it.uid }
     }
 

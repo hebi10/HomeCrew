@@ -26,7 +26,8 @@ internal data class SharedChoreRow(
     val category: String,
     val points: Int,
     val assignedToMe: Boolean,
-    val status: SharedChoreStatus
+    val status: SharedChoreStatus,
+    val assigneeLabel: String? = null
 )
 
 internal data class SharedChoreDay(
@@ -71,6 +72,9 @@ internal fun sharedChoreDay(
             category = definition.category,
             points = occurrence.workloadPoints ?: definition.points,
             assignedToMe = occurrence.assignedUid == currentUid,
+            assigneeLabel = snapshot.members.firstOrNull { it.uid == occurrence.assignedUid }?.displayName
+                ?: if (snapshot.members.isNotEmpty() && snapshot.members.none { it.uid == occurrence.assignedUid })
+                    "탈퇴한 구성원" else null,
             status = when {
                 occurrence.scheduleCancelled -> SharedChoreStatus.SCHEDULE_CANCELLED
                 occurrence.skipped -> SharedChoreStatus.SKIPPED

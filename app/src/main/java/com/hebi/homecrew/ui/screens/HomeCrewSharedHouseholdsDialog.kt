@@ -56,6 +56,7 @@ internal fun HomeCrewSharedHouseholdsDialog(
     var invitation by remember { mutableStateOf<HomeCrewCloudInvite?>(null) }
     var selectedHome by remember(gateway, accountUid) { mutableStateOf<SharedHouseholdSummary?>(null) }
     var selectedMigrationHome by remember(gateway, accountUid) { mutableStateOf<SharedHouseholdSummary?>(null) }
+    var selectedMemberHome by remember(gateway, accountUid) { mutableStateOf<SharedHouseholdSummary?>(null) }
     val choreGateway = remember(gateway, accountUid) { gateway.choreGateway() }
 
     suspend fun refresh() {
@@ -84,6 +85,16 @@ internal fun HomeCrewSharedHouseholdsDialog(
     }
 
     LaunchedEffect(gateway) { runAction { refresh() } }
+
+    val memberHome = selectedMemberHome
+    if (memberHome != null) {
+        HomeCrewSharedMemberManager(
+            gateway = gateway, householdId = memberHome.id, householdName = memberHome.name,
+            accountUid = accountUid,
+            onClose = { selectedMemberHome = null; runAction { refresh() } }
+        )
+        return
+    }
 
     val migrationHome = selectedMigrationHome
     if (migrationHome != null) {
@@ -156,6 +167,11 @@ internal fun HomeCrewSharedHouseholdsDialog(
                             },
                             modifier = Modifier.heightIn(min = HomeCrewDimensions.touchTarget)
                         ) { Text("공동 집안일 보기") }
+                        TextButton(
+                            enabled = loaded && !busy,
+                            onClick = { invitation = null; selectedMemberHome = home },
+                            modifier = Modifier.heightIn(min = HomeCrewDimensions.touchTarget)
+                        ) { Text("구성원 관리") }
                         if (home.isOwner) {
                             TextButton(
                                 enabled = loaded && !busy,
