@@ -203,4 +203,5 @@ export const removeHouseholdMember = onCall(options, async (request) => {
 export {
   createRemoteChore, updateRemoteChore, ensureRemoteOccurrence, recordChoreCompletion,
   configureRemoteSchedule, generateRemoteSchedule,
+  previewRemoteFutureSchedule, applyRemoteFutureSchedule,
 } from "./sync.js";

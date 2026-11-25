@@ -35,7 +35,7 @@ internal fun newSharedCompletionCommand(
     if (!canStartSharedCompletion(preview, completion)) return null
     val snapshot = (preview as SharedChorePreviewState.Ready).snapshot
     val row = snapshot.occurrences.singleOrNull { it.id == occurrenceId } ?: return null
-    if (row.skipped || row.revision !in 1 until Long.MAX_VALUE ||
+    if (row.skipped || row.scheduleCancelled || row.revision !in 1 until Long.MAX_VALUE ||
         snapshot.chores.none { it.id == row.definitionId }) return null
     return RemoteCompletionCommand(row.id, !row.completed, row.revision, requestId)
 }
@@ -73,7 +73,7 @@ internal fun reconcileSharedCompletion(
     } ?: return completion
     if (occurrence.revision < completion.revision) return completion
     val notice = if (occurrence.revision == completion.revision &&
-        occurrence.completed == completion.command.completed && !occurrence.skipped
+        occurrence.completed == completion.command.completed && !occurrence.skipped && !occurrence.scheduleCancelled
     ) SharedCompletionNotice.CONFIRMED else SharedCompletionNotice.SUPERSEDED
     return SharedCompletionState.Notice(notice)
 }

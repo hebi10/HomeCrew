@@ -21,6 +21,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import com.hebi.homecrew.data.cloud.RemoteFutureSchedulePreview
 import com.hebi.homecrew.data.cloud.RemoteHouseholdChoreGateway
 import com.hebi.homecrew.data.cloud.RemoteSchedule
 import com.hebi.homecrew.data.cloud.RemoteSnapshot
@@ -164,6 +165,7 @@ internal fun HomeCrewSharedSchedulePanel(
                 var assignment by rememberSaveable { mutableStateOf(initial.assignmentMode) }
                 var participants by remember { mutableStateOf(initial.memberUids) }
                 val canEdit = enabled && !busy && !creationStarted
+                var futurePreview by remember { mutableStateOf<RemoteFutureSchedulePreview?>(null) }
                 Text(selected.name + " 반복 규칙", style = MaterialTheme.typography.titleMedium)
                 OutlinedTextField(
                     value = start, onValueChange = { if (it.length <= 10) start = it },
@@ -250,7 +252,50 @@ internal fun HomeCrewSharedSchedulePanel(
                         }
                     }
                 ) { Text("저장된 규칙으로 63일 일정 생성") }
-                Text("기존 회차와 완료 기록은 수정하지 않습니다. 균형 배정은 같은 달력 주의 예정 업무량을 비교합니다.",
+                if (snapshot.members.any { it.uid == accountUid && it.isOwner }) {
+                    Text("기존 미래 회차 조정", style = MaterialTheme.typography.titleMedium)
+                    Text("오늘과 과거, 완료·건너뛰기·기존 변경 이력은 보호합니다. 미리보기 후에만 미래 회차를 조정합니다.",
+                        style = MaterialTheme.typography.bodySmall, color = palette.muted)
+                    TextButton(
+                        enabled = canEdit && selected.schedule != null && candidate == selected.schedule,
+                        onClick = {
+                            futurePreview = null
+                            execute {
+                                futurePreview = gateway.previewFutureSchedule(householdId, selected.id, selected.revision)
+                                "미래 회차 변경 내용을 확인해 주세요."
+                            }
+                        }
+                    ) { Text("미래 회차 변경 미리보기") }
+                    futurePreview?.let { preview ->
+                        Text("취소 ${preview.cancelled}개 · 담당 변경 ${preview.reassigned}개 · 복구 ${preview.restored}개")
+                        Text("기록 보호 ${preview.protectedCount}개 · 균형 재배정 보류 ${preview.balancedDeferred}개",
+                            style = MaterialTheme.typography.bodySmall, color = palette.muted)
+                        preview.changes.forEach { change ->
+                            val label = when (change.type) {
+                                "CANCEL" -> "일정 취소"
+                                "REASSIGN" -> "담당 변경"
+                                else -> "일정 복구"
+                            }
+                            Text(LocalDate.ofEpochDay(change.date).toString() + " · " + label,
+                                style = MaterialTheme.typography.bodySmall)
+                        }
+                        Button(
+                            enabled = canEdit && candidate == selected.schedule && preview.changes.isNotEmpty(),
+                            onClick = {
+                                execute {
+                                    val applied = gateway.applyFutureSchedule(
+                                        householdId, selected.id, selected.revision, preview.digest
+                                    )
+                                    futurePreview = null
+                                    "서버 응답: 취소 ${applied.cancelled}개 · 담당 변경 ${applied.reassigned}개 · 복구 ${applied.restored}개"
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text("확인한 미래 회차 변경 반영") }
+                        TextButton(enabled = !busy, onClick = { futurePreview = null }) { Text("미리보기 닫기") }
+                    }
+                }
+                Text("일정 생성 자체는 기존 회차를 수정하지 않습니다. 균형 배정은 같은 달력 주의 예정 업무량을 비교합니다.",
                     style = MaterialTheme.typography.bodySmall, color = palette.muted)
             }
         }

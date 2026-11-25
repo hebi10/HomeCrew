@@ -11,6 +11,8 @@ import {
   workloadWeekBounds, allocateBalancedOccurrences,
 } from './recurrence-core.js';
 
+import { planFutureSchedule, futureScheduleDigest } from './future-schedule-core.js';
+
 const options = { region: 'asia-northeast3', timeoutSeconds: 30, maxInstances: 10 };
 
 function requireSignedIn(request) {
@@ -52,7 +54,7 @@ async function balancedRows(tx, home, schedule, dates, points, ownerUid) {
     throw new HttpsError('resource-exhausted', 'Too many existing occurrences for balanced generation.');
   }
   const rows = ledger.docs.map(doc => doc.data())
-    .filter(row => schedule.memberUids.includes(row.assignedUid));
+    .filter(row => row.scheduleCancelledAt == null && schedule.memberUids.includes(row.assignedUid));
   const missingDefinitions = [...new Set(rows
     .filter(row => row.workloadPoints == null).map(row => row.definitionId))];
   if (missingDefinitions.length > 200) {
@@ -229,8 +231,8 @@ export const recordChoreCompletion = onCall(options, async (request) => {
       return { occurrenceId, revision: previous.data().revision, replayed: true };
     }
     if (!old.exists) throw new HttpsError('not-found', 'Occurrence not found.');
-    if (old.data().skippedAt != null) {
-      throw new HttpsError('failed-precondition', 'Skipped chores cannot be completed.');
+    if (old.data().skippedAt != null || old.data().scheduleCancelledAt != null) {
+      throw new HttpsError('failed-precondition', 'Skipped or cancelled chores cannot be completed.');
     }
     let revision;
     try { revision = nextRevision(old.data().revision, expected); }
@@ -348,3 +350,99 @@ export const generateRemoteSchedule = onCall(options, async (request) => {
     return { created: missing.length, existing: planned.length - missing.length };
   });
 });
+
+
+// Owner-confirmed reconciliation is separate from configuring a rule or filling
+// missing dates. It never deletes a document or alters a completed history.
+async function futureReconciliation(request, apply) {
+  const uid = requireSignedIn(request);
+  const home = homeRef(request.data?.householdId);
+  let choreId;
+  try { choreId = requireDocumentId(request.data?.choreId); }
+  catch { throw new HttpsError('invalid-argument', 'Invalid chore identifier.'); }
+  const expectedRevision = request.data?.expectedRevision;
+  const expectedDigest = request.data?.previewDigest;
+  if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 1 ||
+      (apply && (typeof expectedDigest !== 'string' || !/^[a-f0-9]{64}$/.test(expectedDigest)))) {
+    throw new HttpsError('invalid-argument', 'Invalid preview.');
+  }
+  const task = home.collection('chores').doc(choreId);
+  const receipt = apply ? home.collection('operations').doc('future-' + expectedDigest) : null;
+  return getFirestore().runTransaction(async tx => {
+    const [house, definition] = await Promise.all([tx.get(home), tx.get(task)]);
+    if (!house.exists || house.data().ownerUid !== uid) {
+      throw new HttpsError('permission-denied', 'Household owner required.');
+    }
+    if (receipt) {
+      const previous = await tx.get(receipt);
+      if (previous.exists) {
+        const stored = previous.data();
+        if (stored.type !== 'future-reconciliation' || stored.actorUid !== uid ||
+            stored.choreId !== choreId || stored.expectedRevision !== expectedRevision) {
+          throw new HttpsError('already-exists', 'Preview identity mismatch.');
+        }
+        return { ...stored.result, replayed: true };
+      }
+    }
+    if (!definition.exists) throw new HttpsError('not-found', 'Chore not found.');
+    if (definition.data().revision !== expectedRevision) {
+      throw new HttpsError('aborted', 'Schedule changed. Preview again.');
+    }
+    let schedule;
+    try { schedule = normalizeRemoteSchedule(definition.data().schedule); }
+    catch { throw new HttpsError('failed-precondition', 'Save a valid schedule first.'); }
+    await Promise.all(schedule.memberUids.map(member => checkAssignee(tx, home, member, uid)));
+    const today = Math.floor((Date.now() + 9 * 3600000) / 86400000);
+    const dates = Array.from({ length: 62 }, (_, i) => today + i + 1);
+    const refs = dates.map(date => home.collection('occurrences').doc(remoteOccurrenceId(choreId, date)));
+    const snapshots = await tx.getAll(...refs);
+    const rows = [];
+    for (let i = 0; i < snapshots.length; i++) {
+      const snapshot = snapshots[i];
+      if (!snapshot.exists) continue;
+      const row = snapshot.data();
+      if (row.definitionId !== choreId || row.scheduledEpochDay !== dates[i] ||
+          !Number.isSafeInteger(row.revision) || row.revision < 1) {
+        throw new HttpsError('failed-precondition', 'Invalid existing occurrence.');
+      }
+      rows.push({ ...row, id: snapshot.id });
+    }
+    const plan = planFutureSchedule(schedule, rows, today);
+    const previewDigest = futureScheduleDigest({ uid, householdId: home.id, choreId, expectedRevision, today, schedule }, plan);
+    const result = {
+      previewDigest, cancelled: plan.cancelled, reassigned: plan.reassigned,
+      restored: plan.restored, protectedCount: plan.protectedCount,
+      balancedDeferred: plan.balancedDeferred,
+      changes: plan.changes.map(({ date, type }) => ({ date, type })),
+    };
+    if (!apply) return result;
+    if (previewDigest !== expectedDigest) {
+      throw new HttpsError('aborted', 'Future occurrences changed. Preview again.');
+    }
+    if (!plan.changes.length) return { ...result, replayed: false };
+    tx.update(home, { updatedAt: FieldValue.serverTimestamp() });
+    for (const change of plan.changes) {
+      const revision = nextRevision(change.revision, change.revision);
+      const updated = {
+        revision, scheduleAdjustmentRevision: revision,
+        scheduleAdjustedAt: FieldValue.serverTimestamp(), scheduleAdjustedByUid: uid,
+        updatedAt: FieldValue.serverTimestamp(),
+      };
+      if (change.type === 'CANCEL') {
+        updated.scheduleCancelledAt = FieldValue.serverTimestamp();
+      } else {
+        updated.assignedUid = change.assignedUid;
+        if (change.type === 'RESTORE') updated.scheduleCancelledAt = null;
+      }
+      tx.update(home.collection('occurrences').doc(change.id), updated);
+    }
+    tx.create(receipt, {
+      type: 'future-reconciliation', actorUid: uid, choreId, expectedRevision,
+      result, createdAt: FieldValue.serverTimestamp(),
+    });
+    return { ...result, replayed: false };
+  });
+}
+
+export const previewRemoteFutureSchedule = onCall(options, request => futureReconciliation(request, false));
+export const applyRemoteFutureSchedule = onCall(options, request => futureReconciliation(request, true));

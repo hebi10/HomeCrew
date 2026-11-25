@@ -22,7 +22,8 @@ internal data class RemoteOccurrence(
     val completedByUid: String?,
     val revision: Long,
     val skipped: Boolean = false,
-    val workloadPoints: Int? = null
+    val workloadPoints: Int? = null,
+    val scheduleCancelled: Boolean = false
 )
 
 internal data class RemoteSnapshot(
@@ -71,6 +72,14 @@ internal interface RemoteHouseholdChoreGateway : RemoteHouseholdReadGateway {
         fromEpochDay: Long, toEpochDay: Long
     ): RemoteGenerationResult
 
+    suspend fun previewFutureSchedule(
+        householdId: String, choreId: String, expectedRevision: Long
+    ): RemoteFutureSchedulePreview
+
+    suspend fun applyFutureSchedule(
+        householdId: String, choreId: String, expectedRevision: Long, previewDigest: String
+    ): RemoteFutureSchedulePreview
+
     suspend fun recordCompletion(
         householdId: String,
         command: RemoteCompletionCommand
@@ -107,3 +116,22 @@ internal data class RemoteSchedule(
 }
 
 internal data class RemoteGenerationResult(val created: Int, val existing: Int)
+
+internal data class RemoteFutureScheduleChange(val date: Long, val type: String)
+
+internal data class RemoteFutureSchedulePreview(
+    val digest: String,
+    val cancelled: Int,
+    val reassigned: Int,
+    val restored: Int,
+    val protectedCount: Int,
+    val balancedDeferred: Int,
+    val changes: List<RemoteFutureScheduleChange>
+) {
+    init {
+        require(digest.matches(Regex("[a-f0-9]{64}")))
+        require(listOf(cancelled, reassigned, restored, protectedCount, balancedDeferred).all { it in 0..62 })
+        require(changes.size == cancelled + reassigned + restored && changes.size <= 62)
+        require(changes.all { it.type in setOf("CANCEL", "REASSIGN", "RESTORE") })
+    }
+}
