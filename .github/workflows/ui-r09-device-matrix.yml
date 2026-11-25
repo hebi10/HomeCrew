@@ -93,6 +93,9 @@ jobs:
           sudo udevadm trigger --name-match=kvm
       - name: Test and capture ${{ matrix.label }}
         uses: reactivecircus/android-emulator-runner@v2
+        env:
+          HC_UI_QA_DEVICE: ${{ matrix.label }}
+          HC_UI_QA_FONT_SCALE: ${{ matrix.font_scale }}
         with:
           api-level: ${{ matrix.api }}
           arch: x86_64
@@ -109,7 +112,7 @@ jobs:
         with:
           name: ui-r09-${{ matrix.label }}
           path: |
-            qa-screenshots/*.png
+            qa-screenshots/
             app/build/reports/androidTests/connected/
             app/build/outputs/androidTest-results/connected/
           if-no-files-found: warn
