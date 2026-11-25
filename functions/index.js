@@ -205,3 +205,5 @@ export {
   configureRemoteSchedule, generateRemoteSchedule,
   previewRemoteFutureSchedule, applyRemoteFutureSchedule,
 } from "./sync.js";
+
+export { importLocalHouseholdManifest } from './migration.js';

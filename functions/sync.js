@@ -104,6 +104,8 @@ export const createRemoteChore = onCall(options, async (request) => {
       throw new HttpsError('already-exists', 'Chore already exists. Resolve before importing.');
     }
     await checkAssignee(tx, home, chore.assigneeUid, homeSnap.data().ownerUid);
+    // Serialize empty-target migration against normal chore creation.
+    tx.update(home, { updatedAt: FieldValue.serverTimestamp() });
     tx.create(task, {
       ...chore, creatorUid: uid, revision: 1, createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
