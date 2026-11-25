@@ -65,6 +65,7 @@ jobs:
           if (prefix + "HomeCrewActivityRestartTest.kt" in paths or
               "app/src/main/java/com/hebi/homecrew/ui/screens/HomeCrewSettingsScreen.kt" in paths):
               cases.append({"label": "member-persistence", "font": "1.0", "test": "com.hebi.homecrew.qa.HomeCrewActivityRestartTest#householdSettingsPersistAfterActivityRestart"})
+              cases.append({"label": "task-restart-persistence", "font": "1.0", "test": "com.hebi.homecrew.qa.HomeCrewActivityRestartTest#taskAndCompletionRemainAfterNewActivityAndViewModel"})
           if prefix + "MainScreensScreenshotTest.kt" in paths:
               cases.append({"label": "account-large-font", "font": "1.6", "test": "com.hebi.homecrew.qa.MainScreensScreenshotTest#captureMainTabsAndBasicInteractions"})
               cases.append({"label": "design-main-tabs", "font": "1.0", "test": "com.hebi.homecrew.qa.MainScreensScreenshotTest#captureMainTabsAndBasicInteractions"})
