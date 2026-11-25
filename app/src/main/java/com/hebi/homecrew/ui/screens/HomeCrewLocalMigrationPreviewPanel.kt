@@ -33,6 +33,7 @@ import com.hebi.homecrew.data.local.HomeCrewLocalBackup
 import com.hebi.homecrew.ui.theme.HomeCrewDimensions
 import com.hebi.homecrew.ui.theme.LocalHomeCrewColors
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -136,6 +137,9 @@ internal fun HomeCrewLocalMigrationPreviewPanel(
                 pending = journal.confirm(receipt)
                 message = "서버 이전 영수증과 보존한 자료가 일치합니다. 로컬 원본은 유지했습니다."
                 plan = null
+            } catch (_: TimeoutCancellationException) {
+                message = "서버 응답 시간이 초과되었습니다. 원본과 보관된 요청을 유지했습니다. 이전 결과를 확인해 주세요."
+                journalReload++
             } catch (error: CancellationException) {
                 throw error
             } catch (_: Exception) {
@@ -161,6 +165,8 @@ internal fun HomeCrewLocalMigrationPreviewPanel(
                 } else {
                     message = "서버에서 완료 영수증을 찾지 못했습니다. 진행 중인 요청이 있을 수 있습니다."
                 }
+            } catch (_: TimeoutCancellationException) {
+                message = "서버 영수증 확인 시간이 초과되었습니다. 보관된 요청은 유지됩니다."
             } catch (error: CancellationException) {
                 throw error
             } catch (_: Exception) {
