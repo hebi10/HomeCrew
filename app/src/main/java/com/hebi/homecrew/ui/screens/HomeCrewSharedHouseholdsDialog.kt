@@ -86,8 +86,12 @@ internal fun HomeCrewSharedHouseholdsDialog(
 
     val currentHome = selectedHome
     if (currentHome != null) {
+        val journal = remember(gateway, accountUid, currentHome.id) {
+            gateway.completionJournal(currentHome.id)
+        }
         HomeCrewSharedChorePreviewDialog(
             gateway = choreGateway,
+            journal = journal,
             householdId = currentHome.id,
             householdName = currentHome.name,
             accountUid = accountUid,
