@@ -6,6 +6,7 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Upsert
+import com.hebi.homecrew.ui.setup.HouseholdSetup
 import kotlinx.coroutines.flow.Flow
 
 data class HomeCrewRows(
@@ -107,6 +108,37 @@ abstract class HomeCrewDao {
 
     @Query("DELETE FROM chore_definitions")
     abstract suspend fun deleteAllDefinitions()
+
+    @Query("UPDATE chore_definitions SET defaultOwner = :replacement WHERE defaultOwner = :member")
+    abstract suspend fun renameDefinitionOwner(member: String, replacement: String)
+
+    @Query("UPDATE chore_assignment_members SET memberName = :replacement WHERE memberName = :member")
+    abstract suspend fun renameAssignmentMember(member: String, replacement: String)
+
+    @Query("UPDATE chore_occurrences SET assignedMember = :replacement WHERE assignedMember = :member")
+    abstract suspend fun renameOccurrenceAssignee(member: String, replacement: String)
+
+    @Query("UPDATE chore_occurrences SET completedBy = :replacement WHERE completedBy = :member")
+    abstract suspend fun renameCompletionActor(member: String, replacement: String)
+
+    @Query("DELETE FROM app_state WHERE key = 'homecrew.local_member_change.v1' AND value = :encoded")
+    abstract suspend fun clearLocalMemberJournal(encoded: String): Int
+
+    @Transaction
+    internal open suspend fun applyLocalMemberChange(
+        setup: HouseholdSetup, member: String, replacement: String?
+    ): LocalMemberChangePlan {
+        check(readState(LOCAL_MEMBER_CHANGE_KEY) == null)
+        val plan = planLocalMemberChange(setup, readRows(), member, replacement)
+        if (plan.replacement != null && plan.replacement != member) {
+            renameDefinitionOwner(member, plan.replacement)
+            renameAssignmentMember(member, plan.replacement)
+            renameOccurrenceAssignee(member, plan.replacement)
+            renameCompletionActor(member, plan.replacement)
+        }
+        upsertState(AppStateEntity(LOCAL_MEMBER_CHANGE_KEY, LocalMemberChangeJournalCodec.encode(plan)))
+        return plan
+    }
 
     @Transaction
     open suspend fun replaceFromBackup(rows: HomeCrewRows) {

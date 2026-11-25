@@ -4,6 +4,9 @@ on:
     branches: [main]
     paths:
       - 'app/src/androidTest/java/com/hebi/homecrew/qa/HomeCrewActivityRestartTest.kt'
+      - 'app/src/androidTest/java/com/hebi/homecrew/qa/HomeCrewLocalMemberRecoveryInstrumentedTest.kt'
+      - 'app/src/main/java/com/hebi/homecrew/data/local/HomeCrewLocalMemberChanges.kt'
+      - 'app/src/main/java/com/hebi/homecrew/ui/screens/HomeCrewSettingsScreen.kt'
       - 'app/src/androidTest/java/com/hebi/homecrew/qa/MainScreensScreenshotTest.kt'
       - 'app/src/androidTest/java/com/hebi/homecrew/qa/HomeCrewCompletionJournalInstrumentedTest.kt'
       - 'app/src/androidTest/java/com/hebi/homecrew/qa/HomeCrewLocalMigrationJournalInstrumentedTest.kt'
@@ -41,7 +44,8 @@ jobs:
           ).splitlines())
           prefix = "app/src/androidTest/java/com/hebi/homecrew/qa/"
           cases = []
-          if prefix + "HomeCrewActivityRestartTest.kt" in paths:
+          if (prefix + "HomeCrewActivityRestartTest.kt" in paths or
+              "app/src/main/java/com/hebi/homecrew/ui/screens/HomeCrewSettingsScreen.kt" in paths):
               cases.append({"label": "member-persistence", "font": "1.0", "test": "com.hebi.homecrew.qa.HomeCrewActivityRestartTest#householdSettingsPersistAfterActivityRestart"})
           if prefix + "MainScreensScreenshotTest.kt" in paths:
               cases.append({"label": "account-large-font", "font": "1.6", "test": "com.hebi.homecrew.qa.MainScreensScreenshotTest#captureMainTabsAndBasicInteractions"})
@@ -51,6 +55,9 @@ jobs:
           if (prefix + "HomeCrewLocalMigrationJournalInstrumentedTest.kt" in paths or
               "app/src/main/java/com/hebi/homecrew/data/cloud/HomeCrewLocalMigrationJournal.kt" in paths):
               cases.append({"label": "migration-journal", "font": "1.0", "test": "com.hebi.homecrew.qa.HomeCrewLocalMigrationJournalInstrumentedTest#backupAndReceiptSurviveJournalRecreation"})
+          if (prefix + "HomeCrewLocalMemberRecoveryInstrumentedTest.kt" in paths or
+              "app/src/main/java/com/hebi/homecrew/data/local/HomeCrewLocalMemberChanges.kt" in paths):
+              cases.append({"label": "local-member-recovery", "font": "1.0", "test": "com.hebi.homecrew.qa.HomeCrewLocalMemberRecoveryInstrumentedTest#renameReferencesAndRecoverSettingsAfterInterruptedCommit"})
           print("cases=" + json.dumps(cases, separators=(",", ":")))
           PY
   targeted:
