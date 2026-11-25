@@ -18,7 +18,7 @@ internal sealed interface SharedChorePreviewState {
     data class Ready(val snapshot: RemoteSnapshot) : SharedChorePreviewState
 }
 
-internal enum class SharedChoreStatus { PENDING, COMPLETED, SKIPPED }
+internal enum class SharedChoreStatus { PENDING, COMPLETED, SKIPPED, SCHEDULE_CANCELLED }
 
 internal data class SharedChoreRow(
     val occurrenceId: String,
@@ -72,6 +72,7 @@ internal fun sharedChoreDay(
             points = occurrence.workloadPoints ?: definition.points,
             assignedToMe = occurrence.assignedUid == currentUid,
             status = when {
+                occurrence.scheduleCancelled -> SharedChoreStatus.SCHEDULE_CANCELLED
                 occurrence.skipped -> SharedChoreStatus.SKIPPED
                 occurrence.completed -> SharedChoreStatus.COMPLETED
                 else -> SharedChoreStatus.PENDING
