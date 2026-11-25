@@ -193,3 +193,58 @@ test('shared chore occurrences are server-authorized and revision conflicts pres
     ...completion, expectedRevision: 4, requestId: randomUUID(),
   }, member, 'PERMISSION_DENIED');
 });
+
+
+test('server recurrence respects revision, stable rotation, horizon and existing completed records', { timeout: 180_000 }, async () => {
+  const [owner, member, outsider] = await Promise.all([account(), account(), account()]);
+  const { householdId } = await call('createSharedHousehold', {
+    name: '반복 일정 테스트', requestId: randomUUID(),
+  }, owner);
+  const invite = await call('createHouseholdInvite', { householdId }, owner);
+  await call('acceptHouseholdInvite', { inviteCode: invite.inviteCode }, member);
+  const chore = {
+    id: randomUUID(), name: '정리', category: '청소', description: '',
+    points: 2, assigneeUid: owner.uid,
+  };
+  await call('createRemoteChore', { householdId, chore }, owner);
+  const today = Math.floor((Date.now() + 9 * 3600000) / 86400000);
+  const schedule = {
+    startEpochDay: today, repeatMode: 'CUSTOM', intervalDays: 2,
+    assignmentMode: 'ROUND_ROBIN', memberUids: [owner.uid, member.uid],
+  };
+  const request = { householdId, choreId: chore.id, expectedRevision: 1, schedule };
+  await call('configureRemoteSchedule', request, outsider, 'PERMISSION_DENIED');
+  await call('configureRemoteSchedule', {
+    ...request, schedule: { ...schedule, assignmentMode: 'BALANCED' },
+  }, owner, 'INVALID_ARGUMENT');
+  const configured = await call('configureRemoteSchedule', request, owner);
+  assert.equal(configured.revision, 2);
+  await call('configureRemoteSchedule', request, member, 'ABORTED');
+
+  const range = { householdId, choreId: chore.id, expectedRevision: 2, fromEpochDay: today, toEpochDay: today + 4 };
+  await call('generateRemoteSchedule', range, outsider, 'PERMISSION_DENIED');
+  await call('generateRemoteSchedule', { ...range, expectedRevision: 1 }, member, 'ABORTED');
+  const result = await call('generateRemoteSchedule', range, member);
+  assert.equal(result.created, 3);
+  const first = await call('ensureRemoteOccurrence', { householdId, choreId: chore.id, scheduledEpochDay: today }, owner);
+  const second = await call('ensureRemoteOccurrence', { householdId, choreId: chore.id, scheduledEpochDay: today + 2 }, owner);
+  const path = id => 'households/' + householdId + '/occurrences/' + id;
+  assert.equal((await read(path(first.occurrenceId), owner)).assignedUid.stringValue, owner.uid);
+  assert.equal((await read(path(second.occurrenceId), member)).assignedUid.stringValue, member.uid);
+  await call('ensureRemoteOccurrence', { householdId, choreId: chore.id, scheduledEpochDay: today + 1 }, owner, 'FAILED_PRECONDITION');
+  await call('recordChoreCompletion', {
+    householdId, occurrenceId: second.occurrenceId, completed: true,
+    expectedRevision: 1, requestId: randomUUID(),
+  }, member);
+  const again = await call('generateRemoteSchedule', range, owner);
+  assert.equal(again.created, 0);
+  assert.equal(again.existing, 3);
+  const preserved = await read(path(second.occurrenceId), owner);
+  assert.equal(preserved.completed.booleanValue, true);
+  assert.equal(preserved.revision.integerValue, '2');
+
+  await call('generateRemoteSchedule', { ...range, fromEpochDay: today + 63, toEpochDay: today + 64 }, owner, 'INVALID_ARGUMENT');
+  await call('removeHouseholdMember', { householdId, memberUid: member.uid }, owner);
+  await call('generateRemoteSchedule', { ...range, fromEpochDay: today + 6, toEpochDay: today + 6 }, owner, 'FAILED_PRECONDITION');
+  assert.equal((await read(path(second.occurrenceId), owner)).completed.booleanValue, true);
+});
