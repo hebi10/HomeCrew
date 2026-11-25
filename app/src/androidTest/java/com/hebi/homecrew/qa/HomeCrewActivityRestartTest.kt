@@ -160,6 +160,9 @@ class HomeCrewActivityRestartTest {
             awaitDescription("화면 제목: ${base.homeName}")
             compose.onNodeWithContentDescription("집 및 앱 설정").assertIsDisplayed().performClick()
             awaitSettings()
+            captureSettingsDiagnostic("P27-settings-hub")
+            settingsControl("homecrew-settings-household").performClick()
+            awaitDescription("화면 제목: 집 설정")
             settingsControl("homecrew-home-name").performTextReplacement(homeName)
             settingsControl("homecrew-save-home").assertIsEnabled().performClick()
             var homeNameSaved = store.load()?.homeName == homeName
@@ -171,7 +174,10 @@ class HomeCrewActivityRestartTest {
             }
             if (!homeNameSaved) captureSettingsDiagnostic("error-settings-home-name-not-saved")
             assertTrue("집 이름이 저장되지 않았습니다.", homeNameSaved)
-            awaitSettings()
+            settingsControl("homecrew-settings-back").performClick()
+            awaitDescription("화면 제목: 설정")
+            settingsControl("homecrew-settings-members").performClick()
+            awaitDescription("화면 제목: 구성원 관리")
             val newDefault = base.members.first { it != base.defaultMember }
             settingsControl("homecrew-default-member-$newDefault").assertIsEnabled().performClick()
             assertTrue("기본 구성원 변경이 저장되지 않았습니다.", store.load()?.defaultMember == newDefault)
@@ -197,14 +203,31 @@ class HomeCrewActivityRestartTest {
                 captureSettingsDiagnostic("error-settings-member-not-saved")
             }
             assertTrue("구성원 추가가 저장되지 않았습니다.", memberSaved)
-            compose.onNodeWithTag("homecrew-settings-list").performScrollToNode(
-                androidx.compose.ui.test.hasText("뒤로")
-            )
-            compose.onNodeWithText("뒤로").performScrollTo().assertIsDisplayed().performClick()
+            settingsControl("homecrew-settings-back").performClick()
+            awaitDescription("화면 제목: 설정")
+            settingsControl("homecrew-settings-members").performClick()
+            awaitDescription("화면 제목: 구성원 관리")
+            captureSettingsDiagnostic("P15-local-members")
+            settingsControl("homecrew-rename-member-$member").performClick()
+            awaitDescription("화면 제목: 구성원 이름 수정")
+            val renamed = member + "R"
+            settingsControl("homecrew-member-rename-input").performTextReplacement(renamed)
+            scenario.onActivity { activity ->
+                WindowCompat.getInsetsController(activity.window, activity.window.decorView)
+                    .hide(WindowInsetsCompat.Type.ime())
+            }
+            waitForKeyboardHidden(scenario)
+            captureSettingsDiagnostic("P16-member-edit")
+            settingsControl("homecrew-member-rename-confirm").assertIsEnabled().performClick()
+            awaitDescription("화면 제목: 구성원 관리")
+            assertTrue("구성원 이름 수정이 저장되지 않았습니다.", renamed in store.load()!!.members && member !in store.load()!!.members)
+            settingsControl("homecrew-settings-back").performClick()
+            awaitDescription("화면 제목: 설정")
+            settingsControl("homecrew-settings-back").performClick()
             awaitDescription("화면 제목: $homeName")
             scenario.recreate()
             awaitDescription("화면 제목: $homeName")
-            assertTrue("재시작 후 구성원이 유지되지 않았습니다.", member in store.load()!!.members)
+            assertTrue("재시작 후 구성원이 유지되지 않았습니다.", renamed in store.load()!!.members)
         } catch (error: Throwable) {
             captureSettingsDiagnostic("error-settings-persistence-final")
             throw error
