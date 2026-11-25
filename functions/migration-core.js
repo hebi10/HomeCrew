@@ -59,14 +59,18 @@ const occurrenceKeys = ['id','sourceLocalId','definitionId','scheduledEpochDay',
   'skippedAtEpochMillis','skipReason'];
 const scheduleKeys = ['startEpochDay','repeatMode','weekdays','intervalDays','assignmentMode','memberUids'];
 
-export function validateAtomicMigration(raw, expectedHouseholdId, expectedOwnerUid) {
+export const MAX_STAGED_MIGRATION_ROWS = 102000;
+export const MAX_STAGED_MIGRATION_BYTES = 16 * 1024 * 1024;
+
+function validateMigration(raw, expectedHouseholdId, expectedOwnerUid, maxRows, maxBytes) {
   exactKeys(raw, rootKeys);
   assert(raw.version === 1 && raw.householdId === expectedHouseholdId && raw.ownerUid === expectedOwnerUid);
   requireDocumentId(raw.householdId);
   uid(raw.ownerUid);
   assert(Array.isArray(raw.definitions) && Array.isArray(raw.occurrences) &&
-    raw.definitions.length > 0 && raw.definitions.length + raw.occurrences.length <= MAX_ATOMIC_MIGRATION_ROWS);
-  assert(Buffer.byteLength(JSON.stringify(raw), 'utf8') <= MAX_ATOMIC_MIGRATION_BYTES);
+    raw.definitions.length > 0 && raw.definitions.length <= 2000 &&
+    raw.occurrences.length <= 100000 && raw.definitions.length + raw.occurrences.length <= maxRows);
+  assert(Buffer.byteLength(JSON.stringify(raw), 'utf8') <= maxBytes);
   assert(Array.isArray(raw.memberUids) && raw.memberUids.length >= 1 && raw.memberUids.length <= 8);
   raw.memberUids.forEach(uid);
   const members = new Set(raw.memberUids);
@@ -122,4 +126,24 @@ export function validateAtomicMigration(raw, expectedHouseholdId, expectedOwnerU
   }
   assert(raw.legacyWorkloadCount === legacy);
   return raw;
+}
+
+export function validateAtomicMigration(raw, householdId, ownerUid) {
+  return validateMigration(raw, householdId, ownerUid, MAX_ATOMIC_MIGRATION_ROWS, MAX_ATOMIC_MIGRATION_BYTES);
+}
+
+export function validateStagedMigration(raw, householdId, ownerUid) {
+  return validateMigration(raw, householdId, ownerUid, MAX_STAGED_MIGRATION_ROWS, MAX_STAGED_MIGRATION_BYTES);
+}
+
+// Reject unknown fields and non-canonical scalar values before accepting a
+// chunk. Referential integrity and full semantic validation occur at seal.
+export function validateMigrationChunkRows(definitions, occurrences) {
+  assert(Array.isArray(definitions) && Array.isArray(occurrences));
+  for (const def of definitions) {
+    exactKeys(def, definitionKeys);
+    exactKeys(def.schedule, scheduleKeys);
+  }
+  for (const row of occurrences) exactKeys(row, occurrenceKeys);
+  canonicalMigrationDigest({ definitions, occurrences });
 }

@@ -426,3 +426,69 @@ test('local manifest import is atomic, owner-bound, idempotent and preserves his
   await call('importLocalHouseholdManifest', request(changed), owner, 'FAILED_PRECONDITION');
   assert.equal((await read(path + '/chores/' + id, owner)).name.stringValue, '설거지');
 });
+
+
+test('large migration staging is private, ordered, resumable and never publishes partial rows', { timeout: 180_000 }, async () => {
+  const { canonicalMigrationDigest } = await import('../functions/migration-core.js');
+  const { remoteOccurrenceId } = await import('../functions/sync-core.js');
+  const { createHash } = await import('node:crypto');
+  const [owner, member] = await Promise.all([account(), account()]);
+  const { householdId } = await call('createSharedHousehold', { name:'분할 이전 검증', requestId:randomUUID() }, owner);
+  const invite=await call('createHouseholdInvite',{householdId},owner);
+  await call('acceptHouseholdInvite',{inviteCode:invite.inviteCode},member);
+  const id=createHash('sha256').update('homecrew-local-definition-v1:task').digest('hex');
+  const definition={id,sourceLocalId:'task',name:'청소',category:'생활',description:'원본',points:2,
+    assigneeUid:member.uid,scheduledTime:'19:00',repeatLabel:'매일',
+    schedule:{startEpochDay:20000,repeatMode:'DAILY',weekdays:[],intervalDays:2,
+      assignmentMode:'FIXED',memberUids:[member.uid]},
+    sourceWeekdayMask:0,sourceRepeatIntervalDays:2,sourceCreatedAtEpochMillis:1000,sourceUpdatedAtEpochMillis:2000};
+  const occurrences=Array.from({length:301},(_,i)=>({
+    id:remoteOccurrenceId(id,20000+i),sourceLocalId:'row-'+i,definitionId:id,
+    scheduledEpochDay:20000+i,assignedUid:member.uid,workloadPoints:2,sourceWorkloadPoints:2,
+    completed:false,completedByUid:null,completedAtEpochMillis:null,skippedAtEpochMillis:null,skipReason:null
+  }));
+  const manifest={version:1,householdId,ownerUid:owner.uid,definitions:[definition],occurrences,
+    memberUids:[owner.uid,member.uid],defaultMemberUid:owner.uid,legacyWorkloadCount:0};
+  const chunks=[{index:0,definitions:[definition],occurrences:[]}];
+  for(let i=0;i<occurrences.length;i+=100) chunks.push({index:chunks.length,definitions:[],occurrences:occurrences.slice(i,i+100)});
+  const header={version:1,householdId,ownerUid:owner.uid,digest:canonicalMigrationDigest(manifest),
+    definitionCount:1,occurrenceCount:301,memberUids:manifest.memberUids,defaultMemberUid:owner.uid,
+    legacyWorkloadCount:0,chunkCount:chunks.length};
+  await call('getLocalMigrationStage',{householdId},member,'PERMISSION_DENIED');
+  const started=await call('beginLocalMigrationStage',{householdId,header},owner);
+  assert.equal(started.state,'UPLOADING');
+  const scope={householdId,sessionId:started.sessionId};
+  const append=(chunk,user=owner,error)=>call('appendLocalMigrationStageChunk',{
+    ...scope,chunk,chunkDigest:canonicalMigrationDigest(chunk)},user,error);
+  assert.equal((await call('beginLocalMigrationStage',{householdId,header},owner)).sessionId,started.sessionId);
+  await call('beginLocalMigrationStage',{householdId,header:{...header,digest:'f'.repeat(64)}},owner,'ALREADY_EXISTS');
+  await append(chunks[0],member,'PERMISSION_DENIED');
+  await append(chunks[1],owner,'FAILED_PRECONDITION');
+  assert.equal((await append(chunks[0])).nextIndex,1);
+  assert.equal((await append(chunks[0])).replayed,true);
+  await append({...chunks[0],definitions:[{...definition,name:'다른 내용'}]},owner,'ALREADY_EXISTS');
+  await call('sealLocalMigrationStage',scope,owner,'FAILED_PRECONDITION');
+  const recovered=await call('getLocalMigrationStage',{householdId},owner);
+  assert.equal(recovered.nextIndex,1);
+  const home='households/'+householdId;
+  await read(home+'/migrationStaging/current',owner,403);
+  await read(home+'/migrationStaging/current/migrationChunks/0000',member,403);
+  await read(home+'/chores/'+id,owner,404);
+  for(const chunk of chunks.slice(recovered.nextIndex)) await append(chunk);
+  await call('removeHouseholdMember',{householdId,memberUid:member.uid},owner);
+  await call('sealLocalMigrationStage',scope,owner,'FAILED_PRECONDITION');
+  const renewed=await call('createHouseholdInvite',{householdId},owner);
+  await call('acceptHouseholdInvite',{inviteCode:renewed.inviteCode},member);
+  const sealed=await call('sealLocalMigrationStage',scope,owner);
+  assert.equal(sealed.state,'SEALED');
+  assert.equal(sealed.receivedOccurrences,301);
+  assert.equal((await call('sealLocalMigrationStage',scope,owner)).state,'SEALED');
+  await read(home+'/chores/'+id,owner,404);
+  await read(home+'/occurrences/'+occurrences[0].id,member,404);
+  assert.equal((await call('cancelLocalMigrationStage',scope,owner)).removed,true);
+  assert.equal((await call('getLocalMigrationStage',{householdId},owner)).found,false);
+  const another=await call('beginLocalMigrationStage',{householdId,header},owner);
+  assert.notEqual(another.sessionId,started.sessionId);
+  await append(chunks[0],owner,'NOT_FOUND');
+  await call('cancelLocalMigrationStage',{householdId,sessionId:another.sessionId},owner);
+});
