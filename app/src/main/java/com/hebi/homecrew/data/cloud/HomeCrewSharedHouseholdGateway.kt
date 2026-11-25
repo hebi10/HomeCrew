@@ -26,6 +26,7 @@ internal fun sharedHouseholdCreateRequest(name: String, requestId: String) =
     SharedHouseholdCreateRequest(normalizeCloudHouseholdName(name), requestId)
 
 internal interface HomeCrewSharedHouseholdGateway {
+    fun choreGateway(): RemoteHouseholdChoreGateway
     suspend fun list(): List<SharedHouseholdSummary>
     suspend fun create(request: SharedHouseholdCreateRequest): String
     suspend fun invite(householdId: String): HomeCrewCloudInvite

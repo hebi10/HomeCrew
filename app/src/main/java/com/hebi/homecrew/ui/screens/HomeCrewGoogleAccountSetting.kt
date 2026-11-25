@@ -111,7 +111,7 @@ internal fun HomeCrewGoogleAccountSetting(signIn: GoogleSignIn) {
         ) { Text("공동 공간 관리 (개발 미리보기)") }
         if (showSharedHouseholds) {
             key(accountUid) {
-                HomeCrewSharedHouseholdsDialog(sharedGateway) { showSharedHouseholds = false }
+                HomeCrewSharedHouseholdsDialog(sharedGateway, accountUid) { showSharedHouseholds = false }
             }
         }
     }

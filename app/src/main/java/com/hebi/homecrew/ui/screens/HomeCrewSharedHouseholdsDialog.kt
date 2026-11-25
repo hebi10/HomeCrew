@@ -41,6 +41,7 @@ import kotlinx.coroutines.launch
 @Composable
 internal fun HomeCrewSharedHouseholdsDialog(
     gateway: HomeCrewSharedHouseholdGateway,
+    accountUid: String,
     onClose: () -> Unit
 ) {
     val palette = LocalHomeCrewColors.current
@@ -53,6 +54,8 @@ internal fun HomeCrewSharedHouseholdsDialog(
     var requestId by rememberSaveable { mutableStateOf(UUID.randomUUID().toString()) }
     var joinCode by remember { mutableStateOf("") }
     var invitation by remember { mutableStateOf<HomeCrewCloudInvite?>(null) }
+    var selectedHome by remember(gateway, accountUid) { mutableStateOf<SharedHouseholdSummary?>(null) }
+    val choreGateway = remember(gateway, accountUid) { gateway.choreGateway() }
 
     suspend fun refresh() {
         loaded = false
@@ -80,6 +83,21 @@ internal fun HomeCrewSharedHouseholdsDialog(
     }
 
     LaunchedEffect(gateway) { runAction { refresh() } }
+
+    val currentHome = selectedHome
+    if (currentHome != null) {
+        HomeCrewSharedChorePreviewDialog(
+            gateway = choreGateway,
+            householdId = currentHome.id,
+            householdName = currentHome.name,
+            accountUid = accountUid,
+            onClose = {
+                selectedHome = null
+                runAction { refresh() }
+            }
+        )
+        return
+    }
 
     val validName = runCatching { normalizeCloudHouseholdName(name) }.getOrNull()
     val validCode = runCatching { normalizeHomeCrewInviteCode(joinCode) }.getOrNull()
@@ -110,6 +128,14 @@ internal fun HomeCrewSharedHouseholdsDialog(
                             "${if (home.isOwner) "소유자" else "구성원"} · ${home.memberCount}/8명",
                             style = MaterialTheme.typography.bodySmall, color = palette.muted
                         )
+                        TextButton(
+                            enabled = loaded && !busy,
+                            onClick = {
+                                invitation = null
+                                selectedHome = home
+                            },
+                            modifier = Modifier.heightIn(min = HomeCrewDimensions.touchTarget)
+                        ) { Text("공동 집안일 보기") }
                         if (home.isOwner && home.memberCount < 8) {
                             TextButton(
                                 enabled = !busy,

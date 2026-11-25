@@ -42,6 +42,10 @@ private class FirebaseSharedHouseholdGateway(
         check(auth.currentUser?.uid == uid) { "Account changed" }
     }
 
+    override fun choreGateway(): RemoteHouseholdChoreGateway {
+        return HomeCrewRemoteSyncGateway(auth, firestore, functions, boundUid = uid)
+    }
+
     override suspend fun list(): List<SharedHouseholdSummary> {
         verifySession()
         val index = firestore.collection("users").document(uid).collection("households")

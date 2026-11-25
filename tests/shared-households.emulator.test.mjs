@@ -41,19 +41,23 @@ async function account() {
   return { token: body.idToken, uid: body.localId };
 }
 
-async function call(name, data, user, expectedError) {
+async function callRaw(name, data, user) {
   const headers = { 'Content-Type': 'application/json' };
   if (user) headers.Authorization = 'Bearer ' + user.token;
   const response = await fetch(
     'http://' + functionHost + '/' + project + '/asia-northeast3/' + name,
     { method: 'POST', headers, body: JSON.stringify({ data }), signal: AbortSignal.timeout(45_000) },
   );
-  const body = await response.json();
+  return { status: response.status, body: await response.json() };
+}
+
+async function call(name, data, user, expectedError) {
+  const { status, body } = await callRaw(name, data, user);
   if (expectedError) {
     assert.equal(body.error?.status, expectedError, name + ' returned unexpected error status');
     return;
   }
-  assert.equal(response.status, 200, name + ' failed');
+  assert.equal(status, 200, name + ' failed');
   assert.ok(body.result && !body.error, name + ' did not return a successful result');
   return body.result;
 }
@@ -114,4 +118,78 @@ test('atomic creation, invite membership, isolation, replay and revoked access',
   assert.equal((await read(homePath, owner)).memberCount.integerValue, '1');
   await call('acceptHouseholdInvite', { inviteCode: invite.inviteCode }, member, 'NOT_FOUND');
   await read(homePath, member, 403);
+});
+
+
+test('shared chore occurrences are server-authorized and revision conflicts preserve the latest result', { timeout: 180_000 }, async () => {
+  const [owner, member, outsider] = await Promise.all([account(), account(), account()]);
+  const home = await call('createSharedHousehold', { name: '동기화 테스트', requestId: randomUUID() }, owner);
+  const householdId = home.householdId;
+  const invite = await call('createHouseholdInvite', { householdId }, owner);
+  await call('acceptHouseholdInvite', { inviteCode: invite.inviteCode }, member);
+
+  const chore = {
+    id: randomUUID(), name: '설거지', category: '주방', description: '',
+    points: 2, assigneeUid: member.uid,
+  };
+  await call('createRemoteChore', { householdId, chore }, outsider, 'PERMISSION_DENIED');
+  const created = await call('createRemoteChore', { householdId, chore }, owner);
+  assert.equal(created.revision, 1);
+  const today = Math.floor((Date.now() + 9 * 60 * 60 * 1000) / 86400000);
+  const occurrence = await call('ensureRemoteOccurrence', {
+    householdId, choreId: chore.id, scheduledEpochDay: today,
+  }, owner);
+  const sameOccurrence = await call('ensureRemoteOccurrence', {
+    householdId, choreId: chore.id, scheduledEpochDay: today,
+  }, member);
+  assert.equal(occurrence.occurrenceId, sameOccurrence.occurrenceId);
+  const path = 'households/' + householdId + '/occurrences/' + occurrence.occurrenceId;
+  await read(path, outsider, 403);
+  assert.equal((await read(path, member)).assignedUid.stringValue, member.uid);
+
+  const completion = {
+    householdId, occurrenceId: occurrence.occurrenceId,
+    completed: true, expectedRevision: 1, requestId: randomUUID(),
+  };
+  const updated = await call('recordChoreCompletion', completion, member);
+  assert.equal(updated.revision, 2);
+  const replayed = await call('recordChoreCompletion', completion, member);
+  assert.equal(replayed.revision, 2);
+  assert.equal(replayed.replayed, true);
+  const staleUndo = { ...completion, completed: false, requestId: randomUUID() };
+  await call('recordChoreCompletion', staleUndo, owner, 'ABORTED');
+  const confirmed = await read(path, owner);
+  assert.equal(confirmed.completed.booleanValue, true);
+  assert.equal(confirmed.completedByUid.stringValue, member.uid);
+  assert.equal(confirmed.revision.integerValue, '2');
+
+  const undone = await call('recordChoreCompletion', { ...staleUndo, expectedRevision: 2 }, owner);
+  assert.equal(undone.revision, 3);
+  assert.equal((await read(path, member)).completed.booleanValue, false);
+
+  const raceA = { ...completion, expectedRevision: 3, requestId: randomUUID() };
+  const raceB = { ...completion, expectedRevision: 3, requestId: randomUUID() };
+  const concurrent = await Promise.all([
+    callRaw('recordChoreCompletion', raceA, owner),
+    callRaw('recordChoreCompletion', raceB, member),
+  ]);
+  const winner = concurrent.findIndex(result => result.status === 200 && result.body.result);
+  assert.notEqual(winner, -1, 'One competing request must succeed');
+  assert.equal(concurrent[1 - winner].body.error?.status, 'ABORTED');
+  assert.equal(concurrent[winner].body.result.revision, 4);
+  const winningCommand = winner === 0 ? raceA : raceB;
+  const winningUser = winner === 0 ? owner : member;
+  const replayedWinner = await call('recordChoreCompletion', winningCommand, winningUser);
+  assert.equal(replayedWinner.replayed, true);
+  assert.equal(replayedWinner.revision, 4);
+  const latest = await read(path, owner);
+  assert.equal(latest.revision.integerValue, '4');
+  assert.equal(latest.completed.booleanValue, true);
+  assert.equal(latest.completedByUid.stringValue, winningUser.uid);
+
+  await call('removeHouseholdMember', { householdId, memberUid: member.uid }, owner);
+  await read(path, member, 403);
+  await call('recordChoreCompletion', {
+    ...completion, expectedRevision: 4, requestId: randomUUID(),
+  }, member, 'PERMISSION_DENIED');
 });
