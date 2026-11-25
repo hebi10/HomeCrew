@@ -60,6 +60,10 @@ internal fun HomeCrewSharedChorePreviewDialog(
         var journalError by remember { mutableStateOf(false) }
         var loadAttempt by remember { mutableIntStateOf(0) }
         var scheduleBusy by remember { mutableStateOf(false) }
+        var autoRefill by rememberSaveable { mutableStateOf(true) }
+        var refillBusy by remember { mutableStateOf(false) }
+        var refillMessage by remember { mutableStateOf<String?>(null) }
+        var refillRetry by remember { mutableIntStateOf(0) }
 
         LaunchedEffect(journal, loadAttempt) {
             journalReady = false
@@ -98,8 +102,20 @@ internal fun HomeCrewSharedChorePreviewDialog(
                 }
             }
 
+            SharedScheduleRefillEffect(
+                gateway = gateway,
+                householdId = householdId,
+                accountUid = accountUid,
+                preview = state,
+                enabled = autoRefill && journalReady && !journalError && !scheduleBusy &&
+                    canStartSharedCompletion(state, completion),
+                retryToken = refillRetry,
+                onBusyChange = { refillBusy = it },
+                onMessage = { refillMessage = it }
+            )
+
             fun send(command: RemoteCompletionCommand) {
-                if (!journalReady || journalError || scheduleBusy ||
+                if (!journalReady || journalError || scheduleBusy || refillBusy ||
                     state !is SharedChorePreviewState.Ready ||
                     completion is SharedCompletionState.Sending
                 ) return
@@ -241,6 +257,20 @@ internal fun HomeCrewSharedChorePreviewDialog(
                             }
                             is SharedChorePreviewState.Ready -> {
                                 Text("실시간 연결", color = palette.success, style = MaterialTheme.typography.bodySmall)
+                                Text("공동 공간을 열어 둔 동안 저장된 규칙의 누락 회차를 자동 보충합니다.",
+                                    style = MaterialTheme.typography.bodySmall, color = palette.muted)
+                                TextButton(onClick = { autoRefill = !autoRefill }) {
+                                    Text(if (autoRefill) "자동 일정 보충 끄기" else "자동 일정 보충 켜기")
+                                }
+                                if (refillBusy) Text("누락 일정 보충 중…")
+                                refillMessage?.let { message ->
+                                    Text(message, style = MaterialTheme.typography.bodySmall, color = palette.muted)
+                                    TextButton(
+                                        enabled = autoRefill && !refillBusy && !scheduleBusy &&
+                                            journalReady && !journalError && canStartSharedCompletion(state, completion),
+                                        onClick = { refillMessage = null; refillRetry++ }
+                                    ) { Text("일정 보충 다시 확인") }
+                                }
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceBetween
@@ -273,7 +303,7 @@ internal fun HomeCrewSharedChorePreviewDialog(
                                         if (row.status == SharedChoreStatus.PENDING ||
                                             row.status == SharedChoreStatus.COMPLETED) {
                                             TextButton(
-                                                enabled = journalReady && !journalError && !scheduleBusy &&
+                                                enabled = journalReady && !journalError && !scheduleBusy && !refillBusy &&
                                                     canStartSharedCompletion(state, completion),
                                                 modifier = Modifier.heightIn(min = HomeCrewDimensions.touchTarget),
                                                 onClick = {
@@ -298,7 +328,7 @@ internal fun HomeCrewSharedChorePreviewDialog(
                                     householdId = householdId,
                                     accountUid = accountUid,
                                     snapshot = current.snapshot,
-                                    enabled = journalReady && !journalError &&
+                                    enabled = journalReady && !journalError && !refillBusy &&
                                         canStartSharedCompletion(state, completion),
                                     onBusyChange = { scheduleBusy = it }
                                 )
@@ -306,7 +336,7 @@ internal fun HomeCrewSharedChorePreviewDialog(
                                     householdId = householdId,
                                     accountUid = accountUid,
                                     snapshot = current.snapshot,
-                                    enabled = journalReady && !journalError && !scheduleBusy &&
+                                    enabled = journalReady && !journalError && !scheduleBusy && !refillBusy &&
                                         canStartSharedCompletion(state, completion)
                                 )
                             }
