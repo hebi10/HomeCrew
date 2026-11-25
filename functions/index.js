@@ -207,3 +207,8 @@ export {
 } from "./sync.js";
 
 export { importLocalHouseholdManifest, getLocalHouseholdMigrationReceipt } from './migration.js';
+
+export {
+  beginLocalMigrationStage, getLocalMigrationStage, appendLocalMigrationStageChunk,
+  sealLocalMigrationStage, cancelLocalMigrationStage,
+} from './migration-staging.js';
