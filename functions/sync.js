@@ -28,6 +28,9 @@ function requireAuthorisedHousehold(home, member, uid) {
   if (home.data().ownerUid !== uid && !member.exists) {
     throw new HttpsError('permission-denied', 'Household membership required.');
   }
+  if (home.data().migrationPublishLock != null) {
+    throw new HttpsError('failed-precondition', 'Migration publication is in progress.');
+  }
 }
 function validatedChore(raw) {
   try { return normalizeRemoteChore(raw); }
@@ -374,6 +377,9 @@ async function futureReconciliation(request, apply) {
     const [house, definition] = await Promise.all([tx.get(home), tx.get(task)]);
     if (!house.exists || house.data().ownerUid !== uid) {
       throw new HttpsError('permission-denied', 'Household owner required.');
+    }
+    if (house.data().migrationPublishLock != null) {
+      throw new HttpsError('failed-precondition', 'Migration publication is in progress.');
     }
     if (receipt) {
       const previous = await tx.get(receipt);

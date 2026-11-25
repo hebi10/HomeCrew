@@ -17,6 +17,10 @@ service cloud.firestore {
           exists(/databases/$(database)/documents/households/$(householdId)/members/$(request.auth.uid)));
     }
 
+    function sharedDataVisible(householdId) {
+      return !('migrationPublishLock' in get(/databases/$(database)/documents/households/$(householdId)).data);
+    }
+
     function validHousehold(data) {
       return data.keys().hasAll(['name', 'ownerUid', 'schemaVersion', 'memberCount', 'createdAt', 'updatedAt'])
         && data.keys().hasOnly(['name', 'ownerUid', 'schemaVersion', 'memberCount', 'createdAt', 'updatedAt'])
@@ -72,12 +76,12 @@ service cloud.firestore {
       }
 
       match /chores/{choreId} {
-        allow get, list: if memberOf(householdId);
+        allow get, list: if memberOf(householdId) && sharedDataVisible(householdId);
         allow create, update, delete: if false;
       }
 
       match /occurrences/{occurrenceId} {
-        allow get, list: if memberOf(householdId);
+        allow get, list: if memberOf(householdId) && sharedDataVisible(householdId);
         allow create, update, delete: if false;
       }
     }

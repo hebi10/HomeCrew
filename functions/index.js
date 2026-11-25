@@ -211,4 +211,5 @@ export { importLocalHouseholdManifest, getLocalHouseholdMigrationReceipt } from 
 export {
   beginLocalMigrationStage, getLocalMigrationStage, appendLocalMigrationStageChunk,
   sealLocalMigrationStage, cancelLocalMigrationStage,
+  publishLocalMigrationStageChunk, rollbackLocalMigrationPublication, cleanupPublishedMigrationStage,
 } from './migration-staging.js';
