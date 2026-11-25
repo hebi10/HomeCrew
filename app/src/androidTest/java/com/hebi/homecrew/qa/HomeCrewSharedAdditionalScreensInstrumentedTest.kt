@@ -3,19 +3,21 @@ package com.hebi.homecrew.qa
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.test.SemanticsNodeInteraction
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isDisplayed
 import androidx.compose.ui.test.isEnabled
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.rules.ActivityScenarioRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import androidx.test.uiautomator.By
 import androidx.test.uiautomator.UiDevice
-import androidx.test.uiautomator.UiObject2
-import androidx.test.uiautomator.Until
 import com.hebi.homecrew.MainActivity
 import com.hebi.homecrew.data.cloud.*
 import com.hebi.homecrew.ui.screens.HomeCrewAccountDeletionReviewDialog
@@ -28,8 +30,6 @@ import java.io.File
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.rules.RuleChain
@@ -132,51 +132,59 @@ class HomeCrewSharedAdditionalScreensInstrumentedTest {
     }
 
     private fun capture(name: String) {
+        compose.waitForIdle()
         device.waitForIdle()
         Thread.sleep(250)
         assertTrue(device.takeScreenshot(File(evidenceDirectory(), "$name.png")))
     }
 
-    private fun find(label: String, scroll: Boolean = false): UiObject2 {
-        val selector = By.text(label)
-        var node = device.wait(Until.findObject(selector), if (scroll) 1_000 else 10_000)
-        if (scroll) {
-            repeat(12) {
-                if (node == null) {
-                    device.swipe(device.displayWidth / 2, device.displayHeight * 3 / 4,
-                        device.displayWidth / 2, device.displayHeight / 3, 18)
-                    device.waitForIdle()
-                    node = device.wait(Until.findObject(selector), 800)
-                }
+    private fun dumpFailure(name: String) {
+        runCatching {
+            device.takeScreenshot(File(evidenceDirectory(), "error-$name.png"))
+            device.dumpWindowHierarchy(File(evidenceDirectory(), "hierarchy-$name.xml"))
+        }
+    }
+
+    private fun find(label: String, scroll: Boolean = false, substring: Boolean = false): SemanticsNodeInteraction {
+        try {
+            compose.waitUntil(timeoutMillis = 15_000) {
+                compose.onAllNodes(hasText(label, substring = substring)).fetchSemanticsNodes().size == 1
             }
+            val node = compose.onNodeWithText(label, substring = substring)
+            if (scroll && !node.isDisplayed()) node.performScrollTo()
+            return node.assertIsDisplayed()
+        } catch (failure: Throwable) {
+            dumpFailure("shared-additional")
+            throw AssertionError("Expected visible Compose control: $label", failure)
         }
-        if (node == null) {
-            capture("error-shared-additional")
-            device.dumpWindowHierarchy(File(evidenceDirectory(), "hierarchy-shared-additional.xml"))
-        }
-        return requireNotNull(node) { "Missing control: $label" }
     }
 
     private fun tap(label: String, scroll: Boolean = false) {
-        val bounds = find(label, scroll).visibleBounds
-        assertTrue(device.click(bounds.centerX(), bounds.centerY()))
-        device.waitForIdle()
+        find(label, scroll).assertIsEnabled().performClick()
+        compose.waitForIdle()
+    }
+
+    private fun awaitAbsent(label: String) {
+        compose.waitUntil(timeoutMillis = 10_000) {
+            compose.onAllNodes(hasText(label)).fetchSemanticsNodes().isEmpty()
+        }
+        compose.onNodeWithText(label).assertDoesNotExist()
     }
 
     private fun assertMigrationReadEnabled(expected: Boolean) {
         val label = "로컬 자료 읽기"
         try {
+            val button = find(label, scroll = true)
             if (expected) {
                 compose.waitUntil(timeoutMillis = 10_000) {
                     compose.onAllNodes(hasText(label) and isEnabled()).fetchSemanticsNodes().size == 1
                 }
-                compose.onNodeWithText(label).assertIsEnabled()
+                button.assertIsEnabled()
             } else {
-                compose.onNodeWithText(label).assertIsNotEnabled()
+                button.assertIsNotEnabled()
             }
         } catch (failure: Throwable) {
-            capture("error-migration-read-state")
-            device.dumpWindowHierarchy(File(evidenceDirectory(), "hierarchy-migration-read-state.xml"))
+            dumpFailure("migration-read-state")
             throw failure
         }
     }
@@ -203,8 +211,8 @@ class HomeCrewSharedAdditionalScreensInstrumentedTest {
         val households = ReadOnlyHouseholds(remote, completion, migration, members, writes)
         val page = mutableStateOf(Page.OWNER)
         fun show(next: Page) {
-            activityRule.scenario.onActivity { page.value = next }
-            device.waitForIdle()
+            compose.runOnIdle { page.value = next }
+            compose.waitForIdle()
         }
         activityRule.scenario.onActivity { activity ->
             activity.setContent {
@@ -222,12 +230,14 @@ class HomeCrewSharedAdditionalScreensInstrumentedTest {
             }
         }
         device.dismissEmulatorLauncherAnrIfShown()
+        compose.mainClock.autoAdvance = true
+        compose.waitForIdle()
         find("구성원 2/8명")
         find("QA 소유자 (나)")
         find("소유권 이전", scroll = true)
         capture("P19-roster-fake")
         tap("소유권 이전")
-        assertNotNull(device.wait(Until.findObject(By.textContains("초대 코드는 무효화됩니다")), 8_000))
+        find("초대 코드는 무효화됩니다", substring = true)
         capture("P19-transfer-confirm-fake")
         tap("취소")
         assertEquals(0, writes.get())
@@ -235,8 +245,8 @@ class HomeCrewSharedAdditionalScreensInstrumentedTest {
         show(Page.MEMBER)
         find("QA 구성원 (나)", scroll = true)
         find("공동 공간 탈퇴", scroll = true)
-        assertNull(device.findObject(By.text("소유권 이전")))
-        assertNull(device.findObject(By.text("구성원 제거")))
+        awaitAbsent("소유권 이전")
+        awaitAbsent("구성원 제거")
         capture("P19-member-fake")
 
         show(Page.CHORES)
@@ -245,11 +255,11 @@ class HomeCrewSharedAdditionalScreensInstrumentedTest {
         capture("P20-shared-chore-fake")
         tap("로컬 자료 이전 준비", scroll = true)
         find("로컬 자료 이전")
-        find("기존 공동 집안일이 있는 공간은 이전 대상에서 제외합니다.")
+        find("기존 공동 집안일이 있는 공간은 이전 대상에서 제외합니다.", scroll = true)
         assertMigrationReadEnabled(expected = false)
         capture("P21-migration-blocked-fake")
         remote.snapshots.value = snapshot.copy(chores = emptyList(), occurrences = emptyList())
-        assertTrue(device.wait(Until.gone(By.text("기존 공동 집안일이 있는 공간은 이전 대상에서 제외합니다.")), 10_000))
+        awaitAbsent("기존 공동 집안일이 있는 공간은 이전 대상에서 제외합니다.")
         assertMigrationReadEnabled(expected = true)
         capture("P21-migration-ready-fake")
         tap("뒤로")
@@ -258,16 +268,16 @@ class HomeCrewSharedAdditionalScreensInstrumentedTest {
         find("QA 설거지", scroll = true)
         remote.snapshots.value = snapshot.copy(mayBeStale = true)
         find("연결을 확인하고 있습니다. 서버에서 확인되지 않은 집안일은 표시하지 않습니다.")
-        compose.onNodeWithText("QA 설거지").assertDoesNotExist()
+        awaitAbsent("QA 설거지")
         capture("P20-offline-fake")
 
         show(Page.STAGE)
         find("반영 중 · 조회 잠김")
-        find("분할 저장")
-        find("최종 반영")
+        find("분할 저장", scroll = true)
+        find("최종 반영", scroll = true)
         capture("P22-publishing-fake")
         tap("숨겨진 반영분 되돌리기", scroll = true)
-        assertNotNull(device.wait(Until.findObject(By.textContains("로컬 원본은 삭제하지 않습니다")), 8_000))
+        find("로컬 원본은 삭제하지 않습니다", substring = true)
         capture("P22-rollback-confirm-fake")
         tap("취소")
         assertEquals(0, writes.get())
@@ -278,8 +288,8 @@ class HomeCrewSharedAdditionalScreensInstrumentedTest {
         capture("P25-deletion-review-fake")
         households.preflightFails = true
         tap("서버 상태 다시 확인", scroll = true)
-        find("자료 범위를 확인하지 못했습니다. 계정 삭제는 차단됩니다.")
-        assertNull(device.findObject(By.text("계정 삭제")))
+        find("자료 범위를 확인하지 못했습니다. 계정 삭제는 차단됩니다.", scroll = true)
+        awaitAbsent("계정 삭제")
         capture("P25-deletion-blocked-fake")
         assertEquals("No destructive or remote write call may occur", 0, writes.get())
     }
