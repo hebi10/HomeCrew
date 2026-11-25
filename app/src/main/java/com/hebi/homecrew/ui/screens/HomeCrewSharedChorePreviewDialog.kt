@@ -25,6 +25,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.hebi.homecrew.data.cloud.HomeCrewCompletionJournal
 import com.hebi.homecrew.data.cloud.RemoteCompletionCommand
 import com.hebi.homecrew.data.cloud.RemoteCompletionResult
 import com.hebi.homecrew.data.cloud.RemoteHouseholdChoreGateway
@@ -42,36 +43,82 @@ import kotlinx.coroutines.withTimeoutOrNull
 @Composable
 internal fun HomeCrewSharedChorePreviewDialog(
     gateway: RemoteHouseholdChoreGateway,
+    journal: HomeCrewCompletionJournal,
     householdId: String,
     householdName: String,
     accountUid: String,
     onClose: () -> Unit
 ) {
-    key(gateway, accountUid, householdId) {
+    key(gateway, journal, accountUid, householdId) {
         val palette = LocalHomeCrewColors.current
         var day by rememberSaveable { mutableLongStateOf(sharedChoreToday().toEpochDay()) }
         var retry by remember { mutableIntStateOf(0) }
         val date = LocalDate.ofEpochDay(day)
         val scope = rememberCoroutineScope()
         var completion by remember { mutableStateOf<SharedCompletionState>(SharedCompletionState.Idle) }
+        var journalReady by remember { mutableStateOf(false) }
+        var journalError by remember { mutableStateOf(false) }
+        var loadAttempt by remember { mutableIntStateOf(0) }
+
+        LaunchedEffect(journal, loadAttempt) {
+            journalReady = false
+            journalError = false
+            try {
+                val restored = journal.load()
+                completion = restored?.let { SharedCompletionState.Uncertain(it) }
+                    ?: SharedCompletionState.Idle
+                journalReady = true
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                journalError = true
+            }
+        }
 
         key(retry) {
             val stream = remember(gateway, householdId) { observeSharedChorePreview(gateway, householdId) }
             val state by stream.collectAsState(initial = SharedChorePreviewState.Loading)
 
-            LaunchedEffect(state, completion) {
-                val reconciled = reconcileSharedCompletion(completion, state)
-                if (reconciled != completion) completion = reconciled
+            LaunchedEffect(state, completion, journalReady, journalError) {
+                val pending = completion as? SharedCompletionState.AwaitingSnapshot
+                if (journalReady && !journalError && pending != null) {
+                    val reconciled = reconcileSharedCompletion(pending, state)
+                    if (reconciled != pending) {
+                        try {
+                            journal.remove(pending.command)
+                            completion = reconciled
+                        } catch (error: CancellationException) {
+                            throw error
+                        } catch (_: Exception) {
+                            journalError = true
+                            journalReady = false
+                        }
+                    }
+                }
             }
 
             fun send(command: RemoteCompletionCommand) {
-                if (state !is SharedChorePreviewState.Ready ||
+                if (!journalReady || journalError ||
+                    state !is SharedChorePreviewState.Ready ||
                     completion is SharedCompletionState.Sending
                 ) return
                 completion = SharedCompletionState.Sending(command)
                 scope.launch {
+                    try {
+                        // Never submit a command that cannot survive process death.
+                        journal.stage(command)
+                    } catch (error: CancellationException) {
+                        throw error
+                    } catch (_: Exception) {
+                        completion = SharedCompletionState.Uncertain(command)
+                        journalError = true
+                        journalReady = false
+                        return@launch
+                    }
                     val result = try {
-                        withTimeoutOrNull(35_000) {
+                        // Connectivity may have changed while committing to disk.
+                        if (state !is SharedChorePreviewState.Ready) RemoteCompletionResult.Unknown
+                        else withTimeoutOrNull(35_000) {
                             gateway.recordCompletion(householdId, command)
                         } ?: RemoteCompletionResult.Unknown
                     } catch (error: CancellationException) {
@@ -79,10 +126,42 @@ internal fun HomeCrewSharedChorePreviewDialog(
                     } catch (_: Exception) {
                         RemoteCompletionResult.Unknown
                     }
-                    completion = sharedCompletionResponse(command, result)
-                    // A rejection or conflict must not permit a new write based on
-                    // an earlier snapshot. Re-open the server-verified subscription.
+                    val response = sharedCompletionResponse(command, result)
+                    if (response is SharedCompletionState.Notice) {
+                        try {
+                            journal.remove(command)
+                        } catch (error: CancellationException) {
+                            throw error
+                        } catch (_: Exception) {
+                            completion = SharedCompletionState.Uncertain(command)
+                            journalReady = false
+                            journalError = true
+                            retry++
+                            return@launch
+                        }
+                    }
+                    completion = response
                     if (result !is RemoteCompletionResult.Accepted) retry++
+                }
+            }
+
+            fun discard(command: RemoteCompletionCommand) {
+                if (!journalReady || journalError || state !is SharedChorePreviewState.Ready ||
+                    completion is SharedCompletionState.Sending
+                ) return
+                completion = SharedCompletionState.Sending(command)
+                scope.launch {
+                    try {
+                        journal.remove(command)
+                        completion = SharedCompletionState.Notice(SharedCompletionNotice.RECHECK)
+                        retry++
+                    } catch (error: CancellationException) {
+                        throw error
+                    } catch (_: Exception) {
+                        completion = SharedCompletionState.Uncertain(command)
+                        journalReady = false
+                        journalError = true
+                    }
                 }
             }
 
@@ -101,30 +180,41 @@ internal fun HomeCrewSharedChorePreviewDialog(
                             color = palette.muted
                         )
                         Text(
-                            "서버에서 확인된 상태만 표시합니다. 오프라인에서는 완료 변경을 전송하지 않으며, 이 기기의 기존 집안일은 변경하지 않습니다.",
+                            "서버에서 확인된 상태만 표시합니다. 전송 전 요청을 기기에 보존하며, 연결 복구 후 직접 재시도할 수 있습니다. 기존 로컬 집안일은 변경하지 않습니다.",
                             style = MaterialTheme.typography.bodySmall,
                             color = palette.muted
                         )
+                        if (journalError) {
+                            Text("기기에 저장된 요청을 확인하지 못했습니다. 새 변경을 중단했습니다.", color = palette.error)
+                            TextButton(onClick = { loadAttempt++ }) { Text("저장 상태 다시 확인") }
+                        } else if (!journalReady) {
+                            Text("보관된 요청을 확인하고 있습니다…")
+                        }
                         when (val pending = completion) {
                             SharedCompletionState.Idle -> Unit
                             is SharedCompletionState.Sending -> Text("완료 변경 요청을 전송하고 있습니다…")
                             is SharedCompletionState.AwaitingSnapshot -> {
                                 Text("서버 응답을 받았습니다. 최신 집안일 상태를 확인하고 있습니다…")
                                 TextButton(onClick = { retry++ }) { Text("상태 다시 확인") }
+                                TextButton(
+                                    enabled = journalReady && !journalError && state is SharedChorePreviewState.Ready,
+                                    onClick = { discard(pending.command) }
+                                ) { Text("요청 확인 중단 및 새로고침") }
                             }
                             is SharedCompletionState.Uncertain -> {
                                 Text(
-                                    "요청 결과를 확인하지 못했습니다. 연결 복구 후 같은 요청을 다시 확인할 수 있습니다.",
+                                    "완료 변경 요청의 결과가 미확정입니다. 보관된 요청은 앱을 다시 열어도 복구할 수 있습니다.",
                                     color = palette.warning
                                 )
                                 TextButton(
-                                    enabled = retrySharedCompletionCommand(state, pending) != null,
+                                    enabled = journalReady && !journalError &&
+                                        retrySharedCompletionCommand(state, pending) != null,
                                     onClick = { retrySharedCompletionCommand(state, completion)?.let(::send) }
                                 ) { Text("동일 요청 다시 시도") }
-                                TextButton(onClick = {
-                                    completion = SharedCompletionState.Notice(SharedCompletionNotice.RECHECK)
-                                    retry++
-                                }) { Text("재시도 중단 및 새로고침") }
+                                TextButton(
+                                    enabled = journalReady && !journalError && state is SharedChorePreviewState.Ready,
+                                    onClick = { discard(pending.command) }
+                                ) { Text("재시도 중단 및 새로고침") }
                             }
                             is SharedCompletionState.Notice -> {
                                 val message = when (pending.type) {
@@ -180,7 +270,8 @@ internal fun HomeCrewSharedChorePreviewDialog(
                                         )
                                         if (row.status != SharedChoreStatus.SKIPPED) {
                                             TextButton(
-                                                enabled = canStartSharedCompletion(state, completion),
+                                                enabled = journalReady && !journalError &&
+                                                    canStartSharedCompletion(state, completion),
                                                 modifier = Modifier.heightIn(min = HomeCrewDimensions.touchTarget),
                                                 onClick = {
                                                     newSharedCompletionCommand(state, completion, row.occurrenceId)
