@@ -1,6 +1,5 @@
 import importlib.util
 import pathlib
-import tempfile
 import unittest
 
 SCRIPT = pathlib.Path(__file__).parents[1] / 'source.py'
@@ -12,26 +11,30 @@ REPO = 'hebi10/HomeCrew'
 
 
 class SourceTests(unittest.TestCase):
-    def test_screenshot_qa_is_required_when_present_on_current_main(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root = pathlib.Path(directory)
-            workflows = root / '.github/workflows'
-            workflows.mkdir(parents=True)
-            self.assertEqual(source.required_workflows(root), ['android.yml'])
-            (workflows / 'screenshot-qa.yml').write_text('name: Screenshot QA\n')
-            self.assertEqual(source.required_workflows(root), ['android.yml', 'screenshot-qa.yml'])
+    def test_release_requires_android_ci_and_full_device_matrix(self):
+        self.assertEqual(source.required_workflows(), ['android.yml', 'ui-r09-device-matrix.yml'])
 
-    def test_exact_source_screenshot_ci_rejects_pr_old_sha_and_incomplete_jobs(self):
+    def test_device_matrix_requires_current_manual_run_and_all_profiles(self):
+        workflow = 'ui-r09-device-matrix.yml'
         run = {'head_sha': SHA, 'head_branch': 'main', 'event': 'workflow_dispatch',
-               'conclusion': 'success', 'path': '.github/workflows/screenshot-qa.yml'}
-        jobs = [{'name': 'device-qa', 'conclusion': 'success'}]
-        source.verify_ci(SHA, run, jobs, workflow='screenshot-qa.yml')
-        for update in ({'event': 'pull_request'}, {'head_sha': 'b' * 40}, {'head_branch': 'feature'}):
+               'conclusion': 'success', 'path': '.github/workflows/' + workflow}
+        names = [
+            'Verify frozen main commit',
+            'device-matrix (29, pixel_6, 1.0, api29-phone)',
+            'device-matrix (35, pixel_6, 1.0, api35-phone)',
+            'device-matrix (36, pixel_6, 1.0, api36-phone)',
+            'device-matrix (35, pixel_6, 1.6, api35-large-font)',
+            'device-matrix (35, pixel_tablet, 1.0, api35-tablet)',
+        ]
+        jobs = [{'name': name, 'conclusion': 'success'} for name in names]
+        source.verify_ci(SHA, run, jobs, workflow=workflow)
+        for update in ({'event': 'pull_request'}, {'event': 'push'}, {'head_sha': 'b' * 40},
+                       {'head_branch': 'feature'}, {'path': '.github/workflows/screenshot-qa.yml'}):
+            with self.subTest(update=update), self.assertRaises(source.SourceError):
+                source.verify_ci(SHA, dict(run, **update), jobs, workflow=workflow)
+        for invalid in ([], jobs[:-1], [*jobs[:-1], dict(jobs[-1], conclusion='skipped')]):
             with self.assertRaises(source.SourceError):
-                source.verify_ci(SHA, dict(run, **update), jobs, workflow='screenshot-qa.yml')
-        for invalid in ([], [{'name': 'device-qa', 'conclusion': 'skipped'}]):
-            with self.assertRaises(source.SourceError):
-                source.verify_ci(SHA, run, invalid, workflow='screenshot-qa.yml')
+                source.verify_ci(SHA, run, invalid, workflow=workflow)
 
     def test_initialize_mode_requires_explicit_manual_input_or_trusted_main_subject_marker(self):
         manual = {'GITHUB_REPOSITORY': REPO, 'GITHUB_EVENT_NAME': 'workflow_dispatch', 'GITHUB_REF': 'refs/heads/main', 'GITHUB_SHA': SHA}

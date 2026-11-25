@@ -32,12 +32,12 @@ class SourceWaitTests(unittest.TestCase):
             if '/workflows/android.yml/runs?' in path:
                 return {'workflow_runs': [dict(ci, status='in_progress' if android_state == 'pending' else 'completed',
                     conclusion=None if android_state == 'pending' else android_state)]}
-            if '/workflows/screenshot-qa.yml/runs?' in path:
+            if '/workflows/ui-r09-device-matrix.yml/runs?' in path:
                 state = states[min(qa_reads[0], len(states) - 1)]
                 qa_reads[0] += 1
                 if state == 'missing':
                     return {'workflow_runs': []}
-                return {'workflow_runs': [dict(ci, id=20, path='.github/workflows/screenshot-qa.yml',
+                return {'workflow_runs': [dict(ci, id=20, event='workflow_dispatch', path='.github/workflows/ui-r09-device-matrix.yml',
                     status='in_progress' if state in ('pending', 'failed_job') else 'completed',
                     conclusion=None if state in ('pending', 'failed_job') else state)]}
             if '/actions/runs/10/jobs?' in path:
@@ -45,8 +45,10 @@ class SourceWaitTests(unittest.TestCase):
                     'conclusion': None if android_state == 'pending' else android_state}]}
             if '/actions/runs/20/jobs?' in path:
                 state = states[min(qa_reads[0] - 1, len(states) - 1)]
-                return {'total_count': 1, 'jobs': [{'name': 'screenshots',
-                    'conclusion': 'failure' if state == 'failed_job' else None if state == 'pending' else state}]}
+                names = source.REQUIRED_JOBS[source.MATRIX_WORKFLOW]
+                conclusion = 'failure' if state == 'failed_job' else None if state == 'pending' else state
+                return {'total_count': len(names),
+                        'jobs': [{'name': name, 'conclusion': conclusion} for name in names]}
             raise AssertionError(path)
 
         def sleep(seconds):
@@ -62,7 +64,6 @@ class SourceWaitTests(unittest.TestCase):
                    'GITHUB_OUTPUT': str(output), 'PLAY_REQUESTED_MODE': 'check'}
             errors = io.StringIO()
             with mock.patch.dict(os.environ, env), mock.patch.object(source, 'gh', side_effect=api), \
-                 mock.patch.object(source, 'required_workflows', return_value=['android.yml', 'screenshot-qa.yml']), \
                  mock.patch.object(source, 'CI_WAIT_TIMEOUT', 60, create=True), \
                  mock.patch('time.monotonic', side_effect=lambda: clock[0]), mock.patch('time.sleep', side_effect=sleep), \
                  mock.patch('sys.argv', ['source.py'] + (['--assert-current', SHA] if assert_current else [])), \
@@ -71,7 +72,7 @@ class SourceWaitTests(unittest.TestCase):
                 result = source.main()
             return result, errors.getvalue(), sleeps, output.read_text() if output.exists() else ''
 
-    def test_trusted_ci_only_marker_skips_release_without_screenshot_qa_wait(self):
+    def test_trusted_ci_only_marker_skips_release_without_device_matrix_wait(self):
         result, error, sleeps, output = self.run_source(
             ['missing'], commit_subject='Trusted preview release workflow [skip-play] (#29)')
         self.assertEqual(result, 0, error)
