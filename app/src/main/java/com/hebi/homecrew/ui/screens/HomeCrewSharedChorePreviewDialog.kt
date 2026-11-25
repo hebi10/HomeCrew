@@ -59,6 +59,7 @@ internal fun HomeCrewSharedChorePreviewDialog(
         var journalReady by remember { mutableStateOf(false) }
         var journalError by remember { mutableStateOf(false) }
         var loadAttempt by remember { mutableIntStateOf(0) }
+        var scheduleBusy by remember { mutableStateOf(false) }
 
         LaunchedEffect(journal, loadAttempt) {
             journalReady = false
@@ -98,7 +99,7 @@ internal fun HomeCrewSharedChorePreviewDialog(
             }
 
             fun send(command: RemoteCompletionCommand) {
-                if (!journalReady || journalError ||
+                if (!journalReady || journalError || scheduleBusy ||
                     state !is SharedChorePreviewState.Ready ||
                     completion is SharedCompletionState.Sending
                 ) return
@@ -166,7 +167,7 @@ internal fun HomeCrewSharedChorePreviewDialog(
             }
 
             AlertDialog(
-                onDismissRequest = { if (completion !is SharedCompletionState.Sending) onClose() },
+                onDismissRequest = { if (completion !is SharedCompletionState.Sending && !scheduleBusy) onClose() },
                 title = { Text(if (state is SharedChorePreviewState.Ready) householdName else "공동 집안일") },
                 text = {
                     Column(
@@ -270,7 +271,7 @@ internal fun HomeCrewSharedChorePreviewDialog(
                                         )
                                         if (row.status != SharedChoreStatus.SKIPPED) {
                                             TextButton(
-                                                enabled = journalReady && !journalError &&
+                                                enabled = journalReady && !journalError && !scheduleBusy &&
                                                     canStartSharedCompletion(state, completion),
                                                 modifier = Modifier.heightIn(min = HomeCrewDimensions.touchTarget),
                                                 onClick = {
@@ -290,6 +291,15 @@ internal fun HomeCrewSharedChorePreviewDialog(
                                         color = palette.warning
                                     )
                                 }
+                                HomeCrewSharedSchedulePanel(
+                                    gateway = gateway,
+                                    householdId = householdId,
+                                    accountUid = accountUid,
+                                    snapshot = current.snapshot,
+                                    enabled = journalReady && !journalError &&
+                                        canStartSharedCompletion(state, completion),
+                                    onBusyChange = { scheduleBusy = it }
+                                )
                             }
                         }
                     }
@@ -297,7 +307,7 @@ internal fun HomeCrewSharedChorePreviewDialog(
                 confirmButton = {
                     TextButton(
                         onClick = onClose,
-                        enabled = completion !is SharedCompletionState.Sending
+                        enabled = completion !is SharedCompletionState.Sending && !scheduleBusy
                     ) { Text("닫기") }
                 }
             )

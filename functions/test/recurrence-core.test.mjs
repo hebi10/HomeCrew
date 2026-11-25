@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { normalizeRemoteSchedule, isScheduledDate, scheduledAssignee, scheduleWindow } from '../recurrence-core.js';
+import {
+  normalizeRemoteSchedule, isScheduledDate, scheduledAssignee, scheduleWindow,
+  workloadWeekBounds, allocateBalancedOccurrences,
+} from '../recurrence-core.js';
 
 const day = (y, m, d) => Date.UTC(y, m - 1, d) / 86400000;
 const start = day(2026, 11, 25); // Wednesday
@@ -37,13 +40,31 @@ test('rotation is anchored at start, independent of requested window and date ga
   assert.equal(scheduledAssignee(daily, far), ['a', 'b', 'c'][(far - daily.startEpochDay) % 3]);
 });
 
-test('rejects invalid rules, duplicate assignees, unsupported balancing and excessive windows', () => {
+test('rejects invalid rules, duplicate assignees and excessive windows', () => {
   for (const invalid of [
-    { startEpochDay: NaN }, { assignmentMode: 'BALANCED' }, { memberUids: [] },
+    { startEpochDay: NaN }, { assignmentMode: 'UNKNOWN' }, { memberUids: [] },
     { memberUids: ['alice', 'alice'], assignmentMode: 'ROUND_ROBIN' },
     { memberUids: ['../alice'] }, { repeatMode: 'WEEKLY', weekdays: [] },
     { repeatMode: 'CUSTOM', intervalDays: 31 }, { weekdays: [0] },
   ]) assert.throws(() => rule('DAILY', invalid));
   assert.throws(() => scheduleWindow(rule('DAILY'), start, start + 63));
   assert.throws(() => scheduleWindow(rule('DAILY'), start, start - 1));
+});
+
+
+test('balanced allocation considers all existing weighted work in each Monday-based week', () => {
+  const schedule = rule('DAILY', { assignmentMode: 'BALANCED', memberUids: ['alice', 'bob'] });
+  const existing = [
+    { scheduledEpochDay: start - 1, assignedUid: 'alice', workloadPoints: 5 },
+    { scheduledEpochDay: start, assignedUid: 'bob', workloadPoints: 1 },
+  ];
+  const rows = allocateBalancedOccurrences(schedule, [start + 1, start, start + 5], existing, 3);
+  assert.deepEqual(rows.map(r => r.assignedUid), ['bob', 'bob', 'alice']);
+  assert.equal(workloadWeekBounds(start).from, start - 2);
+  assert.equal(workloadWeekBounds(start + 5).from, start + 5);
+  assert.throws(() => scheduledAssignee(schedule, start), /workload-required/);
+  assert.throws(() => allocateBalancedOccurrences(schedule, [start], [
+    { scheduledEpochDay: start, assignedUid: 'alice', workloadPoints: undefined },
+  ], 3));
+  assert.throws(() => allocateBalancedOccurrences(schedule, [start, start], existing, 3));
 });

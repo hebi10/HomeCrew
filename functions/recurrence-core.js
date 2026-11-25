@@ -29,9 +29,7 @@ export function normalizeRemoteSchedule(raw) {
   const repeatMode = raw.repeatMode;
   const assignmentMode = raw.assignmentMode;
   if (!MODES.has(repeatMode)) throw new Error('invalid-repeat-mode');
-  // Balanced assignment requires a shared workload ledger; do not silently
-  // approximate it or treat it as round robin.
-  if (!['FIXED', 'ROUND_ROBIN'].includes(assignmentMode)) throw new Error('unsupported-assignment');
+  if (!['FIXED', 'ROUND_ROBIN', 'BALANCED'].includes(assignmentMode)) throw new Error('unsupported-assignment');
   const memberUids = raw.memberUids;
   if (!Array.isArray(memberUids) || memberUids.length < 1 || memberUids.length > 8 ||
       !memberUids.every(validUid) || new Set(memberUids).size !== memberUids.length ||
@@ -104,6 +102,7 @@ function scheduledOrdinal(schedule, epochDay) {
 
 export function scheduledAssignee(schedule, epochDay) {
   if (!isScheduledDate(schedule, epochDay)) throw new Error('not-a-scheduled-date');
+  if (schedule.assignmentMode === 'BALANCED') throw new Error('workload-required');
   return schedule.assignmentMode === 'FIXED' ? schedule.memberUids[0] :
     schedule.memberUids[scheduledOrdinal(schedule, epochDay) % schedule.memberUids.length];
 }
@@ -114,8 +113,47 @@ export function scheduleWindow(schedule, fromEpochDay, toEpochDay) {
   const result = [];
   for (let epochDay = fromEpochDay; epochDay <= toEpochDay; epochDay++) {
     if (isScheduledDate(schedule, epochDay)) {
-      result.push({ scheduledEpochDay: epochDay, assignedUid: scheduledAssignee(schedule, epochDay) });
+      result.push({
+        scheduledEpochDay: epochDay,
+        assignedUid: schedule.assignmentMode === 'BALANCED' ? null : scheduledAssignee(schedule, epochDay),
+      });
     }
   }
   return result;
+}
+
+export function workloadWeekBounds(epochDay) {
+  day(epochDay);
+  return { from: monday(epochDay), to: monday(epochDay) + 6 };
+}
+
+export function allocateBalancedOccurrences(schedule, dates, existing, points) {
+  if (schedule.assignmentMode !== 'BALANCED' || !Number.isInteger(points) || points < 1 || points > 5) {
+    throw new Error('invalid-balanced-workload');
+  }
+  const loadsByWeek = new Map();
+  const load = epochDay => {
+    const week = workloadWeekBounds(epochDay).from;
+    if (!loadsByWeek.has(week)) loadsByWeek.set(week, new Map(schedule.memberUids.map(uid => [uid, 0])));
+    return loadsByWeek.get(week);
+  };
+  for (const row of existing) {
+    if (!Number.isInteger(row.workloadPoints) || row.workloadPoints < 1 || row.workloadPoints > 5) {
+      throw new Error('invalid-existing-workload');
+    }
+    const weekly = load(row.scheduledEpochDay);
+    if (weekly.has(row.assignedUid)) {
+      weekly.set(row.assignedUid, weekly.get(row.assignedUid) + row.workloadPoints);
+    }
+  }
+  if (new Set(dates).size !== dates.length) throw new Error('duplicate-dates');
+  return [...dates].sort((a, b) => a - b).map(scheduledEpochDay => {
+    if (!isScheduledDate(schedule, scheduledEpochDay)) throw new Error('not-a-scheduled-date');
+    const weekly = load(scheduledEpochDay);
+    // Configured participant order breaks ties, consistently for the same ledger.
+    const assignedUid = schedule.memberUids.reduce((best, uid) =>
+      weekly.get(uid) < weekly.get(best) ? uid : best);
+    weekly.set(assignedUid, weekly.get(assignedUid) + points);
+    return { scheduledEpochDay, assignedUid };
+  });
 }
