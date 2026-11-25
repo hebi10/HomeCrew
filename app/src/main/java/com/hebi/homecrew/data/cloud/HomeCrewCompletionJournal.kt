@@ -59,10 +59,10 @@ internal class HomeCrewCompletionJournal(
         synchronized(lock) {
             val current = storage.read(key)?.let(CompletionJournalCodec::decode)
             check(current == null || current == command) { "Another request is pending" }
-            if (current == null) {
-                check(storage.write(key, CompletionJournalCodec.encode(command))) {
-                    "Unable to persist completion request"
-                }
+            // SharedPreferences can update its in-memory value even when the
+            // preceding disk commit fails. Re-commit identical requests too.
+            check(storage.write(key, CompletionJournalCodec.encode(command))) {
+                "Unable to persist completion request"
             }
         }
     }
@@ -71,9 +71,7 @@ internal class HomeCrewCompletionJournal(
         synchronized(lock) {
             val current = storage.read(key)?.let(CompletionJournalCodec::decode)
             check(current == null || current == command) { "Pending request changed" }
-            if (current != null) {
-                check(storage.write(key, null)) { "Unable to clear completion request" }
-            }
+            check(storage.write(key, null)) { "Unable to clear completion request" }
         }
     }
 

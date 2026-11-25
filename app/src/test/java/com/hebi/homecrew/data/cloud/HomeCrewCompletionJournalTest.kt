@@ -50,6 +50,27 @@ class HomeCrewCompletionJournalTest {
         assertEquals(command, own.load())
     }
 
+    @Test fun sameInMemoryCommandMustBeCommittedAgainAfterDiskFailure() = runBlocking {
+        val storage = object : CompletionJournalStorage {
+            var value: String? = null
+            var fail = true
+            override fun read(key: String): String? = value
+            override fun write(key: String, value: String?): Boolean {
+                this.value = value
+                return !fail
+            }
+        }
+        val journal = HomeCrewCompletionJournal(storage, "demo-project", "uid-a", "house")
+        assertTrue(runCatching { journal.stage(command) }.isFailure)
+        assertEquals(command, journal.load())
+        assertTrue(runCatching { journal.stage(command) }.isFailure)
+        storage.fail = false
+        journal.stage(command)
+        assertEquals(command, journal.load())
+        journal.remove(command)
+        assertNull(journal.load())
+    }
+
     @Test fun failedDiskCommitAndCorruptRecordsFailClosed() = runBlocking {
         val storage = MemoryStorage()
         val journal = HomeCrewCompletionJournal(storage, "demo-project", "uid-a", "house")
