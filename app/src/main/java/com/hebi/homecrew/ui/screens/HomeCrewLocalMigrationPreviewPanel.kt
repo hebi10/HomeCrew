@@ -45,7 +45,9 @@ internal fun HomeCrewLocalMigrationPreviewPanel(
     var plan by remember(householdId, accountUid, snapshot.members, snapshot.chores, snapshot.occurrences) {
         mutableStateOf<LocalMigrationPlan?>(null)
     }
-    var digest by remember(plan) { mutableStateOf<String?>(null) }
+    var digest by remember(householdId, accountUid, snapshot.members, snapshot.chores, snapshot.occurrences) {
+        mutableStateOf<String?>(null)
+    }
     var loading by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
 
@@ -60,6 +62,7 @@ internal fun HomeCrewLocalMigrationPreviewPanel(
                 loading = true
                 source = null
                 plan = null
+                digest = null
                 mapping = emptyMap()
                 message = null
                 scope.launch {
@@ -86,7 +89,12 @@ internal fun HomeCrewLocalMigrationPreviewPanel(
         source?.let { local ->
             Text("집안일 ${local.rows.definitions.size}개 · 회차 ${local.rows.occurrences.size}개")
             Text("로컬 이름마다 실제 계정을 직접 선택해 주세요.", style = MaterialTheme.typography.bodySmall)
-            migrationMemberNames(local).forEach { name ->
+            val requiredNames = remember(local) { migrationMemberNames(local) }
+            if (requiredNames.size > 8) {
+                Text("로컬 이름이 ${requiredNames.size}개입니다. 공동 공간은 최대 8명까지 연결할 수 있어 이전 준비를 중단합니다.",
+                    color = palette.warning, style = MaterialTheme.typography.bodySmall)
+            }
+            requiredNames.takeIf { it.size <= 8 }.orEmpty().forEach { name ->
                 Text(name, style = MaterialTheme.typography.bodyMedium)
                 snapshot.members.forEachIndexed { index, member ->
                     val label = if (member.isOwner) "소유자" else "구성원 $index"
@@ -97,6 +105,7 @@ internal fun HomeCrewLocalMigrationPreviewPanel(
                         onClick = {
                             mapping = if (selected) mapping - name else mapping + (name to member.uid)
                             plan = null
+                            digest = null
                         }
                     ) { Text(label + (if (member.uid == accountUid) " (나)" else "") + if (selected) " · 선택" else "") }
                 }
@@ -107,15 +116,17 @@ internal fun HomeCrewLocalMigrationPreviewPanel(
                 onClick = {
                     loading = true
                     plan = null
+                    digest = null
                     val selectedMapping = mapping.toMap()
                     val verified = snapshot
                     scope.launch {
                         try {
-                            val prepared = withContext(Dispatchers.Default) {
-                                prepareLocalMigration(local, householdId, accountUid, verified, selectedMapping)
+                            val (prepared, fingerprint) = withContext(Dispatchers.Default) {
+                                val result = prepareLocalMigration(local, householdId, accountUid, verified, selectedMapping)
+                                result to result.manifest?.digest
                             }
+                            digest = fingerprint
                             plan = prepared
-                            digest = withContext(Dispatchers.Default) { prepared.manifest?.digest }
                         } catch (error: CancellationException) {
                             throw error
                         } catch (_: Exception) {
