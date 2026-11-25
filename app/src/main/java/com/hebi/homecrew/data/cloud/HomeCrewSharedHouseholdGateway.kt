@@ -65,8 +65,8 @@ internal data class SharedHouseholdRoster(
 
 internal fun normalizeSharedMemberName(value: String): String {
     val name = java.text.Normalizer.normalize(value, java.text.Normalizer.Form.NFC).trim()
-    require(name.length in 1..12 && !name.any { ch ->
-        Character.getType(ch) in setOf(Character.CONTROL.toInt(), Character.FORMAT.toInt(), Character.SURROGATE.toInt())
+    require(name.length in 1..12 && !name.codePoints().anyMatch { codePoint ->
+        Character.getType(codePoint) in setOf(Character.CONTROL.toInt(), Character.FORMAT.toInt(), Character.SURROGATE.toInt())
     })
     return name
 }

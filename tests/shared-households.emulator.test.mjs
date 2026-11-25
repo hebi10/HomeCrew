@@ -568,6 +568,16 @@ test('member profiles, stale previews, owner transfer, invite epoch and historic
   await read('households/'+householdId+'/memberProfiles/'+member.uid,outsider,403);
   await change(member,'REMOVE',owner.uid,named.rosterDigest,'PERMISSION_DENIED');
   await change(owner,'LEAVE',owner.uid,named.rosterDigest,'FAILED_PRECONDITION');
+  const stage=await call('beginLocalMigrationStage',{householdId,header:{
+    version:1,householdId,ownerUid:owner.uid,digest:'a'.repeat(64),
+    definitionCount:1,occurrenceCount:0,memberUids:[owner.uid,member.uid],
+    defaultMemberUid:owner.uid,legacyWorkloadCount:0,chunkCount:1,
+  }},owner);
+  const blocked=await roster(owner);
+  assert.equal(blocked.transferBlocked,true);
+  await change(owner,'TRANSFER',member.uid,blocked.rosterDigest,'FAILED_PRECONDITION');
+  await call('cancelLocalMigrationStage',{householdId,sessionId:stage.sessionId},owner);
+  assert.equal((await roster(owner)).transferBlocked,false);
 
   const task={id:randomUUID(),name:'설거지',category:'주방',description:'',points:3,assigneeUid:member.uid};
   await call('createRemoteChore',{householdId,chore:task},owner);
