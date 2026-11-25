@@ -121,14 +121,16 @@ internal fun HomeCrewSharedSchedulePanel(
         )
         val points = newPoints.toIntOrNull()
         Button(
-            enabled = enabled && !busy && newName.isNotBlank() && newCategory.isNotBlank() && points in 1..5,
+            enabled = enabled && !busy && newName.isNotBlank() && newCategory.isNotBlank() && points != null && points in 1..5,
             modifier = Modifier.fillMaxWidth(),
             onClick = {
                 val validPoints = points ?: return@Button
                 val id = creationId
+                val name = newName.trim()
+                val category = newCategory.trim()
                 creationStarted = true
                 execute {
-                    gateway.createChore(householdId, id, newName.trim(), newCategory.trim(), "", validPoints, accountUid)
+                    gateway.createChore(householdId, id, name, category, "", validPoints, accountUid)
                     "서버 응답을 받았습니다. 등록된 집안일을 확인하고 있습니다."
                 }
             }
@@ -205,7 +207,7 @@ internal fun HomeCrewSharedSchedulePanel(
                 Text("담당 구성원을 선택해 주세요. 표시명 연동 전까지 구성원 번호로 구분합니다.",
                     style = MaterialTheme.typography.bodySmall, color = palette.muted)
                 snapshot.members.forEachIndexed { index, person ->
-                    val label = if (person.isOwner) "소유자" else "구성원 ${index + 1}"
+                    val label = if (person.isOwner) "소유자" else "구성원 $index"
                     val position = participants.indexOf(person.uid)
                     TextButton(enabled = canEdit, onClick = {
                         participants = if (assignment == "FIXED") listOf(person.uid)
