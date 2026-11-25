@@ -261,6 +261,7 @@ internal fun HomeCrewSharedChorePreviewDialog(
                                             SharedChoreStatus.PENDING -> "미완료"
                                             SharedChoreStatus.COMPLETED -> "완료"
                                             SharedChoreStatus.SKIPPED -> "건너뜀"
+                                            SharedChoreStatus.SCHEDULE_CANCELLED -> "일정 취소"
                                         }
                                         val owner = if (row.assignedToMe) "내 담당" else "다른 구성원 담당"
                                         Text(
@@ -269,7 +270,8 @@ internal fun HomeCrewSharedChorePreviewDialog(
                                             style = MaterialTheme.typography.bodySmall,
                                             color = palette.muted
                                         )
-                                        if (row.status != SharedChoreStatus.SKIPPED) {
+                                        if (row.status == SharedChoreStatus.PENDING ||
+                                            row.status == SharedChoreStatus.COMPLETED) {
                                             TextButton(
                                                 enabled = journalReady && !journalError && !scheduleBusy &&
                                                     canStartSharedCompletion(state, completion),

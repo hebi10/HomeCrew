@@ -295,3 +295,62 @@ test('balanced concurrent generation shares weekly workload without changing exi
   await call('generateRemoteSchedule', { householdId, choreId: a, expectedRevision: 2,
     fromEpochDay: today + 1, toEpochDay: today + 1 }, owner, 'FAILED_PRECONDITION');
 });
+
+
+test('future reconciliation requires owner, exact preview and preserves touched history', { timeout: 180_000 }, async () => {
+  const [owner, member] = await Promise.all([account(), account()]);
+  const { householdId } = await call('createSharedHousehold', { name: '미래 일정 검증', requestId: randomUUID() }, owner);
+  const invite = await call('createHouseholdInvite', { householdId }, owner);
+  await call('acceptHouseholdInvite', { inviteCode: invite.inviteCode }, member);
+  const chore = { id: randomUUID(), name: '정리', category: '청소', description: '', points: 3, assigneeUid: owner.uid };
+  await call('createRemoteChore', { householdId, chore }, owner);
+  const today = Math.floor((Date.now() + 9 * 3600000) / 86400000);
+  const scope = { householdId, choreId: chore.id };
+  const daily = { startEpochDay: today, repeatMode: 'DAILY', assignmentMode: 'FIXED', memberUids: [owner.uid] };
+  await call('configureRemoteSchedule', { ...scope, expectedRevision: 1, schedule: daily }, owner);
+  await call('generateRemoteSchedule', { ...scope, expectedRevision: 2, fromEpochDay: today, toEpochDay: today + 5 }, owner);
+  const ids = await Promise.all([0,1,2,3,4,5].map(offset => call('ensureRemoteOccurrence', {
+    ...scope, scheduledEpochDay: today + offset,
+  }, owner)));
+  const path = i => 'households/' + householdId + '/occurrences/' + ids[i].occurrenceId;
+  async function complete(i, revision, completed) {
+    return call('recordChoreCompletion', { householdId, occurrenceId: ids[i].occurrenceId,
+      expectedRevision: revision, completed, requestId: randomUUID() }, owner);
+  }
+  await complete(3, 1, true);
+  await complete(3, 2, false);
+  const changed = { ...daily, repeatMode: 'CUSTOM', intervalDays: 2, memberUids: [member.uid] };
+  await call('configureRemoteSchedule', { ...scope, expectedRevision: 2, schedule: changed }, owner);
+  const request = { ...scope, expectedRevision: 3 };
+  await call('previewRemoteFutureSchedule', request, member, 'PERMISSION_DENIED');
+  const first = await call('previewRemoteFutureSchedule', request, owner);
+  assert.equal(first.cancelled, 2);
+  assert.equal(first.reassigned, 2);
+  assert.equal(first.protectedCount, 1);
+  assert.equal((await read(path(1), owner)).revision.integerValue, '1');
+  await complete(1, 1, true);
+  await call('applyRemoteFutureSchedule', { ...request, previewDigest: first.previewDigest }, owner, 'ABORTED');
+  const next = await call('previewRemoteFutureSchedule', request, owner);
+  assert.equal(next.cancelled, 1);
+  assert.equal(next.protectedCount, 2);
+  const applied = await call('applyRemoteFutureSchedule', { ...request, previewDigest: next.previewDigest }, owner);
+  assert.equal(applied.cancelled, 1);
+  assert.equal(applied.reassigned, 2);
+  assert.equal((await read(path(0), owner)).revision.integerValue, '1');
+  assert.equal((await read(path(1), owner)).completed.booleanValue, true);
+  assert.equal((await read(path(3), owner)).revision.integerValue, '3');
+  assert.ok((await read(path(5), owner)).scheduleCancelledAt.timestampValue);
+  assert.equal((await read(path(2), owner)).assignedUid.stringValue, member.uid);
+  await call('recordChoreCompletion', { householdId, occurrenceId: ids[5].occurrenceId,
+    expectedRevision: 2, completed: true, requestId: randomUUID() }, owner, 'FAILED_PRECONDITION');
+  const replay = await call('applyRemoteFutureSchedule', { ...request, previewDigest: next.previewDigest }, owner);
+  assert.equal(replay.replayed, true);
+  await call('configureRemoteSchedule', { ...scope, expectedRevision: 3, schedule: daily }, owner);
+  const restoreRequest = { ...scope, expectedRevision: 4 };
+  const restore = await call('previewRemoteFutureSchedule', restoreRequest, owner);
+  assert.equal(restore.restored, 1);
+  await call('applyRemoteFutureSchedule', { ...restoreRequest, previewDigest: restore.previewDigest }, owner);
+  const restored = await read(path(5), owner);
+  assert.ok(restored.scheduleCancelledAt.nullValue === null || restored.scheduleCancelledAt.nullValue === 'NULL_VALUE');
+  assert.equal(restored.assignedUid.stringValue, owner.uid);
+});

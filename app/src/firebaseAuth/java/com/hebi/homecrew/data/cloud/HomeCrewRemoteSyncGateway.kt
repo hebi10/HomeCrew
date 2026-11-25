@@ -123,6 +123,43 @@ internal class HomeCrewRemoteSyncGateway(
         return RemoteGenerationResult(created, existing)
     }
 
+    override suspend fun previewFutureSchedule(
+        householdId: String, choreId: String, expectedRevision: Long
+    ): RemoteFutureSchedulePreview = futureScheduleResult(
+        "previewRemoteFutureSchedule", householdId, choreId, expectedRevision, null
+    )
+
+    override suspend fun applyFutureSchedule(
+        householdId: String, choreId: String, expectedRevision: Long, previewDigest: String
+    ): RemoteFutureSchedulePreview = futureScheduleResult(
+        "applyRemoteFutureSchedule", householdId, choreId, expectedRevision, previewDigest
+    )
+
+    private suspend fun futureScheduleResult(
+        function: String, householdId: String, choreId: String, revision: Long, digest: String?
+    ): RemoteFutureSchedulePreview {
+        requireUid()
+        requireValidCloudId(householdId)
+        requireValidCloudId(choreId)
+        require(revision > 0)
+        require(digest == null || digest.matches(Regex("[a-f0-9]{64}")))
+        val payload = mutableMapOf<String, Any>(
+            "householdId" to householdId, "choreId" to choreId, "expectedRevision" to revision
+        )
+        if (digest != null) payload["previewDigest"] = digest
+        val result = call(function, payload)
+        fun count(key: String) = (result[key] as Number).toInt()
+        return RemoteFutureSchedulePreview(
+            result["previewDigest"] as String,
+            count("cancelled"), count("reassigned"), count("restored"),
+            count("protectedCount"), count("balancedDeferred"),
+            (result["changes"] as List<*>).map { value ->
+                val change = value as Map<*, *>
+                RemoteFutureScheduleChange((change["date"] as Number).toLong(), change["type"] as String)
+            }
+        )
+    }
+
     suspend fun updateChore(
         householdId: String,
         choreId: String,
@@ -345,6 +382,7 @@ internal class HomeCrewRemoteSyncGateway(
         completedByUid = doc.getString("completedByUid"),
         revision = requireNotNull(doc.getLong("revision")),
         skipped = doc.getTimestamp("skippedAt") != null,
-        workloadPoints = doc.getLong("workloadPoints")?.toInt()
+        workloadPoints = doc.getLong("workloadPoints")?.toInt(),
+        scheduleCancelled = doc.getTimestamp("scheduleCancelledAt") != null
     )
 }
