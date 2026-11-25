@@ -230,6 +230,76 @@ internal class HomeCrewRemoteSyncGateway(
         }
     }
 
+    override suspend fun migrationStage(householdId: String): RemoteMigrationStage? {
+        requireValidCloudId(householdId)
+        val result = call("getLocalMigrationStage", mapOf("householdId" to householdId))
+        return if (result["found"] == false) null else decodeStage(result)
+    }
+
+    override suspend fun beginMigrationStage(upload: StagedMigrationUpload): RemoteMigrationStage {
+        val manifest = upload.manifest
+        check(requireUid() == manifest.ownerUid)
+        requireValidCloudId(manifest.householdId)
+        return decodeStage(call("beginLocalMigrationStage", mapOf(
+            "householdId" to manifest.householdId, "header" to upload.header()
+        )))
+    }
+
+    override suspend fun appendMigrationChunk(householdId: String, sessionId: String, chunk: MigrationUploadChunk): RemoteMigrationStage =
+        decodeStage(call("appendLocalMigrationStageChunk", stageScope(householdId, sessionId) + mapOf(
+            "chunk" to chunk.payload(), "chunkDigest" to chunk.digest
+        )))
+
+    override suspend fun sealMigrationStage(householdId: String, sessionId: String): RemoteMigrationStage =
+        decodeStage(call("sealLocalMigrationStage", stageScope(householdId, sessionId), timeoutSeconds = 185L))
+
+    override suspend fun publishMigrationChunk(householdId: String, stage: RemoteMigrationStage) {
+        require(stage.state == "SEALED" || stage.state == "PUBLISHING")
+        val result = call("publishLocalMigrationStageChunk", stageScope(householdId, stage.sessionId) +
+            mapOf("index" to stage.publishIndex, "digest" to stage.digest))
+        if (result["published"] == true) decodeMigrationReceipt(result, stage.digest)
+        else {
+            val progress = decodeStage(result)
+            check(progress.sessionId == stage.sessionId && progress.digest == stage.digest &&
+                progress.publishIndex > stage.publishIndex)
+        }
+    }
+
+    override suspend fun rollbackMigrationPublication(householdId: String, sessionId: String) {
+        decodeStage(call("rollbackLocalMigrationPublication", stageScope(householdId, sessionId)))
+    }
+
+    override suspend fun cancelMigrationStage(householdId: String, sessionId: String) {
+        val result = call("cancelLocalMigrationStage", stageScope(householdId, sessionId))
+        check(result["removed"] is Boolean && result["remaining"] is Boolean)
+    }
+
+    override suspend fun cleanupMigrationStage(householdId: String, sessionId: String) {
+        val result = call("cleanupPublishedMigrationStage", stageScope(householdId, sessionId))
+        check(result["removed"] is Boolean && result["remaining"] is Boolean)
+    }
+
+    private fun stageScope(householdId: String, sessionId: String): Map<String, Any> {
+        requireUid()
+        requireValidCloudId(householdId)
+        require(java.util.UUID.fromString(sessionId).toString() == sessionId)
+        return mapOf("householdId" to householdId, "sessionId" to sessionId)
+    }
+
+    private fun decodeStage(result: Map<*, *>): RemoteMigrationStage {
+        fun count(key: String): Int {
+            val n = result[key] as? Number ?: error("Missing stage count")
+            return n.toInt().also { check(n.toDouble() == it.toDouble()) }
+        }
+        check(result["found"] == true)
+        return RemoteMigrationStage(
+            result["sessionId"] as String, result["digest"] as String, result["state"] as String,
+            count("nextIndex"), count("chunkCount"), count("receivedDefinitions"), count("definitionCount"),
+            count("receivedOccurrences"), count("occurrenceCount"), count("publishIndex"),
+            count("publishedDefinitions"), count("publishedOccurrences")
+        )
+    }
+
     private fun decodeMigrationReceipt(result: Map<*, *>, digest: String): RemoteMigrationReceipt {
         check(result["digest"] == digest)
         fun count(key: String): Int {
@@ -360,9 +430,10 @@ internal class HomeCrewRemoteSyncGateway(
         }
     }
 
-    private suspend fun call(name: String, data: Map<String, Any>): Map<*, *> {
+    private suspend fun call(name: String, data: Map<String, Any>, timeoutSeconds: Long = 60L): Map<*, *> {
         val expectedUid = requireUid()
-        val result = functions.getHttpsCallable(name).call(data).await().data
+        val result = functions.getHttpsCallable(name)
+            .withTimeout(timeoutSeconds, java.util.concurrent.TimeUnit.SECONDS).call(data).await().data
         check(auth.currentUser?.uid == expectedUid) {
             "Firebase account changed during cloud operation"
         }

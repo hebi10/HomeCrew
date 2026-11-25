@@ -16,7 +16,7 @@ import org.json.JSONObject
 
 internal const val ATOMIC_MIGRATION_MAX_ROWS = 300
 internal const val ATOMIC_MIGRATION_MAX_BYTES = 512 * 1024
-private const val JOURNAL_MAX_BYTES = 2 * 1024 * 1024
+private const val JOURNAL_MAX_BYTES = 40 * 1024 * 1024
 
 internal data class PendingLocalMigration(
     val digest: String,
@@ -33,9 +33,8 @@ internal data class PendingLocalMigration(
         require(digest.matches(Regex("[a-f0-9]{64}")))
         require(validateHouseholdSetup(household))
         require(mapping.size in 1..8 && mapping.values.distinct().size == mapping.size)
-        require(definitions in 1..ATOMIC_MIGRATION_MAX_ROWS &&
-            occurrences in 0..ATOMIC_MIGRATION_MAX_ROWS &&
-            definitions + occurrences <= ATOMIC_MIGRATION_MAX_ROWS)
+        require(definitions in 1..STAGED_MAX_DEFINITIONS &&
+            occurrences in 0..STAGED_MAX_OCCURRENCES)
         require(completed in 0..occurrences && skipped in 0..occurrences &&
             completed + skipped <= occurrences)
     }

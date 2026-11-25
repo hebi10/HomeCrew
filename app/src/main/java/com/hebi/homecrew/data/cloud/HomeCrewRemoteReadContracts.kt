@@ -84,6 +84,15 @@ internal interface RemoteHouseholdChoreGateway : RemoteHouseholdReadGateway {
 
     suspend fun migrationReceipt(householdId: String, digest: String): RemoteMigrationReceipt?
 
+    suspend fun migrationStage(householdId: String): RemoteMigrationStage?
+    suspend fun beginMigrationStage(upload: StagedMigrationUpload): RemoteMigrationStage
+    suspend fun appendMigrationChunk(householdId: String, sessionId: String, chunk: MigrationUploadChunk): RemoteMigrationStage
+    suspend fun sealMigrationStage(householdId: String, sessionId: String): RemoteMigrationStage
+    suspend fun publishMigrationChunk(householdId: String, stage: RemoteMigrationStage)
+    suspend fun rollbackMigrationPublication(householdId: String, sessionId: String)
+    suspend fun cancelMigrationStage(householdId: String, sessionId: String)
+    suspend fun cleanupMigrationStage(householdId: String, sessionId: String)
+
     suspend fun recordCompletion(
         householdId: String,
         command: RemoteCompletionCommand
@@ -149,7 +158,7 @@ internal data class RemoteMigrationReceipt(
 ) {
     init {
         require(digest.matches(Regex("[a-f0-9]{64}")))
-        require(definitions in 1..300 && occurrences in 0..300 && definitions + occurrences <= 300)
+        require(definitions in 1..STAGED_MAX_DEFINITIONS && occurrences in 0..STAGED_MAX_OCCURRENCES)
         require(completed in 0..occurrences && skipped in 0..occurrences && completed + skipped <= occurrences)
     }
 }
