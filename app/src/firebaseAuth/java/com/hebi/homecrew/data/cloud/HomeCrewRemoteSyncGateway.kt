@@ -44,7 +44,8 @@ internal class HomeCrewRemoteSyncGateway(
         val homeFlow = observeHousehold(householdId, expectedUid)
         val choreFlow = observeCollection(householdId, "chores", expectedUid)
         val occurrenceFlow = observeCollection(householdId, "occurrences", expectedUid)
-        emitAll(combine(homeFlow, choreFlow, occurrenceFlow) { home, chores, occurrences ->
+        val memberFlow = observeCollection(householdId, "members", expectedUid)
+        emitAll(combine(homeFlow, choreFlow, occurrenceFlow, memberFlow) { home, chores, occurrences, members ->
             check(auth.currentUser?.uid == expectedUid) {
                 "Firebase account changed while observing shared data"
             }
@@ -53,12 +54,14 @@ internal class HomeCrewRemoteSyncGateway(
                 occurrences = occurrences.documents.map(::decodeOccurrence),
                 mayBeStale = home.metadata.isFromCache || chores.metadata.isFromCache ||
                     occurrences.metadata.isFromCache || home.metadata.hasPendingWrites() ||
-                    chores.metadata.hasPendingWrites() || occurrences.metadata.hasPendingWrites()
+                    chores.metadata.hasPendingWrites() || occurrences.metadata.hasPendingWrites() ||
+                    members.metadata.isFromCache || members.metadata.hasPendingWrites(),
+                members = decodeMembers(home, members)
             )
         })
     }
 
-    suspend fun createChore(
+    override suspend fun createChore(
         householdId: String,
         choreId: String,
         name: String,
@@ -78,6 +81,46 @@ internal class HomeCrewRemoteSyncGateway(
             "householdId" to householdId, "chore" to chore
         ))
         return (response["revision"] as? Number)?.toLong() ?: error("Missing cloud revision")
+    }
+
+    override suspend fun configureSchedule(
+        householdId: String,
+        choreId: String,
+        expectedRevision: Long,
+        schedule: RemoteSchedule
+    ): Long {
+        requireUid()
+        requireValidCloudId(householdId)
+        requireValidCloudId(choreId)
+        require(expectedRevision > 0)
+        val result = call("configureRemoteSchedule", mapOf(
+            "householdId" to householdId, "choreId" to choreId,
+            "expectedRevision" to expectedRevision, "schedule" to schedule.payload()
+        ))
+        check(result["choreId"] == choreId)
+        return (result["revision"] as? Number)?.toLong() ?: error("Missing schedule revision")
+    }
+
+    override suspend fun generateSchedule(
+        householdId: String,
+        choreId: String,
+        expectedRevision: Long,
+        fromEpochDay: Long,
+        toEpochDay: Long
+    ): RemoteGenerationResult {
+        requireUid()
+        requireValidCloudId(householdId)
+        requireValidCloudId(choreId)
+        require(expectedRevision > 0 && toEpochDay >= fromEpochDay && toEpochDay - fromEpochDay <= 62)
+        val result = call("generateRemoteSchedule", mapOf(
+            "householdId" to householdId, "choreId" to choreId,
+            "expectedRevision" to expectedRevision, "fromEpochDay" to fromEpochDay,
+            "toEpochDay" to toEpochDay
+        ))
+        val created = (result["created"] as? Number)?.toInt() ?: error("Missing created count")
+        val existing = (result["existing"] as? Number)?.toInt() ?: error("Missing existing count")
+        check(created in 0..63 && existing in 0..63 && created + existing <= 63)
+        return RemoteGenerationResult(created, existing)
     }
 
     suspend fun updateChore(
@@ -261,13 +304,36 @@ internal class HomeCrewRemoteSyncGateway(
         return uid
     }
 
+    private fun decodeMembers(home: DocumentSnapshot, snapshot: QuerySnapshot): List<RemoteHouseholdMember> {
+        val ownerUid = requireNotNull(home.getString("ownerUid"))
+        return listOf(RemoteHouseholdMember(ownerUid, true)) +
+            snapshot.documents.filter { it.id != ownerUid }.map {
+                check(it.getString("uid") == it.id && it.getString("role") == "member")
+                RemoteHouseholdMember(it.id, false)
+            }.sortedBy { it.uid }
+    }
+
+    private fun decodeSchedule(doc: DocumentSnapshot): RemoteSchedule? {
+        val raw = doc.get("schedule") ?: return null
+        val map = raw as? Map<*, *> ?: error("Invalid shared schedule")
+        return RemoteSchedule(
+            startEpochDay = (map["startEpochDay"] as Number).toLong(),
+            repeatMode = map["repeatMode"] as String,
+            weekdays = (map["weekdays"] as List<*>).map { (it as Number).toInt() },
+            intervalDays = (map["intervalDays"] as Number).toInt(),
+            assignmentMode = map["assignmentMode"] as String,
+            memberUids = (map["memberUids"] as List<*>).map { it as String }
+        )
+    }
+
     private fun decodeChore(doc: DocumentSnapshot) = RemoteChore(
         id = doc.id,
         name = requireNotNull(doc.getString("name")),
         category = doc.getString("category").orEmpty(),
         points = requireNotNull(doc.getLong("points")).toInt(),
         assigneeUid = requireNotNull(doc.getString("assigneeUid")),
-        revision = requireNotNull(doc.getLong("revision"))
+        revision = requireNotNull(doc.getLong("revision")),
+        schedule = decodeSchedule(doc)
     )
 
     private fun decodeOccurrence(doc: DocumentSnapshot) = RemoteOccurrence(
@@ -278,6 +344,7 @@ internal class HomeCrewRemoteSyncGateway(
         completed = requireNotNull(doc.getBoolean("completed")),
         completedByUid = doc.getString("completedByUid"),
         revision = requireNotNull(doc.getLong("revision")),
-        skipped = doc.getTimestamp("skippedAt") != null
+        skipped = doc.getTimestamp("skippedAt") != null,
+        workloadPoints = doc.getLong("workloadPoints")?.toInt()
     )
 }

@@ -69,7 +69,7 @@ internal fun sharedChoreDay(
             occurrenceId = occurrence.id,
             name = definition.name,
             category = definition.category,
-            points = definition.points,
+            points = occurrence.workloadPoints ?: definition.points,
             assignedToMe = occurrence.assignedUid == currentUid,
             status = when {
                 occurrence.skipped -> SharedChoreStatus.SKIPPED
