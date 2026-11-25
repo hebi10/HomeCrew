@@ -288,7 +288,7 @@ class MainScreensScreenshotTest {
         requireNotNull(dark) { "다크 모드 적용을 확인하지 못했습니다." }
         Thread.sleep(900)
         screenshot("07-home-dark")
-        if (InstrumentationRegistry.getArguments().getString("captureDesignTabs") == "true") {
+        if (InstrumentationRegistry.getArguments().getString("captureDarkTabs") != "false") {
             tapTab("일정")
             awaitScreenTitle("일정")
             tapCalendarMode("주")
