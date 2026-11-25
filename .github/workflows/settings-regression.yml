@@ -49,6 +49,9 @@ jobs:
               cases.append({"label": "member-persistence", "font": "1.0", "test": "com.hebi.homecrew.qa.HomeCrewActivityRestartTest#householdSettingsPersistAfterActivityRestart"})
           if prefix + "MainScreensScreenshotTest.kt" in paths:
               cases.append({"label": "account-large-font", "font": "1.6", "test": "com.hebi.homecrew.qa.MainScreensScreenshotTest#captureMainTabsAndBasicInteractions"})
+              cases.append({"label": "design-main-tabs", "font": "1.0", "test": "com.hebi.homecrew.qa.MainScreensScreenshotTest#captureMainTabsAndBasicInteractions"})
+              cases.append({"label": "design-chore-editor", "font": "1.0", "test": "com.hebi.homecrew.qa.ChoreEditorScreenshotTest#captureFourChorePagesAndValidation"})
+              cases.append({"label": "design-local-data", "font": "1.0", "test": "com.hebi.homecrew.qa.HomeCrewLocalDataScreenshotTest#localBackupScreenCanBeOpenedWithoutChangingData"})
           if (prefix + "HomeCrewCompletionJournalInstrumentedTest.kt" in paths or
               any(p.startswith("app/src/main/java/com/hebi/homecrew/data/cloud/HomeCrewCompletionJournal") for p in paths)):
               cases.append({"label": "completion-journal", "font": "1.0", "test": "com.hebi.homecrew.qa.HomeCrewCompletionJournalInstrumentedTest#storedRequestSurvivesJournalRecreationAndIsAccountScoped"})
@@ -106,7 +109,8 @@ jobs:
         env:
           FONT_SCALE: ${{ matrix.font }}
           TEST_CASE: ${{ matrix.test }}
-          REQUIRE_ACCOUNT_QA: ${{ matrix.label == 'account-large-font' }}
+          REQUIRE_ACCOUNT_QA: ${{ matrix.label == 'account-large-font' || matrix.label == 'design-main-tabs' }}
+          CAPTURE_DESIGN_TABS: ${{ matrix.label == 'design-main-tabs' }}
         with:
           api-level: 35
           arch: x86_64
@@ -117,7 +121,7 @@ jobs:
           script: |
             adb shell settings put system font_scale "$FONT_SCALE"
             adb shell cmd uimode night no
-            ./gradlew --no-daemon connectedDebugAndroidTest "-Pandroid.testInstrumentationRunnerArguments.class=$TEST_CASE" "-Pandroid.testInstrumentationRunnerArguments.requireAccountQa=$REQUIRE_ACCOUNT_QA" --stacktrace
+            ./gradlew --no-daemon connectedDebugAndroidTest "-Pandroid.testInstrumentationRunnerArguments.class=$TEST_CASE" "-Pandroid.testInstrumentationRunnerArguments.requireAccountQa=$REQUIRE_ACCOUNT_QA" "-Pandroid.testInstrumentationRunnerArguments.captureDesignTabs=$CAPTURE_DESIGN_TABS" --stacktrace
       - name: Verify selected test actually ran
         env:
           TEST_CASE: ${{ matrix.test }}

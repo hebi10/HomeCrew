@@ -213,6 +213,23 @@ class MainScreensScreenshotTest {
         requireNotNull(dark) { "다크 모드 적용을 확인하지 못했습니다." }
         Thread.sleep(900)
         screenshot("07-home-dark")
+        if (InstrumentationRegistry.getArguments().getString("captureDesignTabs") == "true") {
+            tapTab("일정")
+            awaitScreenTitle("일정")
+            screenshot("02-schedule-dark")
+            tapButton("월 보기")
+            screenshot("02-schedule-month-dark")
+            tapButton("일 보기")
+            screenshot("02-schedule-day-dark")
+            tapTab("집안일")
+            awaitScreenTitle("집안일")
+            screenshot("03-chores-dark")
+            tapTab("통계")
+            awaitScreenTitle("통계")
+            screenshot("04-stats-dark")
+            tapTab("홈")
+            awaitScreenTitle("우리 집")
+        }
 
         val settings = device.wait(Until.findObject(By.desc("집 및 앱 설정")), 10_000)
         if (settings == null) dumpFailedUi("집 및 앱 설정")
