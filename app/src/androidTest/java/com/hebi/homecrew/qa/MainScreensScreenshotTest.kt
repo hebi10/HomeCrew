@@ -57,17 +57,28 @@ class MainScreensScreenshotTest {
         device.waitForIdle()
     }
 
+    private fun calendarPeriodSelector(label: String): androidx.test.uiautomator.BySelector {
+        val pattern = when (label) {
+            "월" -> """^\d{4}년 \d{1,2}월$"""
+            "주" -> """^\d{1,2}/\d{1,2} – \d{1,2}/\d{1,2}$"""
+            "일" -> """^\d{1,2}월 \d{1,2}일 \([월화수목금토일]\)$"""
+            else -> error("지원하지 않는 일정 표시 방식: $label")
+        }
+        return By.res("homecrew_schedule_period").text(java.util.regex.Pattern.compile(pattern))
+    }
+
     private fun tapCalendarMode(label: String) {
-        val selectedDescription = By.desc("선택됨: $label 보기")
-        if (device.findObject(selectedDescription) == null) {
+        val period = calendarPeriodSelector(label)
+        if (device.findObject(period) == null) {
             val option = device.wait(Until.findObject(By.desc("$label 보기")), 8_000)
             if (option == null) dumpFailedUi("$label 보기 버튼")
             val bounds = requireNotNull(option) { "일정 표시 방식 버튼을 찾지 못했습니다: $label" }.visibleBounds
-            device.click(bounds.centerX(), bounds.centerY())
+            assertTrue("일정 표시 방식 버튼을 누르지 못했습니다: $label",
+                device.click(bounds.centerX(), bounds.centerY()))
         }
-        val selected = device.wait(Until.findObject(selectedDescription), 8_000)
-        if (selected == null) dumpFailedUi("$label 보기 선택 상태")
-        requireNotNull(selected) { "일정 표시 방식이 $label 상태로 전환되지 않았습니다." }
+        val renderedPeriod = device.wait(Until.findObject(period), 12_000)
+        if (renderedPeriod == null) dumpFailedUi("$label 보기 실제 기간")
+        requireNotNull(renderedPeriod) { "일정 표시 기간이 $label 상태로 전환되지 않았습니다." }
         device.waitForIdle()
     }
 
@@ -157,6 +168,7 @@ class MainScreensScreenshotTest {
         tapTab("일정")
         awaitScreenTitle("일정")
         awaitText("구성원별 일정")
+        tapCalendarMode("주")
         screenshot("02-schedule-light")
 
         tapCalendarMode("월")
