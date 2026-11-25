@@ -49,10 +49,10 @@ fun HomeCrewMainScreens(
     onThemeModeChange: (ThemeMode) -> Unit,
     householdSetup: HouseholdSetup? = null,
     onHouseholdChange: (HouseholdSetup) -> Boolean = { false },
-    onLocalMemberChange: suspend (String, String?) -> String? = { _, _ -> "구성원 변경을 지원하지 않는 화면입니다." },
     viewModel: DemoChoreViewModel = viewModel(
         factory = DemoChoreViewModel.Factory(LocalContext.current.applicationContext)
-    )
+    ),
+    onLocalMemberChange: suspend (String, String?) -> String? = { _, _ -> "구성원 변경을 지원하지 않는 화면입니다." }
 ) {
     val palette = LocalHomeCrewColors.current
     val chores by viewModel.chores.collectAsState()
@@ -266,7 +266,7 @@ fun HomeCrewMainScreens(
             if (householdSetup != null) {
                 HomeCrewSettingsScreen(
                     household = householdSetup,
-                    assignedMembers = (definitions.flatMap { listOf(it.owner) + it.assignment.members } +
+                    assignedMembers = (definitions.flatMap { listOf(it.owner) + it.assignment?.members.orEmpty() } +
                         chores.map { it.definition.owner } + chores.mapNotNull { it.completedBy }).toSet(),
                     themeMode = themeMode,
                     onThemeModeChange = onThemeModeChange,
