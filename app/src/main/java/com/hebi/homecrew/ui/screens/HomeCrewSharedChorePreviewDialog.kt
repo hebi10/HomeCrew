@@ -63,6 +63,9 @@ internal fun HomeCrewSharedChorePreviewDialog(
         var loadAttempt by remember { mutableIntStateOf(0) }
         var scheduleBusy by remember { mutableStateOf(false) }
         var migrationBusy by remember { mutableStateOf(false) }
+        var migrationPage by rememberSaveable { mutableStateOf(false) }
+        val pageScroll = rememberScrollState()
+        LaunchedEffect(migrationPage) { pageScroll.scrollTo(0) }
         var autoRefill by rememberSaveable { mutableStateOf(true) }
         var refillBusy by remember { mutableStateOf(false) }
         var refillMessage by remember { mutableStateOf<String?>(null) }
@@ -186,12 +189,16 @@ internal fun HomeCrewSharedChorePreviewDialog(
             }
 
             HomeCrewManagementPage(
-                onDismissRequest = { if (completion !is SharedCompletionState.Sending && !scheduleBusy && !migrationBusy) onClose() },
-                title = { Text(if (state is SharedChorePreviewState.Ready) householdName else "공동 집안일") },
+                onDismissRequest = {
+                    if (completion !is SharedCompletionState.Sending && !scheduleBusy && !migrationBusy) {
+                        if (migrationPage) migrationPage = false else onClose()
+                    }
+                },
+                title = { Text(if (migrationPage) "로컬 자료 이전" else if (state is SharedChorePreviewState.Ready) householdName else "공동 집안일") },
                 text = {
                     Column(
                         modifier = Modifier.fillMaxWidth()
-                            .verticalScroll(rememberScrollState()),
+                            .verticalScroll(pageScroll),
                         verticalArrangement = Arrangement.spacedBy(HomeCrewDimensions.space12)
                     ) {
                         Text(
@@ -259,6 +266,23 @@ internal fun HomeCrewSharedChorePreviewDialog(
                                 TextButton(onClick = { retry++ }) { Text("다시 시도") }
                             }
                             is SharedChorePreviewState.Ready -> {
+                                val canMigrate = !current.snapshot.mayBeStale &&
+                                    current.snapshot.members.any { it.uid == accountUid && it.isOwner }
+                                if (migrationPage) {
+                                    Text(householdName, style = MaterialTheme.typography.titleMedium)
+                                    if (canMigrate) {
+                                        HomeCrewLocalMigrationPreviewPanel(
+                                            gateway = gateway, journal = migrationJournal,
+                                            householdId = householdId, accountUid = accountUid,
+                                            snapshot = current.snapshot,
+                                            enabled = journalReady && !journalError && !scheduleBusy && !refillBusy &&
+                                                canStartSharedCompletion(state, completion),
+                                            onBusyChange = { migrationBusy = it }
+                                        )
+                                    } else {
+                                        Text("최신 소유자 권한을 확인할 수 없습니다. 자료 이전을 진행할 수 없습니다.", color = palette.warning)
+                                    }
+                                } else {
                                 Text("실시간 연결", color = palette.success, style = MaterialTheme.typography.bodySmall)
                                 Text("공동 공간을 열어 둔 동안 저장된 규칙의 누락 회차를 자동 보충합니다.",
                                     style = MaterialTheme.typography.bodySmall, color = palette.muted)
@@ -335,25 +359,24 @@ internal fun HomeCrewSharedChorePreviewDialog(
                                         canStartSharedCompletion(state, completion),
                                     onBusyChange = { scheduleBusy = it }
                                 )
-                                HomeCrewLocalMigrationPreviewPanel(
-                                    gateway = gateway,
-                                    journal = migrationJournal,
-                                    householdId = householdId,
-                                    accountUid = accountUid,
-                                    snapshot = current.snapshot,
-                                    enabled = journalReady && !journalError && !scheduleBusy && !refillBusy &&
-                                        canStartSharedCompletion(state, completion),
-                                    onBusyChange = { migrationBusy = it }
-                                )
+                                if (canMigrate) {
+                                    TextButton(
+                                        enabled = journalReady && !journalError && !scheduleBusy && !refillBusy && !migrationBusy &&
+                                            canStartSharedCompletion(state, completion),
+                                        onClick = { migrationPage = true },
+                                        modifier = Modifier.heightIn(min = HomeCrewDimensions.touchTarget)
+                                    ) { Text("로컬 자료 이전 준비") }
+                                }
+                                }
                             }
                         }
                     }
                 },
                 confirmButton = {
                     TextButton(
-                        onClick = onClose,
+                        onClick = { if (migrationPage) migrationPage = false else onClose() },
                         enabled = completion !is SharedCompletionState.Sending && !scheduleBusy && !migrationBusy
-                    ) { Text("닫기") }
+                    ) { Text(if (migrationPage) "뒤로" else "닫기") }
                 }
             )
         }
