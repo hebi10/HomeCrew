@@ -3,6 +3,12 @@ package com.hebi.homecrew.qa
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isEnabled
+import androidx.compose.ui.test.junit4.createEmptyComposeRule
+import androidx.compose.ui.test.onNodeWithText
 import androidx.test.ext.junit.rules.ActivityScenarioRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -22,17 +28,19 @@ import java.io.File
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
+import org.junit.rules.RuleChain
 import org.junit.Test
 import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class HomeCrewSharedAdditionalScreensInstrumentedTest {
-    @get:Rule val activityRule = ActivityScenarioRule(MainActivity::class.java)
+    private val compose = createEmptyComposeRule()
+    private val activityRule = ActivityScenarioRule(MainActivity::class.java)
+    @get:Rule val rules: RuleChain = RuleChain.outerRule(compose).around(activityRule)
     private val device get() = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
 
     private enum class Page { OWNER, MEMBER, CHORES, STAGE, DELETION }
@@ -155,6 +163,24 @@ class HomeCrewSharedAdditionalScreensInstrumentedTest {
         device.waitForIdle()
     }
 
+    private fun assertMigrationReadEnabled(expected: Boolean) {
+        val label = "로컬 자료 읽기"
+        try {
+            if (expected) {
+                compose.waitUntil(timeoutMillis = 10_000) {
+                    compose.onAllNodes(hasText(label) and isEnabled()).fetchSemanticsNodes().size == 1
+                }
+                compose.onNodeWithText(label).assertIsEnabled()
+            } else {
+                compose.onNodeWithText(label).assertIsNotEnabled()
+            }
+        } catch (failure: Throwable) {
+            capture("error-migration-read-state")
+            device.dumpWindowHierarchy(File(evidenceDirectory(), "hierarchy-migration-read-state.xml"))
+            throw failure
+        }
+    }
+
     @Test
     fun captureRemainingSharedPagesWithoutWrites() {
         val writes = AtomicInteger()
@@ -220,17 +246,19 @@ class HomeCrewSharedAdditionalScreensInstrumentedTest {
         tap("로컬 자료 이전 준비", scroll = true)
         find("로컬 자료 이전")
         find("기존 공동 집안일이 있는 공간은 이전 대상에서 제외합니다.")
-        assertFalse(find("로컬 자료 읽기").isEnabled)
+        assertMigrationReadEnabled(expected = false)
         capture("P21-migration-blocked-fake")
         remote.snapshots.value = snapshot.copy(chores = emptyList(), occurrences = emptyList())
         assertTrue(device.wait(Until.gone(By.text("기존 공동 집안일이 있는 공간은 이전 대상에서 제외합니다.")), 10_000))
-        assertNotNull(device.wait(Until.findObject(By.text("로컬 자료 읽기").enabled(true)), 10_000))
+        assertMigrationReadEnabled(expected = true)
         capture("P21-migration-ready-fake")
         tap("뒤로")
         find("실시간 연결")
+        remote.snapshots.value = snapshot
+        find("QA 설거지", scroll = true)
         remote.snapshots.value = snapshot.copy(mayBeStale = true)
         find("연결을 확인하고 있습니다. 서버에서 확인되지 않은 집안일은 표시하지 않습니다.")
-        assertNull(device.findObject(By.text("QA 설거지")))
+        compose.onNodeWithText("QA 설거지").assertDoesNotExist()
         capture("P20-offline-fake")
 
         show(Page.STAGE)
