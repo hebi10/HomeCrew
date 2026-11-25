@@ -62,13 +62,13 @@ fun HomeCrewHomeScreen(
     val remaining = myChores.count { !it.completed && !it.skipped }
     val myStatus = when {
         myChores.isEmpty() -> "오늘 배정 없음"
-        remaining == 0 -> "모두 완료"
+        remaining == 0 -> if (myChores.any { it.skipped }) "남은 할 일 없음" else "모두 완료"
         else -> "${remaining}개 남음"
     }
     val otherRemaining = others.count { !it.completed && !it.skipped }
     val otherStatus = when {
         others.isEmpty() -> "오늘 배정 없음"
-        otherRemaining == 0 -> "모두 완료"
+        otherRemaining == 0 -> if (others.any { it.skipped }) "남은 할 일 없음" else "모두 완료"
         else -> "${otherRemaining}개 남음"
     }
 
@@ -198,6 +198,32 @@ fun HomeCrewHomeScreen(
                         onToggle = { onToggle(task.id) },
                         onDetails = { onDetails(task) }
                     )
+                }
+            }
+        }
+        if (members.size > 1) {
+            item {
+                BorderedSection {
+                    Column(verticalArrangement = Arrangement.spacedBy(HomeCrewDimensions.space8)) {
+                        SectionHeading("전체 현황")
+                        members.forEach { member ->
+                            val assigned = todayChores.filter { it.definition.owner == member }
+                            val memberSummary = summaryFor(assigned)
+                            val memberRemaining = assigned.count { !it.completed && !it.skipped }
+                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(HomeCrewDimensions.space8)) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(member, style = MaterialTheme.typography.bodyLarge)
+                                    Text("남은 할 일 ${memberRemaining}개", style = MaterialTheme.typography.bodySmall,
+                                        color = palette.muted)
+                                }
+                                Text("완료 ${memberSummary.completed}/${memberSummary.total}",
+                                    color = if (memberSummary.total > 0 && memberSummary.completed == memberSummary.total)
+                                        palette.success else palette.ink,
+                                    style = MaterialTheme.typography.labelLarge)
+                            }
+                        }
+                    }
                 }
             }
         }

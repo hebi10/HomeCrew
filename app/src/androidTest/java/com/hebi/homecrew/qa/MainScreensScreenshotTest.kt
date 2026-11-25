@@ -57,6 +57,14 @@ class MainScreensScreenshotTest {
         device.waitForIdle()
     }
 
+    private fun tapCalendarMode(label: String) {
+        tapButton("$label 보기")
+        val selected = device.wait(Until.findObject(By.desc("$label 보기").selected(true)), 8_000)
+        if (selected == null) dumpFailedUi("$label 보기 선택 상태")
+        requireNotNull(selected) { "일정 표시 방식이 $label 상태로 전환되지 않았습니다." }
+        device.waitForIdle()
+    }
+
     private fun awaitText(label: String) {
         val node = device.wait(Until.findObject(By.text(label)), 12_000)
         if (node == null) dumpFailedUi(label)
@@ -77,6 +85,7 @@ class MainScreensScreenshotTest {
     private fun screenshot(name: String) {
         val directory = qaDirectory()
         device.waitForIdle()
+        Thread.sleep(250)
         assertTrue("화면 캡처 실패: $name", device.takeScreenshot(File(directory, "$name.png")))
     }
 
@@ -91,6 +100,12 @@ class MainScreensScreenshotTest {
         screenshot("00-setup-household")
         tapButton("다음")
         awaitText("함께할 사람 등록")
+        if (InstrumentationRegistry.getArguments().getString("captureDesignTabs") == "true") {
+            val input = device.wait(Until.findObject(By.clazz("android.widget.EditText")), 8_000)
+            requireNotNull(input) { "디자인 QA 구성원 입력란이 없습니다." }.text = "Jimin"
+            tapButton("+ 구성원 추가")
+            awaitText("Jimin")
+        }
         screenshot("00-setup-members")
         tapButton("다음")
         awaitText("집안일을 선택하세요")
@@ -116,9 +131,9 @@ class MainScreensScreenshotTest {
         awaitText("구성원별 일정")
         screenshot("02-schedule-light")
 
-        tapButton("월 보기")
+        tapCalendarMode("월")
         screenshot("02-schedule-month-light")
-        tapButton("일 보기")
+        tapCalendarMode("일")
         screenshot("02-schedule-day-light")
         tapButton("다음 기간")
         screenshot("02-schedule-next-day")
@@ -146,7 +161,7 @@ class MainScreensScreenshotTest {
         device.pressBack()
         awaitScreenTitle("일정")
         tapButton("오늘")
-        tapButton("주 보기")
+        tapCalendarMode("주")
 
         tapTab("집안일")
         awaitScreenTitle("집안일")
@@ -171,9 +186,29 @@ class MainScreensScreenshotTest {
         awaitScreenTitle("우리 집")
         val complete = device.wait(Until.findObject(By.desc("완료 처리")), 10_000)
         if (complete == null) dumpFailedUi("완료 처리")
+        val counterSelector = By.text(java.util.regex.Pattern.compile("^\\d+ / \\d+$"))
+        val countText = requireNotNull(device.wait(Until.findObject(counterSelector), 8_000)) {
+            "오늘의 완료 수치를 확인할 수 없습니다."
+        }.text
+        val (before, total) = countText.split(" / ").map { it.toInt() }
+        require(before < total) { "완료 처리할 예정 회차가 없습니다." }
         requireNotNull(complete) { "완료 버튼을 찾을 수 없음" }.click()
         awaitScreenTitle("우리 집")
+        awaitText("${before + 1} / $total")
         screenshot("05-home-after-completion")
+        if (InstrumentationRegistry.getArguments().getString("captureDesignTabs") == "true") {
+            var overview = device.wait(Until.findObject(By.text("전체 현황")), 800)
+            repeat(8) {
+                if (overview == null) {
+                    device.swipe(device.displayWidth / 2, device.displayHeight * 3 / 4,
+                        device.displayWidth / 2, device.displayHeight / 3, 18)
+                    device.waitForIdle()
+                    overview = device.wait(Until.findObject(By.text("전체 현황")), 800)
+                }
+            }
+            requireNotNull(overview) { "구성원별 전체 현황이 표시되지 않습니다." }
+            screenshot("05-home-member-overview")
+        }
 
         tapTab("통계")
         awaitScreenTitle("통계")
@@ -216,10 +251,11 @@ class MainScreensScreenshotTest {
         if (InstrumentationRegistry.getArguments().getString("captureDesignTabs") == "true") {
             tapTab("일정")
             awaitScreenTitle("일정")
+            tapCalendarMode("주")
             screenshot("02-schedule-dark")
-            tapButton("월 보기")
+            tapCalendarMode("월")
             screenshot("02-schedule-month-dark")
-            tapButton("일 보기")
+            tapCalendarMode("일")
             screenshot("02-schedule-day-dark")
             tapTab("집안일")
             awaitScreenTitle("집안일")

@@ -73,7 +73,7 @@ fun HomeCrewChoreDetailScreen(
 
     fun selectOccurrence(id: String) {
         onSelectOccurrence(id)
-        scope.launch { listState.scrollToItem(2) }
+        scope.launch { listState.scrollToItem(0) }
     }
 
     Surface(
