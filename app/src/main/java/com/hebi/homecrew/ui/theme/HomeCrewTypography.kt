@@ -6,6 +6,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
 val HomeCrewTypography = Typography(
+    headlineMedium = TextStyle(fontSize = 32.sp, fontWeight = FontWeight.Bold),
     headlineSmall = TextStyle(fontSize = 24.sp, fontWeight = FontWeight.SemiBold),
     titleLarge = TextStyle(fontSize = 20.sp, fontWeight = FontWeight.SemiBold),
     titleMedium = TextStyle(fontSize = 18.sp, fontWeight = FontWeight.SemiBold),

@@ -3,6 +3,7 @@ package com.hebi.homecrew.ui.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.ui.Alignment
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -33,7 +34,8 @@ fun ScreenHeader(
     val palette = LocalHomeCrewColors.current
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
     ) {
         Column(
             modifier = Modifier.weight(1f),
@@ -66,7 +68,7 @@ fun SectionHeading(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Text(title, style = MaterialTheme.typography.titleMedium)
+        Text(title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
         if (trailing != null) {
             Text(
                 trailing,
@@ -88,7 +90,7 @@ fun BorderedSection(
             .fillMaxWidth()
             .border(1.dp, palette.border, RoundedCornerShape(4.dp))
             .background(palette.surface, RoundedCornerShape(4.dp))
-            .padding(14.dp)
+            .padding(12.dp)
     ) {
         content()
     }

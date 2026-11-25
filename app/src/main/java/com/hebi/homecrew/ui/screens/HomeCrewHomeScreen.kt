@@ -56,9 +56,9 @@ fun HomeCrewHomeScreen(
     val todayChores = tasksForDay(chores, today)
     val summary = summaryFor(todayChores)
     val myChores = todayChores.filter { it.definition.owner == currentMember }
-        .sortedBy { it.completed }
+        .sortedBy { it.completed || it.skipped }
     val others = todayChores.filter { it.definition.owner != currentMember }
-        .sortedBy { it.completed }
+        .sortedBy { it.completed || it.skipped }
     val remaining = myChores.count { !it.completed && !it.skipped }
     val myStatus = when {
         myChores.isEmpty() -> "오늘 배정 없음"
@@ -78,7 +78,7 @@ fun HomeCrewHomeScreen(
             horizontal = HomeCrewDimensions.screenPadding,
             vertical = HomeCrewDimensions.space16
         ),
-        verticalArrangement = Arrangement.spacedBy(HomeCrewDimensions.space12)
+        verticalArrangement = Arrangement.spacedBy(HomeCrewDimensions.space8)
     ) {
         item {
             ScreenHeader(
@@ -102,9 +102,6 @@ fun HomeCrewHomeScreen(
             }
         }
         item {
-            HomeCrewProgressCard(summary.completed, summary.total)
-        }
-        item {
             Column(verticalArrangement = Arrangement.spacedBy(HomeCrewDimensions.space4)) {
                 Text(
                     "구성원",
@@ -126,6 +123,9 @@ fun HomeCrewHomeScreen(
             }
         }
         item {
+            HomeCrewProgressCard(summary.completed, summary.total)
+        }
+        item {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -133,7 +133,7 @@ fun HomeCrewHomeScreen(
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(HomeCrewDimensions.space4)) {
                     Text(
-                        if (currentMember == "나") "내가 할 일" else "${currentMember}의 할 일",
+                        if (currentMember == "나") "내 할 일" else "${currentMember}의 할 일",
                         style = MaterialTheme.typography.titleMedium
                     )
                     Text(

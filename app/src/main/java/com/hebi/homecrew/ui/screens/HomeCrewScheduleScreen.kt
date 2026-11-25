@@ -125,9 +125,14 @@ fun HomeCrewScheduleScreen(
             horizontal = HomeCrewDimensions.screenPadding,
             vertical = HomeCrewDimensions.space16
         ),
-        verticalArrangement = Arrangement.spacedBy(HomeCrewDimensions.space12)
+        verticalArrangement = Arrangement.spacedBy(HomeCrewDimensions.space8)
     ) {
-        item { ScreenHeader(title = "일정", subtitle = "날짜별 집안일 관리") }
+        item {
+            ScreenHeader(title = "일정") {
+                TextButton(onClick = { selectedEpoch = today.toEpochDay() },
+                    modifier = Modifier.heightIn(min = HomeCrewDimensions.touchTarget)) { Text("오늘") }
+            }
+        }
         item {
             Row(
                 modifier = Modifier.fillMaxWidth()
@@ -253,10 +258,7 @@ fun HomeCrewScheduleScreen(
                     color = palette.muted,
                     style = MaterialTheme.typography.bodySmall
                 )
-                TextButton(
-                    onClick = { selectedEpoch = today.toEpochDay() },
-                    modifier = Modifier.heightIn(min = HomeCrewDimensions.touchTarget)
-                ) { Text("오늘") }
+                if (selected == today) Text("오늘 일정", color = palette.muted, style = MaterialTheme.typography.bodySmall)
             }
         }
         if (!canAdd) {
@@ -312,7 +314,7 @@ private fun CalendarWeekStrip(
                 modifier = Modifier.weight(1f)
                     .heightIn(min = 74.dp)
                     .background(
-                        if (highlighted) palette.ink else palette.subtle,
+                        if (highlighted) palette.ink else if (day == today) palette.subtle else palette.surface,
                         RoundedCornerShape(4.dp)
                     )
                     .clickable { onSelect(day) }
@@ -389,7 +391,7 @@ private fun CalendarMonthGrid(
                             modifier = Modifier.weight(1f)
                                 .heightIn(min = 56.dp)
                                 .background(
-                                    if (highlighted) palette.ink else palette.subtle,
+                                    if (highlighted) palette.ink else if (day == today) palette.subtle else palette.surface,
                                     RoundedCornerShape(3.dp)
                                 )
                                 .clickable { onSelect(day) }

@@ -95,12 +95,12 @@ fun HomeCrewChoresScreen(
             horizontal = HomeCrewDimensions.screenPadding,
             vertical = HomeCrewDimensions.space16
         ),
-        verticalArrangement = Arrangement.spacedBy(HomeCrewDimensions.space12)
+        verticalArrangement = Arrangement.spacedBy(HomeCrewDimensions.space8)
     ) {
         item {
             ScreenHeader(
                 title = "집안일",
-                subtitle = "등록한 집안일과 담당·반복 규칙"
+                subtitle = null
             ) {
                 IconButton(onClick = onAdd) {
                     Icon(Icons.Outlined.Add, contentDescription = "집안일 추가")
@@ -186,7 +186,7 @@ fun HomeCrewChoresScreen(
                             .background(palette.surface)
                             .border(1.dp, palette.border)
                             .padding(HomeCrewDimensions.space12),
-                        verticalArrangement = Arrangement.spacedBy(HomeCrewDimensions.space12)
+                        verticalArrangement = Arrangement.spacedBy(HomeCrewDimensions.space8)
                     ) {
                         ChoreListChoiceGroup(
                             title = "카테고리",
@@ -343,7 +343,7 @@ private fun ChoreDefinitionListRow(
                     definition.name,
                     style = MaterialTheme.typography.bodyLarge,
                     modifier = Modifier.weight(1f),
-                    maxLines = 1,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
                 if (statusToShow != null) {
@@ -357,7 +357,7 @@ private fun ChoreDefinitionListRow(
                 }
             }
             Text(
-                "${definition.category} · ${definition.repeat} · ${assignment}${todayAssigned}",
+                "${definition.repeat} · ${assignment}${todayAssigned} · ${definition.category}",
                 style = MaterialTheme.typography.bodySmall,
                 color = palette.muted,
                 maxLines = 2,
