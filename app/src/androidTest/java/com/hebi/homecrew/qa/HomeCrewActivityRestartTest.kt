@@ -4,6 +4,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onAllNodesWithContentDescription
@@ -21,12 +22,11 @@ import androidx.test.core.app.ActivityScenario
 import android.os.SystemClock
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import androidx.test.uiautomator.By
 import androidx.test.uiautomator.UiDevice
-import androidx.test.uiautomator.Until
 import com.hebi.homecrew.MainActivity
 import com.hebi.homecrew.data.local.HomeCrewDatabase
 import com.hebi.homecrew.data.local.HomeCrewRoomRepository
+import com.hebi.homecrew.ui.model.ChoreStatus
 import com.hebi.homecrew.ui.screens.ChoreAssignment
 import com.hebi.homecrew.ui.screens.ChoreEditorDraft
 import com.hebi.homecrew.ui.screens.ChoreRepeat
@@ -37,7 +37,6 @@ import com.hebi.homecrew.ui.setup.suggestedTemplateIds
 import java.io.File
 import java.time.LocalDate
 import kotlinx.coroutines.runBlocking
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -51,31 +50,35 @@ class HomeCrewActivityRestartTest {
     private val device: UiDevice
         get() = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
 
-    private fun taskVisibleAfterActivityStart(taskName: String) {
+    private fun taskVisibleAfterActivityStart(
+        taskName: String,
+        householdName: String,
+        expectedStatus: ChoreStatus
+    ) {
         val scenario = ActivityScenario.launch(MainActivity::class.java)
         try {
-            var home = device.wait(Until.findObject(By.desc("화면 제목: 우리 집")), 15_000)
-            if (home == null && device.dismissEmulatorLauncherAnrIfShown()) {
-                home = device.wait(Until.findObject(By.desc("화면 제목: 우리 집")), 8_000)
+            // The Compose test clock must advance during initial Room recovery and
+            // ViewModel configuration; use the actual saved household name.
+            awaitDescription("화면 제목: $householdName")
+            awaitDescription("집안일 탭")
+            compose.onNodeWithContentDescription("집안일 탭")
+                .assertIsEnabled().performClick()
+            awaitDescription("화면 제목: 집안일")
+            compose.waitUntil(timeoutMillis = 15_000) {
+                compose.onAllNodesWithTag("homecrew-chores-list")
+                    .fetchSemanticsNodes().size == 1
             }
-            assertNotNull("홈 화면에 진입하지 못했습니다.", home)
-            val choresTab = device.wait(Until.findObject(By.desc("집안일 탭")), 10_000)
-            assertNotNull("집안일 탭이 보이지 않습니다.", choresTab)
-            requireNotNull(choresTab).click()
-            assertNotNull(
-                "집안일 화면이 열리지 않았습니다.",
-                device.wait(Until.findObject(By.desc("화면 제목: 집안일")), 12_000)
-            )
-            var row = device.wait(Until.findObject(By.text(taskName)), 3_000)
-            repeat(12) {
-                if (row != null) return@repeat
-                device.swipe(
-                    device.displayWidth / 2, device.displayHeight * 3 / 4,
-                    device.displayWidth / 2, device.displayHeight / 3, 18
-                )
-                row = device.wait(Until.findObject(By.text(taskName)), 600)
-            }
-            assertNotNull("앱 재시작 후 저장된 집안일이 목록에 없습니다.", row)
+
+            val description = "집안일 상세: $taskName"
+            compose.onNodeWithTag("homecrew-chores-list")
+                .performScrollToNode(hasContentDescription(description))
+            compose.onNodeWithContentDescription(description)
+                .assertIsDisplayed()
+                .assertTextContains(taskName)
+                .assertTextContains(expectedStatus.label)
+        } catch (error: Throwable) {
+            captureSettingsDiagnostic("error-restart-task-" + expectedStatus.name.lowercase())
+            throw error
         } finally {
             scenario.close()
         }
@@ -266,13 +269,14 @@ class HomeCrewActivityRestartTest {
             today
         )
         try {
-            taskVisibleAfterActivityStart(name)
+            taskVisibleAfterActivityStart(name, household.homeName, ChoreStatus.PLANNED)
             val occurrence = repository.snapshot().chores.first {
                 it.definition.id == id && it.date == today
             }
             repository.toggleCompleted(occurrence.id, household.defaultMember)
-            taskVisibleAfterActivityStart(name)
-            assertTrue(repository.snapshot().chores.single { it.id == occurrence.id }.completed)
+            taskVisibleAfterActivityStart(name, household.homeName, ChoreStatus.COMPLETED)
+            val restored = repository.snapshot().chores.single { it.id == occurrence.id }
+            assertTrue("재시작 후 완료 기록이 유지되지 않았습니다.", restored.completed)
         } finally {
             repository.delete(id)
         }
