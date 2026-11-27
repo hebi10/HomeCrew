@@ -64,8 +64,9 @@ def start():
 def run():
     assert any(adb("shell", "getprop", name).strip() == "1"
                for name in ("ro.kernel.qemu", "ro.boot.qemu")), "Use a disposable emulator"
+    adb("shell", "cmd", "connectivity", "airplane-mode", "enable")
+    assert adb("shell", "settings", "get", "global", "airplane_mode_on").strip() == "1"
     adb("shell", "svc", "wifi", "disable")
-    adb("shell", "svc", "data", "disable")
     adb("install", APK)
     start()
     for label in ("시작하기", "다음", "다음", "선택한 집안일로 시작"):
