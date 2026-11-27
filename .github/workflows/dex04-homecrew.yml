@@ -1,0 +1,157 @@
+name: DEX-04 HomeCrew release QA
+
+on:
+  push:
+    branches:
+      - qa/homecrew-dex-04
+
+permissions:
+  contents: read
+
+jobs:
+  release-qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+      - run: sdkmanager --install 'platforms;android-36' 'build-tools;35.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Compare Firebase-enabled release builds with a disposable signer
+        env:
+          BASE_SHA: 36e82e358ff105610cb66e1b9c28c17edcc2d78c
+          CANDIDATE_SHA: 2e7358b19a6b7bdab915e562a1b719b90f2526de
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse refs/remotes/origin/main)" = "$CANDIDATE_SHA"
+          test "$(git show -s --format=%P "$GITHUB_SHA")" = "$CANDIDATE_SHA"
+          git diff --exit-code "$CANDIDATE_SHA" -- . ':(exclude).github/workflows/dex04-homecrew.yml' ':(exclude).github/scripts/dex04-homecrew-smoke.py'
+          evidence="$GITHUB_WORKSPACE/dex-qa-output"
+          mkdir -p "$evidence"
+          base="$RUNNER_TEMP/dex04-baseline"
+          git worktree add --detach "$base" "$BASE_SHA"
+
+          python3 - "$base" "$GITHUB_WORKSPACE" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          config = {
+              'project_info': {'project_id': 'demo-homecrew-dex03', 'project_number': '123456789012'},
+              'client': [{
+                  'client_info': {
+                      'android_client_info': {'package_name': 'com.hebi.homecrew'},
+                      'mobilesdk_app_id': '1:123456789012:android:0123456789abcd',
+                  },
+                  'oauth_client': [{'client_type': 3, 'client_id': '123456789012-qa.invalid'}],
+                  'api_key': [{'current_key': 'OFFLINE_TEST_FIXTURE'}],
+              }],
+              'configuration_version': '1',
+          }
+          for root in sys.argv[1:]:
+              (Path(root) / 'app' / 'google-services.json').write_text(json.dumps(config))
+          PY
+
+          export ANDROID_RELEASE_KEYSTORE_PATH="$RUNNER_TEMP/homecrew-qa.p12"
+          export ANDROID_RELEASE_STORE_PASSWORD="$(openssl rand -hex 24)"
+          export ANDROID_RELEASE_KEY_PASSWORD="$ANDROID_RELEASE_STORE_PASSWORD"
+          export ANDROID_RELEASE_KEY_ALIAS=dex04-qa
+          keytool -genkeypair -storetype PKCS12 -keystore "$ANDROID_RELEASE_KEYSTORE_PATH" \
+            -alias "$ANDROID_RELEASE_KEY_ALIAS" -storepass:env ANDROID_RELEASE_STORE_PASSWORD \
+            -keyalg RSA -keysize 2048 -validity 7 -dname 'CN=HomeCrew disposable DEX-04 QA'
+          ANDROID_RELEASE_CERT_SHA256="$(keytool -exportcert -keystore "$ANDROID_RELEASE_KEYSTORE_PATH" \
+            -alias "$ANDROID_RELEASE_KEY_ALIAS" -storepass:env ANDROID_RELEASE_STORE_PASSWORD | sha256sum | cut -d ' ' -f 1)"
+          export ANDROID_RELEASE_CERT_SHA256
+          (cd "$base" && ./gradlew --no-daemon :app:bundleRelease :app:assembleRelease -PversionCode=15)
+          ./gradlew --no-daemon :app:bundleRelease :app:assembleRelease -PversionCode=16
+          cp "$base/app/build/outputs/apk/release/app-release.apk" "$evidence/baseline.apk"
+          cp app/build/outputs/mapping/release/mapping.txt "$evidence/mapping.txt"
+          test -s "$evidence/mapping.txt"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt2" dump resources app/build/outputs/apk/release/app-release.apk > "$RUNNER_TEMP/resources.txt"
+          grep -Fq 'string/default_web_client_id' "$RUNNER_TEMP/resources.txt"
+          python3 - "$base" "$evidence" <<'PY'
+          import json
+          import os
+          import re
+          import sys
+          from pathlib import Path
+          from zipfile import ZipFile
+
+          def bundle_dex(root):
+              path = Path(root) / 'app/build/outputs/bundle/release/app-release.aab'
+              with ZipFile(path) as bundle:
+                  files = [item for item in bundle.infolist()
+                           if re.search(r'/dex/classes(?:\d+)?\.dex$', item.filename)]
+                  markers = sorted(set().union(*(
+                      set(re.findall(rb'~~(?:R8|D8)\{"[^}]+\}', bundle.read(item)))
+                      for item in files
+                  )))
+                  return sum(item.file_size for item in files), [item.decode() for item in markers]
+
+          before, baseline_markers = bundle_dex(sys.argv[1])
+          after, candidate_markers = bundle_dex('.')
+          assert 0 < after < before
+          assert any(marker.startswith('~~R8') for marker in candidate_markers), candidate_markers
+          result = {
+              'baseline_sha': os.environ['BASE_SHA'],
+              'candidate_sha': os.environ['CANDIDATE_SHA'],
+              'baseline_dex_bytes': before,
+              'candidate_dex_bytes': after,
+              'reduction_pct': round((1 - after / before) * 100, 2),
+              'baseline_markers': baseline_markers,
+              'candidate_markers': candidate_markers,
+              'auth_client_resource_retained': True,
+              'firebase_config': 'synthetic offline QA fixture',
+          }
+          content = json.dumps(result, indent=2) + '\n'
+          print(content)
+          (Path(sys.argv[2]) / 'dex.json').write_text(content)
+          PY
+      - name: Preserve the comparison before device checks
+        uses: actions/upload-artifact@v4
+        with:
+          name: homecrew-dex-04-release-proof
+          path: dex-qa-output/
+          if-no-files-found: error
+          retention-days: 7
+      - name: Preserve the disposable APK for device retries
+        uses: actions/upload-artifact@v4
+        with:
+          name: homecrew-dex-04-disposable-apk
+          path: app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+          retention-days: 3
+      - name: Allow KVM on the hosted Actions runner
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-dex-qa-kvm.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Update the baseline release and check offline chore data and settings
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_2
+          disable-animations: true
+          script: python3 .github/scripts/dex04-homecrew-smoke.py
+      - name: Preserve device evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: homecrew-dex-04-device-proof
+          path: |
+            dex-qa-output/*.png
+            dex-qa-output/*.xml
+            dex-qa-output/logcat.txt
+          if-no-files-found: warn
+          retention-days: 7
