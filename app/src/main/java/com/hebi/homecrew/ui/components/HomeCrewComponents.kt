@@ -2,10 +2,12 @@ package com.hebi.homecrew.ui.components
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -19,6 +21,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.BarChart
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.CleaningServices
+import androidx.compose.material.icons.outlined.Cottage
+import androidx.compose.material.icons.outlined.LocalLaundryService
+import androidx.compose.material.icons.outlined.Pets
+import androidx.compose.material.icons.outlined.Recycling
+import androidx.compose.material.icons.outlined.Restaurant
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.WarningAmber
 import androidx.compose.material.icons.outlined.ChevronRight
@@ -44,6 +52,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.progressBarRangeInfo
@@ -186,36 +195,51 @@ fun homeProgressLabel(completed: Int, total: Int): String = when {
 }
 
 @Composable
-fun HomeCrewProgressCard(completed: Int, total: Int) {
+fun HomeCrewProgressCard(completed: Int, total: Int, showHouse: Boolean = false) {
     val palette = LocalHomeCrewColors.current
     val percent = completionPercent(completed, total)
+    val barHeight = if (showHouse) 8.dp else 6.dp
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(palette.subtle, RoundedCornerShape(4.dp))
-            .padding(16.dp),
+            .background(palette.subtle, RoundedCornerShape(if (showHouse) 12.dp else 4.dp))
+            .padding(horizontal = 16.dp, vertical = if (showHouse) 24.dp else 16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Text("오늘의 진행률", style = MaterialTheme.typography.labelLarge)
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(HomeCrewDimensions.space12)) {
-            Text(
-                text = "${completed.coerceIn(0, total.coerceAtLeast(0))} / ${total.coerceAtLeast(0)}",
-                modifier = Modifier.weight(1f),
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                text = if (total > 0) "$percent%" else "–",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.semantics { contentDescription = homeProgressLabel(completed, total) }
-            )
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("오늘의 진행률", style = MaterialTheme.typography.labelLarge)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(HomeCrewDimensions.space8)) {
+                    Text(
+                        text = "${completed.coerceIn(0, total.coerceAtLeast(0))} / ${total.coerceAtLeast(0)}",
+                        modifier = Modifier.align(Alignment.CenterVertically),
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Text(
+                        text = if (total > 0) "$percent% 완료" else "–",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = palette.muted,
+                        modifier = Modifier.align(Alignment.CenterVertically)
+                            .semantics { contentDescription = homeProgressLabel(completed, total) },
+                    )
+                }
+            }
+            if (showHouse) {
+                Box(
+                    modifier = Modifier.size(62.dp)
+                        .background(palette.warning.copy(alpha = 0.12f), RoundedCornerShape(12.dp)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(Icons.Outlined.Cottage, null, tint = palette.warning, modifier = Modifier.size(42.dp))
+                }
+            }
         }
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(6.dp)
+                .height(barHeight)
                 .background(palette.border)
                 .semantics {
                     progressBarRangeInfo = ProgressBarRangeInfo(percent.toFloat(), 0f..100f)
@@ -225,7 +249,7 @@ fun HomeCrewProgressCard(completed: Int, total: Int) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth(percent / 100f)
-                        .height(6.dp)
+                        .height(barHeight)
                         .background(palette.success)
                 )
             }
@@ -238,16 +262,21 @@ fun HomeCrewTaskRow(
     chore: PreviewChore,
     onToggleComplete: () -> Unit,
     onOpenDetails: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    category: String? = null,
 ) {
     val palette = LocalHomeCrewColors.current
     val completed = chore.status == ChoreStatus.COMPLETED
+    val rowShape = RoundedCornerShape(if (category == null) 4.dp else 12.dp)
+    val cardBorder = if (category == null) Modifier else Modifier.border(1.dp, palette.border, rowShape)
 
     Row(
         modifier = modifier
             .fillMaxWidth()
             .heightIn(min = HomeCrewDimensions.taskRowMinHeight)
-            .background(palette.surface, RoundedCornerShape(4.dp))
+            .clip(rowShape)
+            .background(palette.surface)
+            .then(cardBorder)
             .clickable(onClick = onOpenDetails)
             .padding(end = 8.dp, top = 4.dp, bottom = 4.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -281,6 +310,10 @@ fun HomeCrewTaskRow(
                 style = MaterialTheme.typography.bodySmall
             )
         }
+        if (category != null) {
+            ChoreCategoryIcon(category)
+            Spacer(Modifier.size(8.dp))
+        }
         HomeCrewStatusChip(chore.status)
         Icon(
             imageVector = Icons.Outlined.ChevronRight,
@@ -289,6 +322,20 @@ fun HomeCrewTaskRow(
             modifier = Modifier.padding(start = 8.dp).size(18.dp)
         )
     }
+}
+
+@Composable
+private fun ChoreCategoryIcon(category: String) {
+    val palette = LocalHomeCrewColors.current
+    val (icon, tint) = when (category) {
+        "주방" -> Icons.Outlined.Restaurant to palette.warning
+        "청소" -> Icons.Outlined.CleaningServices to MaterialTheme.colorScheme.secondary
+        "쓰레기" -> Icons.Outlined.Recycling to palette.success
+        "세탁" -> Icons.Outlined.LocalLaundryService to MaterialTheme.colorScheme.secondary
+        "반려동물" -> Icons.Outlined.Pets to palette.warning
+        else -> Icons.Outlined.Home to palette.muted
+    }
+    Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(22.dp))
 }
 
 enum class HomeTab(val label: String) {

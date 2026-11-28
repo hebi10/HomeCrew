@@ -114,7 +114,8 @@ fun DemoChoreRow(
     task: DemoChore,
     today: LocalDate,
     onToggle: () -> Unit,
-    onDetails: () -> Unit
+    onDetails: () -> Unit,
+    useHomeCard: Boolean = false,
 ) {
     HomeCrewTaskRow(
         chore = PreviewChore(
@@ -124,7 +125,8 @@ fun DemoChoreRow(
             status = demoChoreStatus(task, today)
         ),
         onToggleComplete = onToggle,
-        onOpenDetails = onDetails
+        onOpenDetails = onDetails,
+        category = task.definition.category.takeIf { useHomeCard },
     )
 }
 
