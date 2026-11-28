@@ -1,7 +1,7 @@
 package com.hebi.homecrew.ui.screens
 
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -12,24 +12,32 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.DarkMode
+import androidx.compose.material.icons.outlined.KeyboardArrowDown
 import androidx.compose.material.icons.outlined.LightMode
 import androidx.compose.material.icons.outlined.SettingsBrightness
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import com.hebi.homecrew.ui.components.HomeCrewFilterChip
 import com.hebi.homecrew.ui.components.HomeCrewProgressCard
 import com.hebi.homecrew.ui.theme.HomeCrewDimensions
 import com.hebi.homecrew.ui.theme.HomeCrewTheme
@@ -71,6 +79,7 @@ fun HomeCrewHomeScreen(
         otherRemaining == 0 -> if (others.any { it.skipped }) "남은 할 일 없음" else "모두 완료"
         else -> "${otherRemaining}개 남음"
     }
+    var memberMenuOpen by remember { mutableStateOf(false) }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -78,13 +87,44 @@ fun HomeCrewHomeScreen(
             horizontal = HomeCrewDimensions.screenPadding,
             vertical = HomeCrewDimensions.space16
         ),
-        verticalArrangement = Arrangement.spacedBy(HomeCrewDimensions.space8)
+        verticalArrangement = Arrangement.spacedBy(HomeCrewDimensions.space12)
     ) {
         item {
-            ScreenHeader(
-                title = householdName,
-                subtitle = "${koreanDateLabel(today)} · 오늘"
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.Top,
             ) {
+                Column(Modifier.weight(1f)) {
+                    Box {
+                        TextButton(
+                            onClick = { memberMenuOpen = true },
+                            contentPadding = PaddingValues(0.dp),
+                            modifier = Modifier.heightIn(min = HomeCrewDimensions.touchTarget).semantics {
+                                contentDescription = "화면 제목: $householdName"
+                                stateDescription = "보는 구성원 · $currentMember"
+                            },
+                        ) {
+                            Text(householdName, color = palette.ink, style = MaterialTheme.typography.headlineSmall)
+                            Icon(Icons.Outlined.KeyboardArrowDown, null, modifier = Modifier.size(20.dp))
+                        }
+                        DropdownMenu(expanded = memberMenuOpen, onDismissRequest = { memberMenuOpen = false }) {
+                            members.forEach { name ->
+                                DropdownMenuItem(
+                                    text = { Text(if (name == currentMember) "$name · 현재" else name) },
+                                    onClick = {
+                                        onMemberSelected(name)
+                                        memberMenuOpen = false
+                                    },
+                                )
+                            }
+                        }
+                    }
+                    Text(
+                        "${koreanDateLabel(today)} · 오늘",
+                        color = palette.muted,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
                 IconButton(onClick = onOpenSettings) {
                     Icon(Icons.Outlined.Settings, contentDescription = "집 및 앱 설정")
                 }
@@ -102,28 +142,7 @@ fun HomeCrewHomeScreen(
             }
         }
         item {
-            Column(verticalArrangement = Arrangement.spacedBy(HomeCrewDimensions.space4)) {
-                Text(
-                    "구성원",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = palette.muted
-                )
-                Row(
-                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(HomeCrewDimensions.space8)
-                ) {
-                    members.forEach { name ->
-                        HomeCrewFilterChip(
-                            label = name,
-                            selected = currentMember == name,
-                            onClick = { onMemberSelected(name) }
-                        )
-                    }
-                }
-            }
-        }
-        item {
-            HomeCrewProgressCard(summary.completed, summary.total)
+            HomeCrewProgressCard(summary.completed, summary.total, showHouse = true)
         }
         item {
             Row(
@@ -170,7 +189,8 @@ fun HomeCrewHomeScreen(
                     task = task,
                     today = today,
                     onToggle = { onToggle(task.id) },
-                    onDetails = { onDetails(task) }
+                    onDetails = { onDetails(task) },
+                    useHomeCard = true,
                 )
             }
         }
@@ -196,7 +216,8 @@ fun HomeCrewHomeScreen(
                         task = task,
                         today = today,
                         onToggle = { onToggle(task.id) },
-                        onDetails = { onDetails(task) }
+                        onDetails = { onDetails(task) },
+                        useHomeCard = true,
                     )
                 }
             }
